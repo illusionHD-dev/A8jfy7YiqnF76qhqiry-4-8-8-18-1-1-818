@@ -2844,30 +2844,7 @@ local function destinationFor(remotePath, treePaths)
 	return 'newvape/'..remotePath
 end
 
-if not shared.VapeDeveloper then
-	local treeBody = httpGet(API_TREE)
-	if treeBody then
-		local ok, treeData = pcall(function()
-			return httpService:JSONDecode(treeBody)
-		end)
-		if ok and type(treeData) == 'table' and type(treeData.tree) == 'table' then
-			local treePaths = {}
-			for _, item in treeData.tree do
-				if item.type == 'blob' and type(item.path) == 'string' then
-					treePaths[item.path] = true
-				end
-			end
-			for _, item in treeData.tree do
-				if item.type == 'blob' and type(item.path) == 'string' then
-					local localPath = destinationFor(item.path, treePaths)
-					if localPath then
-						writeRemote(item.path, localPath, false)
-					end
-				end
-			end
-		end
-	end
-end
+-- Full repository sync is started AFTER Vape launches.
 
 local required = {
 	{'main.lua', 'newvape/main.lua'},
@@ -2884,8 +2861,16 @@ local required = {
 	{'libraries/prediction.lua', 'newvape/libraries/prediction.lua'}
 }
 
+-- Keep startup fast:
+-- refresh the files that actually control execution, and only fetch the
+-- remaining runtime dependencies if they are missing.
+local startupRefresh = {
+	['main.lua'] = true,
+	['games/5938036553.lua'] = true
+}
+
 for _, pair in required do
-	if not isfile(pair[2]) then
+	if startupRefresh[pair[1]] or not isfile(pair[2]) then
 		writeRemote(pair[1], pair[2], true)
 	end
 end
@@ -2913,4 +2898,64 @@ if isfile('newvape/main.lua') then
 	end
 end
 
-return loadstring(readfile('newvape/main.lua'), 'main')()
+local mainSource = readfile('newvape/main.lua')
+local mainChunk, mainCompileError = loadstring(mainSource, 'main')
+
+if not mainChunk then
+	warn('[illusionHD] main.lua failed to compile: '..tostring(mainCompileError))
+	error(mainCompileError, 0)
+end
+
+-- Launch the UI/client FIRST. The old loader blocked here while it downloaded
+-- the entire GitHub repository.
+task.spawn(function()
+	local ok, err = pcall(mainChunk)
+	if not ok then
+		warn('[illusionHD] main.lua runtime error: '..tostring(err))
+	end
+end)
+
+-- Sync every other repository file in the background so startup is not blocked.
+if not shared.VapeDeveloper then
+	task.spawn(function()
+		task.wait(1)
+
+		local treeBody = httpGet(API_TREE)
+		if not treeBody then
+			warn('[illusionHD] Background GitHub sync skipped: tree request failed.')
+			return
+		end
+
+		local ok, treeData = pcall(function()
+			return httpService:JSONDecode(treeBody)
+		end)
+
+		if not ok or type(treeData) ~= 'table' or type(treeData.tree) ~= 'table' then
+			warn('[illusionHD] Background GitHub sync skipped: invalid tree response.')
+			return
+		end
+
+		local treePaths = {}
+		for _, item in treeData.tree do
+			if item.type == 'blob' and type(item.path) == 'string' then
+				treePaths[item.path] = true
+			end
+		end
+
+		for _, item in treeData.tree do
+			if item.type == 'blob' and type(item.path) == 'string' then
+				local localPath = destinationFor(item.path, treePaths)
+
+				-- main.lua and the active game file were already refreshed before launch.
+				if localPath
+					and localPath ~= 'newvape/main.lua'
+					and localPath ~= 'newvape/games/5938036553.lua' then
+					pcall(writeRemote, item.path, localPath, false)
+					task.wait()
+				end
+			end
+		end
+	end)
+end
+
+return true
