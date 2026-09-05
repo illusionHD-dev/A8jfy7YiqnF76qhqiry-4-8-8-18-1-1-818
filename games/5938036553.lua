@@ -1750,6 +1750,7 @@ run(function()
 		            	    SunAngularSize = 21,
 				    StarCount = 3000,
 		    	}
+	}
 	local themeNames = {'NetherWorld', 'Neptune', 'Velocity', 'Minecraft', 'Purple', '日の出', 'Sakura', 'Hexagonal', 'Reality', 'LunarNight', 'FPSBoost', 'Etheral', 'Pandora', 'Polaris', 'Diaphanous', 'Transcendent', 'Truth', 'RayTracing', 'Nebula', 'Planets', 'Galaxy', 'Blues', 'Milkyway', 'Orange', 'DarkMountains', 'Space', 'Void', 'Stary', 'Violet', 'Cloudy'}
 
 	local skyProperties = {
