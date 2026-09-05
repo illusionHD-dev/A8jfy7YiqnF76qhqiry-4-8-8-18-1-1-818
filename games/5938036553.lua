@@ -703,6 +703,7 @@ run(function()
 	local Target
 	local Mode
 	local Range
+	local Angle
 	local HitChance
 	local HeadshotChance
 	local AutoFire
@@ -723,28 +724,95 @@ run(function()
 		return inputService:GetMouseLocation()
 	end
 	
-	local function getTarget(origin, obj)
-		if rand.NextNumber(rand, 0, 100) > (AutoFire.Enabled and 100 or HitChance.Value) then
+	local function getTarget(origin, obj, ignoreChance)
+		if not ignoreChance and rand.NextNumber(rand, 0, 100) > (AutoFire.Enabled and 100 or HitChance.Value) then
 			return
 		end
-		--local targetPart = (Random.new().NextNumber(Random.new(), 0, 100) < (AutoFire.Enabled and 100 or HeadshotChance.Value)) and 'Head' or 'RootPart'
+
 		local targetPart = 'RootPart'
-		local entity = entitylib['Entity'..Mode.Value]({
-			Range = Range.Value,
+		local maxAngle = Angle and Angle.Value or 360
+		local mouse = getMousePosition()
+
+		local cameraLook = gameCamera and gameCamera.CFrame.LookVector or Vector3.new(0, 0, -1)
+		local flatLook = cameraLook * Vector3.new(1, 0, 1)
+		flatLook = flatLook.Magnitude > 0.001 and flatLook.Unit or Vector3.new(0, 0, -1)
+
+		-- Mouse mode uses Range as pixel FOV. Search farther in world-space,
+		-- then apply the pixel FOV to targets that are actually on-screen.
+		local searchRange = Mode.Value == 'Mouse' and math.max(Range.Value, 1000) or Range.Value
+		local entities = entitylib.AllPosition({
+			Range = searchRange,
 			Wallcheck = Target.Walls.Enabled and (obj or true) or nil,
 			Part = targetPart,
 			Origin = origin,
 			Players = Target.Players.Enabled,
-			NPCs = Target.NPCs.Enabled
+			NPCs = Target.NPCs.Enabled,
+			Limit = 100
 		})
-	
-		if entity then
-			targetinfo.Targets[entity] = tick() + 1
+
+		local best
+		local bestScore = math.huge
+
+		for _, entity in entities do
+			local part = entity[targetPart]
+			if not part then continue end
+
+			local delta = part.Position - origin
+			local distance = delta.Magnitude
+			if distance <= 0.001 then continue end
+
+			-- Horizontal/yaw cone:
+			-- 90 = +/-45, 180 = +/-90, 360 = completely unrestricted.
+			if maxAngle < 360 then
+				local flatDelta = delta * Vector3.new(1, 0, 1)
+				if flatDelta.Magnitude > 0.001 then
+					local dot = math.clamp(flatLook:Dot(flatDelta.Unit), -1, 1)
+					local degrees = math.deg(math.acos(dot))
+					if degrees > (maxAngle / 2) then
+						continue
+					end
+				end
+			end
+
+			local score
+			if Mode.Value == 'Mouse' then
+				local viewport, visible = gameCamera:WorldToViewportPoint(part.Position)
+
+				if visible and viewport.Z > 0 then
+					local mouseDistance = (mouse - Vector2.new(viewport.X, viewport.Y)).Magnitude
+					if mouseDistance > Range.Value then
+						continue
+					end
+					score = mouseDistance
+				else
+					-- At angles above 180, off-screen targets behind the camera
+					-- are valid. On-screen mouse targets remain preferred.
+					if maxAngle <= 180 then
+						continue
+					end
+					score = 100000 + distance
+				end
+			else
+				score = distance
+			end
+
+			if entity.Target then
+				score -= 1000000
+			end
+
+			if score < bestScore then
+				bestScore = score
+				best = entity
+			end
 		end
-	
-		return entity, entity and entity[targetPart]
+
+		if best then
+			targetinfo.Targets[best] = tick() + 1
+		end
+
+		return best, best and best[targetPart]
 	end
-	
+
 	local function raycastLoop(origin, pos)
 		local returned
 		local real = origin
@@ -804,14 +872,8 @@ run(function()
 					end
 	
 					if AutoFire.Enabled then
-						local entity = entitylib['Entity'..Mode.Value]({
-							Range = Range.Value,
-							Wallcheck = Target.Walls.Enabled or nil,
-							Part = 'RootPart',
-							Origin = entitylib.isAlive and frontlines.Main.globals.fpv_sol_instances.camera_bone.WorldPosition or Vector3.zero,
-							Players = Target.Players.Enabled,
-							NPCs = Target.NPCs.Enabled
-						})
+						local origin = entitylib.isAlive and frontlines.Main.globals.fpv_sol_instances.camera_bone.WorldPosition or Vector3.zero
+						local entity = select(1, getTarget(origin, nil, true))
 	
 						local gun = frontlines.Main.globals.fpv_sol_equipment.curr_equipment
 						entity = gun and gun.type ~= 2 and entity or nil
@@ -861,6 +923,13 @@ run(function()
 				CircleObject.Radius = val
 			end
 		end
+	})
+	Angle = SilentAim:CreateSlider({
+		Name = 'Aim Angle',
+		Min = 90,
+		Max = 360,
+		Default = 360,
+		Suffix = '°'
 	})
 	HitChance = SilentAim:CreateSlider({
 		Name = 'Hit Chance',
@@ -1456,6 +1525,237 @@ end)
 
 
 
+
+
+-- ILLUSIONHD_GUNCHANGER_V1
+run(function()
+	local GunChanger
+	local RainbowSpeed
+	local Saturation
+	local Brightness
+	local BrightForceField
+	local optionsReady = false
+
+	local originals = {}
+	local gunParts = {}
+	local lastScan = 0
+
+	local function optionValue(option, fallback)
+		return option and option.Value ~= nil and option.Value or fallback
+	end
+
+	local function optionEnabled(option, fallback)
+		if option and option.Enabled ~= nil then
+			return option.Enabled
+		end
+		return fallback
+	end
+
+	local function nameLooksLikeBody(name)
+		name = name:lower()
+		return name:find('arm', 1, true)
+			or name:find('hand', 1, true)
+			or name:find('glove', 1, true)
+			or name:find('sleeve', 1, true)
+			or name:find('body', 1, true)
+			or name:find('torso', 1, true)
+			or name:find('head', 1, true)
+			or name:find('root', 1, true)
+	end
+
+	local function isIgnored(part)
+		local obj = part
+		while obj and obj ~= gameCamera do
+			if nameLooksLikeBody(obj.Name) then
+				return true
+			end
+
+			if obj.Name == 'IllusionHDCustomKnife'
+				or obj.Name == 'IllusionHDFireflies'
+				or obj.Name == 'IllusionHDHitEffects'
+				or obj.Name == 'IllusionHDKillEffects' then
+				return true
+			end
+
+			obj = obj.Parent
+		end
+
+		return false
+	end
+
+	local function savePart(part)
+		if originals[part] then return end
+		originals[part] = {
+			Material = part.Material,
+			Color = part.Color,
+			Reflectance = part.Reflectance,
+			Transparency = part.Transparency
+		}
+	end
+
+	local function restorePart(part)
+		local old = originals[part]
+		if not old then return end
+
+		if part and part.Parent then
+			pcall(function()
+				part.Material = old.Material
+				part.Color = old.Color
+				part.Reflectance = old.Reflectance
+				part.Transparency = old.Transparency
+			end)
+		end
+
+		originals[part] = nil
+	end
+
+	local function restoreAll()
+		for part in originals do
+			restorePart(part)
+		end
+		table.clear(gunParts)
+	end
+
+	local function currentGun()
+		local equipment = frontlines.Main
+			and frontlines.Main.globals
+			and frontlines.Main.globals.fpv_sol_equipment
+		return equipment and equipment.curr_equipment
+	end
+
+	local function scanGun()
+		local gun = currentGun()
+
+		-- Frontlines uses type 2 for melee/knife.
+		if not gun or gun.type == 2 then
+			restoreAll()
+			return
+		end
+
+		local newParts = {}
+		local seen = {}
+
+		-- FPV weapon geometry is rendered under CurrentCamera.
+		for _, obj in gameCamera:GetDescendants() do
+			if obj:IsA('BasePart')
+				and not seen[obj]
+				and not isIgnored(obj) then
+				seen[obj] = true
+				savePart(obj)
+				table.insert(newParts, obj)
+			end
+		end
+
+		-- Restore anything that disappeared from the current firearm/viewmodel.
+		local active = {}
+		for _, part in newParts do
+			active[part] = true
+		end
+
+		for part in originals do
+			if not active[part] then
+				restorePart(part)
+			end
+		end
+
+		gunParts = newParts
+	end
+
+	GunChanger = vape.Categories.Render:CreateModule({
+		Name = 'GunChanger',
+		Function = function(callback)
+			if callback then
+				task.defer(function()
+					while GunChanger and GunChanger.Enabled and not optionsReady do
+						task.wait()
+					end
+					if not GunChanger or not GunChanger.Enabled then return end
+
+					lastScan = 0
+
+					GunChanger:Clean(runService.RenderStepped:Connect(function()
+						if not optionsReady then return end
+
+						local now = tick()
+						local gun = currentGun()
+
+						if not gun or gun.type == 2 then
+							restoreAll()
+							return
+						end
+
+						if now - lastScan > 0.2 then
+							lastScan = now
+							scanGun()
+						end
+
+						local hue = (now * (optionValue(RainbowSpeed, 8) / 10)) % 1
+						local color = Color3.fromHSV(
+							hue,
+							optionValue(Saturation, 1),
+							optionValue(Brightness, 1)
+						)
+
+						for _, part in gunParts do
+							if part and part.Parent then
+								part.Material = Enum.Material.ForceField
+								part.Color = color
+								part.Reflectance = 0
+
+								if optionEnabled(BrightForceField, true) then
+									part.Transparency = math.min(part.Transparency, 0.08)
+								end
+							end
+						end
+					end))
+
+					GunChanger:Clean(entitylib.Events.LocalAdded:Connect(function()
+						lastScan = 0
+					end))
+				end)
+			else
+				restoreAll()
+			end
+		end,
+		Tooltip = 'Changes your first-person firearm into an animated rainbow ForceField.'
+	})
+
+	RainbowSpeed = GunChanger:CreateSlider({
+		Name = 'Rainbow Speed',
+		Min = 1,
+		Max = 30,
+		Default = 8,
+		Decimal = 10
+	})
+
+	Saturation = GunChanger:CreateSlider({
+		Name = 'Saturation',
+		Min = 0,
+		Max = 1,
+		Default = 1,
+		Decimal = 100
+	})
+
+	Brightness = GunChanger:CreateSlider({
+		Name = 'Brightness',
+		Min = 0.1,
+		Max = 1,
+		Default = 1,
+		Decimal = 100
+	})
+
+	BrightForceField = GunChanger:CreateToggle({
+		Name = 'Bright ForceField',
+		Default = true
+	})
+
+	optionsReady = true
+
+	vape:Clean(function()
+		restoreAll()
+	end)
+end)
+-- ILLUSIONHD_GUNCHANGER_END
 
 -- ILLUSIONHD_CUSTOMKNIFE_V2
 run(function()
