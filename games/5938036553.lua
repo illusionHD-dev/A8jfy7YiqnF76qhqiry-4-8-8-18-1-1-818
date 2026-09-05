@@ -1454,6 +1454,780 @@ end)
 
 
 
+
+
+-- ILLUSIONHD_SKYTHEMES_V1
+run(function()
+	local SkyThemes
+	local Theme
+	local lightingService = cloneref(game:GetService('Lighting'))
+
+	local skyThemes = {
+		        NetherWorld = {
+			            MoonAngularSize = 0,
+			            SunAngularSize = 0,
+			            SkyboxBk = 'rbxassetid://14365019002',
+			            SkyboxDn = 'rbxassetid://14365023350',
+			            SkyboxFt = 'rbxassetid://14365018399',
+			            SkyboxLf = 'rbxassetid://14365018705',
+			            SkyboxRt = 'rbxassetid://14365018143',
+			            SkyboxUp = 'rbxassetid://14365019327',
+		        },
+		        Neptune = {
+				    SkyboxBk = 'rbxassetid://218955819',
+				    SkyboxDn = 'rbxassetid://218953419',
+				    SkyboxFt = 'rbxassetid://218954524',
+				    SkyboxLf = 'rbxassetid://218958493',
+				    SkyboxRt = 'rbxassetid://218957134',
+				    SkyboxUp = 'rbxassetid://218950090',
+		        },
+		        Velocity = {
+			            SkyboxBk = 'rbxassetid://570557514',
+			            SkyboxDn = 'rbxassetid://570557775',
+			            SkyboxFt = 'rbxassetid://570557559',
+			            SkyboxLf = 'rbxassetid://570557620',
+			            SkyboxRt = 'rbxassetid://570557672',
+			            SkyboxUp = 'rbxassetid://570557727',
+		        },
+		        Minecraft = {
+			            SkyboxBk = 'rbxassetid://591058823',
+			            SkyboxDn = 'rbxassetid://591059876',
+			            SkyboxFt = 'rbxassetid://591058104',
+			            SkyboxLf = 'rbxassetid://591057861',
+			            SkyboxRt = 'rbxassetid://591057625',
+			            SkyboxUp = 'rbxassetid://591059642',
+		        },
+		        Purple = {
+			            SkyboxBk = "rbxassetid://8539982183",
+			            SkyboxDn = "rbxassetid://8539981943",
+			            SkyboxFt = "rbxassetid://8539981721",
+			            SkyboxLf = "rbxassetid://8539981424",
+			            SkyboxRt = "rbxassetid://8539980766",
+			            SkyboxUp = "rbxassetid://8539981085",
+			            MoonAngularSize = 0,
+			            SunAngularSize = 0,
+			            StarCount = 3000,
+		        }, 
+		        ["日の出"] = {
+				    SkyboxBk = "rbxassetid://600830446",
+				    SkyboxDn = "rbxassetid://600831635",
+				    SkyboxFt = "rbxassetid://600832720",
+				    SkyboxLf = "rbxassetid://600886090",
+				    SkyboxRt = "rbxassetid://600833862",
+				    SkyboxUp = "rbxassetid://600835177",
+		        },
+		        Sakura = {
+			            SkyboxBk = "http://www.roblox.com/asset/?id=16694315897",
+			            SkyboxDn = "http://www.roblox.com/asset/?id=16694319417",
+			            SkyboxFt = "http://www.roblox.com/asset/?id=16694324910",
+			            SkyboxLf = "http://www.roblox.com/asset/?id=16694328308",
+			            SkyboxRt = "http://www.roblox.com/asset/?id=16694331447",
+			            SkyboxUp = "http://www.roblox.com/asset/?id=16694334666",
+			            SunAngularSize = 21,
+			            StarCount = 3000,
+		        },
+		        Hexagonal = {
+			            SkyboxBk = "http://www.roblox.com/asset/?id=15876463105",
+			            SkyboxDn = "http://www.roblox.com/asset/?id=15876464432",
+			            SkyboxFt = "http://www.roblox.com/asset/?id=15876465852",
+			            SkyboxLf = "http://www.roblox.com/asset/?id=15876467260",
+			            SkyboxRt = "http://www.roblox.com/asset/?id=15876469097",
+			            SkyboxUp = "http://www.roblox.com/asset/?id=15876470945",
+			            SunAngularSize = 21,
+			            StarCount = 3000,
+		        },
+		        Reality = {
+			            SkyboxBk = "http://www.roblox.com/asset/?id=6778646360",
+			            SkyboxDn = "http://www.roblox.com/asset/?id=6778658683",
+			            SkyboxFt = "http://www.roblox.com/asset/?id=6778648039",
+			            SkyboxLf = "http://www.roblox.com/asset/?id=6778649136",
+			            SkyboxRt = "http://www.roblox.com/asset/?id=6778650519",
+			            SkyboxUp = "http://www.roblox.com/asset/?id=6778658364",
+		        },
+		        LunarNight = {
+			            SkyboxBk = 'rbxassetid://187713366',
+			            SkyboxDn = 'rbxassetid://187712428',
+			            SkyboxFt = 'rbxassetid://187712836',
+			            SkyboxLf = 'rbxassetid://187713755',
+			            SkyboxRt = 'rbxassetid://187714525',
+			            SkyboxUp = 'rbxassetid://187712111',
+			            SunAngularSize = 0,
+			            StarCount = 0,
+		        },
+		        FPSBoost = {
+			            SkyboxBk = 'rbxassetid://11457548274',
+			            SkyboxDn = 'rbxassetid://11457548274',
+			            SkyboxFt = 'rbxassetid://11457548274',
+			            SkyboxLf = 'rbxassetid://11457548274',
+			            SkyboxRt = 'rbxassetid://11457548274',
+			            SkyboxUp = 'rbxassetid://11457548274',
+			            SunAngularSize = 0,
+			            StarCount = 3000,
+		        },
+		        Etheral = {
+			            SkyboxBk = 'rbxassetid://16262356578',
+			            SkyboxDn = 'rbxassetid://16262358026',
+			            SkyboxFt = 'rbxassetid://16262360469',
+			            SkyboxLf = 'rbxassetid://16262362003',
+			            SkyboxRt = 'rbxassetid://16262363873',
+			            SkyboxUp = 'rbxassetid://16262366016',
+			            SunAngularSize = 21,
+			            StarCount = 3000,
+		        },
+		        Pandora = {
+			            SkyboxBk = 'http://www.roblox.com/asset/?id=16739324092',
+			            SkyboxDn = 'http://www.roblox.com/asset/?id=16739325541',
+			            SkyboxFt = 'http://www.roblox.com/asset/?id=16739327056',
+			            SkyboxLf = 'http://www.roblox.com/asset/?id=16739329370',
+			            SkyboxRt = 'http://www.roblox.com/asset/?id=16739331050',
+			            SkyboxUp = 'http://www.roblox.com/asset/?id=16739332736',
+			            SunAngularSize = 21,
+			            StarCount = 3000,
+		        },
+		        Polaris = {
+			            SkyboxBk = 'http://www.roblox.com/asset/?id=16823270864',
+			            SkyboxDn = 'http://www.roblox.com/asset/?id=16823272150',
+			            SkyboxFt = 'http://www.roblox.com/asset/?id=16823273508',
+			            SkyboxLf = 'http://www.roblox.com/asset/?id=16823274898',
+			            SkyboxRt = 'http://www.roblox.com/asset/?id=16823276281',
+			            SkyboxUp = 'http://www.roblox.com/asset/?id=16823277547',
+			            SunAngularSize = 21,
+			            StarCount = 3000,
+		        },
+		        Diaphanous = {
+			            SkyboxBk = 'http://www.roblox.com/asset/?id=16888989874',
+			            SkyboxDn = 'http://www.roblox.com/asset/?id=16888991855',
+			            SkyboxFt = 'http://www.roblox.com/asset/?id=16888995219',
+			            SkyboxLf = 'http://www.roblox.com/asset/?id=16888998994',
+			            SkyboxRt = 'http://www.roblox.com/asset/?id=16889000916',
+			            SkyboxUp = 'http://www.roblox.com/asset/?id=16889004122',
+			            SunAngularSize = 21,
+			            StarCount = 3000,
+		        },
+		        Transcendent = {
+			            SkyboxBk = 'http://www.roblox.com/asset/?id=17124357467',
+			            SkyboxDn = 'http://www.roblox.com/asset/?id=17124359797',
+			            SkyboxFt = 'http://www.roblox.com/asset/?id=17124362093',
+			            SkyboxLf = 'http://www.roblox.com/asset/?id=17124365127',
+			            SkyboxRt = 'http://www.roblox.com/asset/?id=17124367200',
+			            SkyboxUp = 'http://www.roblox.com/asset/?id=17124369657',
+			            SunAngularSize = 21,
+			            StarCount = 3000,
+		        },
+		        Truth = {
+			            SkyboxBk = "http://www.roblox.com/asset/?id=144933338",
+			            SkyboxDn = "http://www.roblox.com/asset/?id=144931530",
+			            SkyboxFt = "http://www.roblox.com/asset/?id=144933262",
+			            SkyboxLf = "http://www.roblox.com/asset/?id=144933244",
+			            SkyboxRt = "http://www.roblox.com/asset/?id=144933299",
+			            SkyboxUp = "http://www.roblox.com/asset/?id=144931564",
+		        },
+		        RayTracing = {
+			            SkyboxBk = "http://www.roblox.com/asset/?id=271042516",
+			            SkyboxDn = "http://www.roblox.com/asset/?id=271077243",
+			            SkyboxFt = "http://www.roblox.com/asset/?id=271042556",
+			            SkyboxLf = "http://www.roblox.com/asset/?id=271042310",
+			            SkyboxRt = "http://www.roblox.com/asset/?id=271042467",
+			            SkyboxUp = "http://www.roblox.com/asset/?id=271077958",
+		        },
+		        Nebula = {
+			            MoonAngularSize = 0,
+			            SunAngularSize = 0,
+			            SkyboxBk = 'rbxassetid://5260808177',
+			            SkyboxDn = 'rbxassetid://5260653793',
+			            SkyboxFt = 'rbxassetid://5260817288',
+			            SkyboxLf = 'rbxassetid://5260800833',
+			            SkyboxRt = 'rbxassetid://5260811073',
+			            SkyboxUp = 'rbxassetid://5260824661',
+		        },
+		        Planets = {
+			            MoonAngularSize = 0,
+			            SunAngularSize = 0,
+			            SkyboxBk = 'rbxassetid://15983968922',
+			            SkyboxDn = 'rbxassetid://15983966825',
+			            SkyboxFt = 'rbxassetid://15983965025',
+			            SkyboxLf = 'rbxassetid://15983967420',
+			            SkyboxRt = 'rbxassetid://15983966246',
+			            SkyboxUp = 'rbxassetid://15983964246',
+			            StarCount = 3000,
+		        },
+		        Galaxy = {
+			            SkyboxBk = "rbxassetid://159454299",
+			            SkyboxDn = "rbxassetid://159454296",
+			            SkyboxFt = "rbxassetid://159454293",
+			            SkyboxLf = "rbxassetid://159454293",
+			            SkyboxRt = "rbxassetid://159454293",
+			            SkyboxUp = "rbxassetid://159454288",
+			            SunAngularSize = 0,
+		        }, 
+		        Blues = {
+			            SkyboxBk = 'http://www.roblox.com/asset/?id=17124357467',
+			            SkyboxDn = 'http://www.roblox.com/asset/?id=17124359797',
+			            SkyboxFt = 'http://www.roblox.com/asset/?id=17124362093',
+			            SkyboxLf = 'http://www.roblox.com/asset/?id=17124365127',
+			            SkyboxRt = 'http://www.roblox.com/asset/?id=17124367200',
+			            SkyboxUp = 'http://www.roblox.com/asset/?id=17124369657',
+			            SunAngularSize = 21,
+			            StarCount = 3000,
+		        },
+		        Milkyway = {
+			            MoonTextureId = 'rbxassetid://1075087760',
+			            SkyboxBk = 'rbxassetid://2670643994',
+			            SkyboxDn = 'rbxassetid://2670643365',
+			            SkyboxFt = 'rbxassetid://2670643214',
+			            SkyboxLf = 'rbxassetid://2670643070',
+			            SkyboxRt = 'rbxassetid://2670644173',
+			            SkyboxUp = 'rbxassetid://2670644331',
+			            MoonAngularSize = 1.5,
+			            StarCount = 500,
+		        },
+		        Orange = {
+			            SkyboxBk = 'rbxassetid://150939022',
+			            SkyboxDn = 'rbxassetid://150939038',
+			            SkyboxFt = 'rbxassetid://150939047',
+			            SkyboxLf = 'rbxassetid://150939056',
+			            SkyboxRt = 'rbxassetid://150939063',
+			            SkyboxUp = 'rbxassetid://150939082',
+		        },
+		        DarkMountains = {
+			            SkyboxBk = 'rbxassetid://5098814730',
+			            SkyboxDn = 'rbxassetid://5098815227',
+			            SkyboxFt = 'rbxassetid://5098815653',
+			            SkyboxLf = 'rbxassetid://5098816155',
+			            SkyboxRt = 'rbxassetid://5098820352',
+			            SkyboxUp = 'rbxassetid://5098819127',
+		        },
+		        Space = {
+			            MoonAngularSize = 0,
+			            SunAngularSize = 0,
+			            SkyboxBk = 'rbxassetid://166509999',
+			            SkyboxDn = 'rbxassetid://166510057',
+			            SkyboxFt = 'rbxassetid://166510116',
+			            SkyboxLf = 'rbxassetid://166510092',
+			            SkyboxRt = 'rbxassetid://166510131',
+			            SkyboxUp = 'rbxassetid://166510114',
+		        },
+		        Void = {
+			            MoonAngularSize = 0,
+			            SunAngularSize = 0,
+			            SkyboxBk = 'rbxassetid://14543264135',
+			            SkyboxDn = 'rbxassetid://14543358958',
+			            SkyboxFt = 'rbxassetid://14543257810',
+			            SkyboxLf = 'rbxassetid://14543275895',
+			            SkyboxRt = 'rbxassetid://14543280890',
+			            SkyboxUp = 'rbxassetid://14543371676',
+		        },
+		        Stary = {
+			            SkyboxBk = 'rbxassetid://248431616',
+			            SkyboxDn = 'rbxassetid://248431677',
+			            SkyboxFt = 'rbxassetid://248431598',
+			            SkyboxLf = 'rbxassetid://248431686',
+			            SkyboxRt = 'rbxassetid://248431611',
+			            SkyboxUp = 'rbxassetid://248431605',
+				    StarCount = 3000,       
+		        },
+			Violet = {
+				    SkyboxBk = 'rbxassetid://8107841671',
+				    SkyboxDn = 'rbxassetid://6444884785',
+				    SkyboxFt = 'rbxassetid://8107841671',
+				    SkyboxLf = 'rbxassetid://8107841671',
+				    SkyboxRt = 'rbxassetid://8107841671',
+				    SkyboxUp = 'rbxassetid://8107849791',
+				    SunTextureId = 'rbxassetid://6196665106',
+				    MoonTextureId = 'rbxassetid://6444320592',
+				    MoonAngularSize = 0,
+		        },
+			Cloudy = {
+				    SkyboxBk = 'rbxassetid://15876597103',
+				    SkyboxDn = 'rbxassetid://15876592775',
+				    SkyboxFt = 'rbxassetid://15876640231',
+				    SkyboxLf = 'rbxassetid://15876638420',
+				    SkyboxRt = 'rbxassetid://15876595486',
+				    SkyboxUp = 'rbxassetid://15876639348',
+				    SunTextureId = 'rbxasset://sky/sun.jpg',
+				    MoonTextureId = 'rbxasset://sky/moon.jpg',
+				    MoonAngularSize = 11,
+		            	    SunAngularSize = 21,
+				    StarCount = 3000,
+		    	}
+	local themeNames = {'NetherWorld', 'Neptune', 'Velocity', 'Minecraft', 'Purple', '日の出', 'Sakura', 'Hexagonal', 'Reality', 'LunarNight', 'FPSBoost', 'Etheral', 'Pandora', 'Polaris', 'Diaphanous', 'Transcendent', 'Truth', 'RayTracing', 'Nebula', 'Planets', 'Galaxy', 'Blues', 'Milkyway', 'Orange', 'DarkMountains', 'Space', 'Void', 'Stary', 'Violet', 'Cloudy'}
+
+	local skyProperties = {
+		'CelestialBodiesShown',
+		'MoonAngularSize',
+		'MoonTextureId',
+		'SkyboxBk',
+		'SkyboxDn',
+		'SkyboxFt',
+		'SkyboxLf',
+		'SkyboxRt',
+		'SkyboxUp',
+		'SkyboxOrientation',
+		'SunAngularSize',
+		'SunTextureId',
+		'SunTextureId',
+		'StarCount'
+	}
+
+	local defaultSky = Instance.new('Sky')
+	local defaults = {}
+	for _, property in skyProperties do
+		pcall(function()
+			defaults[property] = defaultSky[property]
+		end)
+	end
+	defaultSky:Destroy()
+
+	local storedSkies = Instance.new('Folder')
+	storedSkies.Name = 'IllusionHDStoredSkies'
+	storedSkies.Parent = vape.holder
+
+	local activeSky
+
+	local function resetSky(sky)
+		for property, value in defaults do
+			pcall(function()
+				sky[property] = value
+			end)
+		end
+	end
+
+	local function applyTheme(name)
+		local data = skyThemes[name]
+		if not data then return end
+
+		if not activeSky or not activeSky.Parent then
+			activeSky = Instance.new('Sky')
+			activeSky.Name = 'IllusionHDSky'
+			activeSky.Parent = lightingService
+		end
+
+		-- Reset first so one theme cannot leak StarCount/sun/moon settings into another.
+		resetSky(activeSky)
+
+		for property, value in data do
+			pcall(function()
+				activeSky[property] = value
+			end)
+		end
+	end
+
+	local function storeGameSkies()
+		for _, obj in lightingService:GetChildren() do
+			if obj:IsA('Sky') and obj ~= activeSky then
+				obj.Parent = storedSkies
+			end
+		end
+	end
+
+	local function restoreGameSkies()
+		if activeSky then
+			activeSky:Destroy()
+			activeSky = nil
+		end
+
+		for _, obj in storedSkies:GetChildren() do
+			if obj:IsA('Sky') then
+				obj.Parent = lightingService
+			end
+		end
+	end
+
+	SkyThemes = vape.Categories.Render:CreateModule({
+		Name = 'SkyThemes',
+		Function = function(callback)
+			if callback then
+				storeGameSkies()
+				applyTheme(Theme.Value)
+
+				SkyThemes:Clean(lightingService.ChildAdded:Connect(function(obj)
+					if obj:IsA('Sky') and obj ~= activeSky then
+						task.defer(function()
+							if SkyThemes.Enabled and obj.Parent == lightingService and obj ~= activeSky then
+								obj.Parent = storedSkies
+							end
+						end)
+					end
+				end))
+			else
+				restoreGameSkies()
+			end
+		end,
+		Tooltip = 'Replaces the game sky with selectable custom skybox themes.'
+	})
+
+	Theme = SkyThemes:CreateDropdown({
+		Name = 'Theme',
+		List = themeNames,
+		Default = 'Purple',
+		Function = function(value)
+			if SkyThemes.Enabled then
+				applyTheme(value)
+			end
+		end
+	})
+
+	vape:Clean(function()
+		restoreGameSkies()
+		pcall(function()
+			storedSkies:Destroy()
+		end)
+	end)
+end)
+-- ILLUSIONHD_SKYTHEMES_END
+
+-- ILLUSIONHD_FIREFLIES_V1
+run(function()
+	local Fireflies
+	local Count
+	local Radius
+	local Height
+	local Speed
+	local Size
+	local Brightness
+	local ColorMode
+	local PrimaryColor
+	local SecondaryColor
+	local Trails
+
+	local Folder = Instance.new('Folder')
+	Folder.Name = 'IllusionHDFireflies'
+	Folder.Parent = workspace
+
+	local fireflies = {}
+	local rng = Random.new()
+
+	local function currentCenter()
+		if entitylib.isAlive and entitylib.character and entitylib.character.RootPart then
+			return entitylib.character.RootPart.Position
+		end
+		if gameCamera then
+			return gameCamera.CFrame.Position
+		end
+		return Vector3.zero
+	end
+
+	local function chooseColor(index)
+		if ColorMode.Value == 'Rainbow' then
+			return Color3.fromHSV((tick() * 0.08 + index / math.max(Count.Value, 1)) % 1, 0.75, 1)
+		elseif ColorMode.Value == 'Warm' then
+			local alpha = rng:NextNumber()
+			return Color3.fromRGB(
+				math.floor(255),
+				math.floor(180 + 70 * alpha),
+				math.floor(60 + 90 * alpha)
+			)
+		end
+
+		local a = Color3.fromHSV(PrimaryColor.Hue, PrimaryColor.Sat, PrimaryColor.Value)
+		local b = Color3.fromHSV(SecondaryColor.Hue, SecondaryColor.Sat, SecondaryColor.Value)
+		return a:Lerp(b, rng:NextNumber())
+	end
+
+	local function randomOffset()
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local dist = math.sqrt(rng:NextNumber()) * Radius.Value
+		local y = rng:NextNumber(-Height.Value * 0.25, Height.Value)
+		return Vector3.new(math.cos(angle) * dist, y, math.sin(angle) * dist)
+	end
+
+	local function respawn(data, center)
+		data.Base = center + randomOffset()
+		data.Offset = Vector3.zero
+		data.Phase = rng:NextNumber(0, math.pi * 2)
+		data.Phase2 = rng:NextNumber(0, math.pi * 2)
+		data.Drift = Vector3.new(
+			rng:NextNumber(-1, 1),
+			rng:NextNumber(-0.3, 0.8),
+			rng:NextNumber(-1, 1)
+		)
+		if data.Drift.Magnitude < 0.05 then
+			data.Drift = Vector3.new(1, 0.2, 0)
+		end
+		data.Drift = data.Drift.Unit
+		data.Color = chooseColor(data.Index)
+		data.Part.Color = data.Color
+		data.Light.Color = data.Color
+		if data.Trail then
+			data.Trail.Color = ColorSequence.new(data.Color)
+		end
+	end
+
+	local function createFirefly(index)
+		local p = Instance.new('Part')
+		p.Name = 'Firefly'
+		p.Shape = Enum.PartType.Ball
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanTouch = false
+		p.CanQuery = false
+		p.CastShadow = false
+		p.Material = Enum.Material.Neon
+		p.Size = Vector3.one * Size.Value
+		p.Transparency = 0.05
+		p.Parent = Folder
+
+		local light = Instance.new('PointLight')
+		light.Brightness = Brightness.Value
+		light.Range = math.max(3, Size.Value * 22)
+		light.Shadows = false
+		light.Parent = p
+
+		local att0 = Instance.new('Attachment')
+		att0.Position = Vector3.new(0, 0, -Size.Value * 0.4)
+		att0.Parent = p
+
+		local att1 = Instance.new('Attachment')
+		att1.Position = Vector3.new(0, 0, Size.Value * 0.4)
+		att1.Parent = p
+
+		local trail = Instance.new('Trail')
+		trail.Attachment0 = att0
+		trail.Attachment1 = att1
+		trail.FaceCamera = true
+		trail.Lifetime = 0.25
+		trail.MinLength = 0.01
+		trail.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.15),
+			NumberSequenceKeypoint.new(1, 1)
+		})
+		trail.WidthScale = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1),
+			NumberSequenceKeypoint.new(1, 0)
+		})
+		trail.Enabled = Trails.Enabled
+		trail.Parent = p
+
+		local data = {
+			Index = index,
+			Part = p,
+			Light = light,
+			Trail = trail,
+			Base = Vector3.zero,
+			Offset = Vector3.zero,
+			Phase = 0,
+			Phase2 = 0,
+			Drift = Vector3.zero,
+			Color = Color3.new(1, 1, 1),
+			Age = rng:NextNumber(0, 8)
+		}
+
+		respawn(data, currentCenter())
+		fireflies[index] = data
+	end
+
+	local function rebuild()
+		for _, data in fireflies do
+			pcall(function()
+				data.Part:Destroy()
+			end)
+		end
+		table.clear(fireflies)
+
+		if not Fireflies.Enabled then return end
+		for i = 1, Count.Value do
+			createFirefly(i)
+		end
+	end
+
+	Fireflies = vape.Categories.Render:CreateModule({
+		Name = 'Fireflies',
+		Function = function(callback)
+			if callback then
+				rebuild()
+
+				Fireflies:Clean(runService.RenderStepped:Connect(function(dt)
+					local center = currentCenter()
+					local now = tick()
+
+					for i, data in fireflies do
+						if not data.Part or not data.Part.Parent then
+							continue
+						end
+
+						data.Age += dt
+						local speed = Speed.Value
+						local bob = Vector3.new(
+							math.sin(now * (0.8 + speed * 0.35) + data.Phase) * (0.7 + speed * 0.15),
+							math.sin(now * (1.2 + speed * 0.22) + data.Phase2) * (0.55 + speed * 0.12),
+							math.cos(now * (0.9 + speed * 0.3) + data.Phase) * (0.7 + speed * 0.15)
+						)
+
+						data.Offset += data.Drift * dt * speed * 1.5
+						local target = data.Base + data.Offset + bob
+
+						-- If the player has moved far away, recycle the firefly around the new area.
+						if (target - center).Magnitude > Radius.Value * 1.45 + Height.Value then
+							respawn(data, center)
+							target = data.Base
+						end
+
+						-- Small random direction changes keep movement organic.
+						if math.floor(data.Age * 2) ~= math.floor((data.Age - dt) * 2) and rng:NextNumber() < 0.22 then
+							local change = Vector3.new(
+								rng:NextNumber(-0.65, 0.65),
+								rng:NextNumber(-0.2, 0.35),
+								rng:NextNumber(-0.65, 0.65)
+							)
+							if change.Magnitude > 0.05 then
+								data.Drift = (data.Drift:Lerp(change.Unit, 0.35)).Unit
+							end
+						end
+
+						if ColorMode.Value == 'Rainbow' then
+							data.Color = Color3.fromHSV((now * 0.08 + i / math.max(#fireflies, 1)) % 1, 0.75, 1)
+							data.Part.Color = data.Color
+							data.Light.Color = data.Color
+							data.Trail.Color = ColorSequence.new(data.Color)
+						end
+
+						local pulse = 0.72 + math.sin(now * 2.2 + data.Phase) * 0.28
+						data.Part.Size = Vector3.one * Size.Value * (0.8 + pulse * 0.3)
+						data.Light.Brightness = Brightness.Value * (0.65 + pulse * 0.65)
+						data.Light.Range = math.max(3, Size.Value * 22) * (0.85 + pulse * 0.25)
+
+						data.Part.CFrame = CFrame.new(target)
+					end
+				end))
+			else
+				for _, data in fireflies do
+					pcall(function()
+						data.Part:Destroy()
+					end)
+				end
+				table.clear(fireflies)
+				Folder:ClearAllChildren()
+			end
+		end,
+		Tooltip = 'Spawns glowing fireflies that drift around the world as you move.'
+	})
+
+	Count = Fireflies:CreateSlider({
+		Name = 'Quantity',
+		Min = 10,
+		Max = 250,
+		Default = 85
+	})
+
+	Radius = Fireflies:CreateSlider({
+		Name = 'Radius',
+		Min = 15,
+		Max = 250,
+		Default = 90,
+		Suffix = ' studs'
+	})
+
+	Height = Fireflies:CreateSlider({
+		Name = 'Height',
+		Min = 5,
+		Max = 80,
+		Default = 30,
+		Suffix = ' studs'
+	})
+
+	Speed = Fireflies:CreateSlider({
+		Name = 'Speed',
+		Min = 0.1,
+		Max = 6,
+		Default = 1.5,
+		Decimal = 10
+	})
+
+	Size = Fireflies:CreateSlider({
+		Name = 'Size',
+		Min = 0.05,
+		Max = 0.8,
+		Default = 0.18,
+		Decimal = 100,
+		Function = function()
+			for _, data in fireflies do
+				if data.Part then
+					data.Part.Size = Vector3.one * Size.Value
+				end
+			end
+		end
+	})
+
+	Brightness = Fireflies:CreateSlider({
+		Name = 'Brightness',
+		Min = 0,
+		Max = 5,
+		Default = 1.8,
+		Decimal = 10,
+		Function = function()
+			for _, data in fireflies do
+				if data.Light then
+					data.Light.Brightness = Brightness.Value
+				end
+			end
+		end
+	})
+
+	ColorMode = Fireflies:CreateDropdown({
+		Name = 'Color Mode',
+		List = {'Custom', 'Warm', 'Rainbow'},
+		Default = 'Warm',
+		Function = function()
+			for _, data in fireflies do
+				respawn(data, currentCenter())
+			end
+		end
+	})
+
+	PrimaryColor = Fireflies:CreateColorSlider({
+		Name = 'Primary Color',
+		DefaultHue = 0.13,
+		DefaultSat = 0.85,
+		DefaultValue = 1,
+		Function = function()
+			if ColorMode.Value == 'Custom' then
+				for _, data in fireflies do
+					respawn(data, currentCenter())
+				end
+			end
+		end
+	})
+
+	SecondaryColor = Fireflies:CreateColorSlider({
+		Name = 'Secondary Color',
+		DefaultHue = 0.18,
+		DefaultSat = 0.7,
+		DefaultValue = 1,
+		Function = function()
+			if ColorMode.Value == 'Custom' then
+				for _, data in fireflies do
+					respawn(data, currentCenter())
+				end
+			end
+		end
+	})
+
+	Trails = Fireflies:CreateToggle({
+		Name = 'Trails',
+		Default = true,
+		Function = function(callback)
+			for _, data in fireflies do
+				if data.Trail then
+					data.Trail.Enabled = callback
+				end
+			end
+		end
+	})
+
+	vape:Clean(function()
+		for _, data in fireflies do
+			pcall(function()
+				data.Part:Destroy()
+			end)
+		end
+		table.clear(fireflies)
+		pcall(function()
+			Folder:Destroy()
+		end)
+	end)
+end)
+-- ILLUSIONHD_FIREFLIES_END
+
 -- ILLUSIONHD_HITEFFECTS_V1
 run(function()
 	local HitEffects
