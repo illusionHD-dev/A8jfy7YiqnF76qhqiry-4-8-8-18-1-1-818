@@ -1,3 +1,4 @@
+--This watermark is used to delete the file if its cached, remove it to make the file persist after vape updates.
 --[[
 	Fiu: https://github.com/rce-incorporated/Fiu
 
