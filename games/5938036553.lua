@@ -69,6 +69,7 @@ local gameCamera = workspace.CurrentCamera
 local lplr = playersService.LocalPlayer
 
 local vape = shared.vape
+local impactVisuals = assert(loadstring(downloadFile('newvape/libraries/frontlines-effects.lua'), 'Frontlines effects'))()(vape)
 local entitylib = vape.Libraries.entity
 local whitelist = vape.Libraries.whitelist
 local prediction = vape.Libraries.prediction
@@ -1145,11 +1146,6 @@ run(function()
 	local Max
 	local Mouse
 	local Limit
-	local TargetStrafe
-	local StrafeRadius
-	local StrafeSpeed
-	local StrafeDirection
-	local StrafeWallCheck
 	local Box
 	local BoxSwingColor
 	local BoxAttackColor
@@ -1163,151 +1159,6 @@ run(function()
 	local hitdelay = tick()
 	local didattack = false
 	
-	local strafeDirection = 1
-	local strafeLocked = false
-	local strafeRay = RaycastParams.new()
-	strafeRay.RespectCanCollide = true
-	local contextActionService = cloneref(game:GetService('ContextActionService'))
-	local strafeActionName = 'IllusionHD_TargetStrafeLock'
-
-	local function strafeInputSink()
-		if strafeLocked and TargetStrafe and TargetStrafe.Enabled then
-			return Enum.ContextActionResult.Sink
-		end
-		return Enum.ContextActionResult.Pass
-	end
-
-	local function bindStrafeLock()
-		pcall(function()
-			contextActionService:UnbindAction(strafeActionName)
-		end)
-
-		contextActionService:BindActionAtPriority(
-			strafeActionName,
-			strafeInputSink,
-			false,
-			Enum.ContextActionPriority.High.Value + 100,
-			Enum.KeyCode.W,
-			Enum.KeyCode.A,
-			Enum.KeyCode.S,
-			Enum.KeyCode.D,
-			Enum.KeyCode.Up,
-			Enum.KeyCode.Down,
-			Enum.KeyCode.Left,
-			Enum.KeyCode.Right,
-			Enum.KeyCode.Thumbstick1
-		)
-	end
-
-	local function unbindStrafeLock()
-		strafeLocked = false
-		pcall(function()
-			contextActionService:UnbindAction(strafeActionName)
-		end)
-	end
-
-	local function getStrafeSide()
-		if not StrafeDirection then
-			return strafeDirection
-		end
-
-		if StrafeDirection.Value == 'Left' then
-			return -1
-		elseif StrafeDirection.Value == 'Right' then
-			return 1
-		end
-
-		return strafeDirection
-	end
-
-	local function targetStrafe(ent, dt)
-		if not (TargetStrafe and TargetStrafe.Enabled) then
-			strafeLocked = false
-			return
-		end
-
-		if not entitylib.isAlive or not entitylib.character or not ent or not ent.RootPart then
-			strafeLocked = false
-			return
-		end
-
-		local root = entitylib.character.RootPart
-		if not root or not root.Parent then
-			strafeLocked = false
-			return
-		end
-
-		strafeLocked = true
-
-		local targetPos = ent.RootPart.Position
-		local rootPos = root.Position
-		local delta = (rootPos - targetPos) * Vector3.new(1, 0, 1)
-		local distance = delta.Magnitude
-
-		if distance < 0.05 then
-			delta = Vector3.new(1, 0, 0)
-			distance = 1
-		end
-
-		local radial = delta.Unit
-		local side = getStrafeSide()
-		local tangent = Vector3.new(-radial.Z, 0, radial.X) * side
-
-		local wantedRadius = StrafeRadius and StrafeRadius.Value or 5
-		local speed = StrafeSpeed and StrafeSpeed.Value or 26
-
-		-- Kill all horizontal player-controlled momentum. Preserve Y velocity
-		-- so jumping/falling still behaves normally.
-		pcall(function()
-			local velocity = root.AssemblyLinearVelocity
-			root.AssemblyLinearVelocity = Vector3.new(0, velocity.Y, 0)
-		end)
-
-		-- Strong radius correction forces the player into the selected orbit.
-		-- Once at the radius, movement is almost entirely tangential.
-		local radiusError = wantedRadius - distance
-		local radialStrength = math.clamp(radiusError * 2.4, -speed, speed)
-
-		local velocityDirection = tangent * speed + radial * radialStrength
-		if velocityDirection.Magnitude < 0.01 then return end
-
-		local step = velocityDirection * math.clamp(dt, 0, 0.05)
-
-		if StrafeWallCheck and StrafeWallCheck.Enabled then
-			strafeRay.FilterDescendantsInstances = {
-				entitylib.character.Character,
-				gameCamera,
-				ent.Character
-			}
-			strafeRay.CollisionGroup = root.CollisionGroup
-
-			local ray = workspace:Raycast(
-				root.Position,
-				step.Unit * math.max(step.Magnitude + 2, 2.5),
-				strafeRay
-			)
-
-			if ray then
-				if StrafeDirection and StrafeDirection.Value == 'Auto' then
-					strafeDirection *= -1
-				end
-				return
-			end
-		end
-
-		-- Force the horizontal position ourselves, preserving current Y.
-		local nextPos = root.Position + Vector3.new(step.X, 0, step.Z)
-		local currentLook = root.CFrame.LookVector
-		root.CFrame = CFrame.lookAt(
-			Vector3.new(nextPos.X, root.Position.Y, nextPos.Z),
-			Vector3.new(
-				nextPos.X + currentLook.X,
-				root.Position.Y + currentLook.Y,
-				nextPos.Z + currentLook.Z
-			)
-		)
-	end
-
 	local function getAttackData()
 		if Mouse.Enabled then
 			if not inputService:IsMouseButtonPressed(0) then return false end
@@ -1326,17 +1177,9 @@ run(function()
 		Name = 'Killaura',
 		Function = function(callback)
 			if callback then
-				bindStrafeLock()
-				local lastStrafeStep = tick()
 				repeat
-					strafeLocked = false
-					local now = tick()
-					local strafeDt = math.min(now - lastStrafeStep, 0.05)
-					lastStrafeStep = now
-
 					local suc, knifecheck = getAttackData()
 					local attacked = {}
-					local strafeTarget
 					local prevattack = didattack
 					didattack = false
 					if suc then
@@ -1355,16 +1198,8 @@ run(function()
 	
 							for i, v in plrs do
 								local delta = (v.RootPart.Position - entitylib.character.RootPart.Position)
-								local flatDelta = delta * Vector3.new(1, 0, 1)
-								local angle = flatDelta.Magnitude > 0.001
-									and math.acos(math.clamp(localfacing.Unit:Dot(flatDelta.Unit), -1, 1))
-									or 0
+								local angle = math.acos(localfacing:Dot((delta * Vector3.new(1, 0, 1)).Unit))
 								if angle > (math.rad(Angle.Value) / 2) then continue end
-
-								if not strafeTarget then
-									strafeTarget = v
-								end
-
 								table.insert(attacked, {Entity = v, Check = delta.Magnitude > AttackRange.Value and BoxSwingColor or BoxAttackColor})
 								targetinfo.Targets[v] = tick() + 1
 	
@@ -1399,10 +1234,6 @@ run(function()
 					if didattack ~= prevattack and prevattack then
 						frontlines.Main.globals.ctrl_states.trigger = false
 					end
-
-					if strafeTarget then
-						targetStrafe(strafeTarget, strafeDt)
-					end
 	
 					for i, v in Boxes do
 						v.Adornee = attacked[i] and attacked[i].Entity.RootPart or nil
@@ -1420,8 +1251,6 @@ run(function()
 					task.wait()
 				until not Killaura.Enabled
 			else
-				strafeDirection = 1
-				unbindStrafeLock()
 				for i, v in Boxes do
 					v.Adornee = nil
 				end
@@ -1465,53 +1294,6 @@ run(function()
 	})
 	Mouse = Killaura:CreateToggle({Name = 'Require mouse down'})
 	Limit = Killaura:CreateToggle({Name = 'Knife only'})
-
-	TargetStrafe = Killaura:CreateToggle({
-		Name = 'Target Strafe',
-		Function = function(callback)
-			if not callback then
-				strafeLocked = false
-			end
-		end
-	})
-
-	StrafeRadius = Killaura:CreateSlider({
-		Name = 'Strafe Radius',
-		Min = 2,
-		Max = 8,
-		Default = 5,
-		Decimal = 10,
-		Suffix = function(val)
-			return val == 1 and ' stud' or ' studs'
-		end,
-		Darker = true
-	})
-
-	StrafeSpeed = Killaura:CreateSlider({
-		Name = 'Strafe Speed',
-		Min = 5,
-		Max = 45,
-		Default = 26,
-		Suffix = ' studs/s',
-		Darker = true
-	})
-
-	StrafeDirection = Killaura:CreateDropdown({
-		Name = 'Strafe Direction',
-		List = {'Auto', 'Left', 'Right'},
-		Default = 'Auto',
-		Function = function()
-			strafeDirection = 1
-		end,
-		Darker = true
-	})
-
-	StrafeWallCheck = Killaura:CreateToggle({
-		Name = 'Strafe Wall Check',
-		Default = true,
-		Darker = true
-	})
-
 	Box = Killaura:CreateToggle({
 		Name = 'Show target',
 		Function = function(callback)
@@ -1642,10 +1424,6 @@ run(function()
 		Darker = true,
 		Visible = false
 	})
-	vape:Clean(function()
-		unbindStrafeLock()
-	end)
-
 end)
 
 run(function()
@@ -3344,12 +3122,14 @@ run(function()
 	local healthCache = {}
 
 	local modes = {
+		'Astral Bloom', 'Prism Break', 'Aurora', 'Starfall', 'Sakura', 'Love Burst', 'Kitty Pop',
 		'Sparks', 'Burst', 'Pulse', 'Ring', 'Slash', 'Cross', 'Lightning',
 		'Stars', 'Hearts', 'Crit', 'Smoke', 'Shards', 'Pixels', 'Spiral',
 		'Orbit', 'Bubble', 'Shockwave', 'Rainbow', 'Headshot', 'Random'
 	}
 
 	local randomModes = {
+		'Astral Bloom', 'Prism Break', 'Aurora', 'Starfall', 'Sakura', 'Love Burst', 'Kitty Pop',
 		'Sparks', 'Burst', 'Pulse', 'Ring', 'Slash', 'Cross', 'Lightning',
 		'Stars', 'Hearts', 'Crit', 'Smoke', 'Shards', 'Pixels', 'Spiral',
 		'Orbit', 'Bubble', 'Shockwave', 'Rainbow'
@@ -3361,7 +3141,12 @@ run(function()
 	end
 
 	local function getColors(ent)
-		if ColorMode.Value == 'Target' and ent then
+		if ColorMode.Value == 'Theme' then
+			local c = vape:GetGUIColorRGB()
+			return c, c:Lerp(Color3.new(1, 1, 1), 0.5)
+		elseif ColorMode.Value == 'Pastel' then
+			return Color3.fromRGB(255, 174, 216), Color3.fromRGB(174, 219, 255)
+		elseif ColorMode.Value == 'Target' and ent then
 			local c = entitylib.getEntityColor(ent)
 			if c then
 				return c, c:Lerp(Color3.new(1, 1, 1), 0.55)
@@ -3579,6 +3364,8 @@ run(function()
 		local life = math.max(Lifetime.Value, 0.12)
 		local a, b = getColors(hit.Entity)
 		local pos = hit.Position
+		local upgraded = ({Sparks = 'Astral Bloom', Hearts = 'Love Burst', Stars = 'Starfall'})[mode] or mode
+		if impactVisuals:Play(upgraded, Folder, pos, scale, life, a, b, Quality.Value, false) then return end
 		local white = Color3.new(1, 1, 1)
 
 		local function flashLight(color, brightness, radius, duration)
@@ -3955,12 +3742,12 @@ run(function()
 	Mode = HitEffects:CreateDropdown({
 		Name = 'Mode',
 		List = modes,
-		Default = 'Sparks'
+		Default = 'Astral Bloom'
 	})
 
 	ColorMode = HitEffects:CreateDropdown({
 		Name = 'Color Mode',
-		List = {'Custom', 'Target', 'Rainbow'},
+		List = {'Custom', 'Theme', 'Pastel', 'Target', 'Rainbow'},
 		Default = 'Custom'
 	})
 
@@ -4068,6 +3855,12 @@ run(function()
 	end
 
 	local function colors(death)
+		if ColorMode.Value == 'Theme' then
+			local c = vape:GetGUIColorRGB()
+			return c, c:Lerp(Color3.new(1, 1, 1), 0.5)
+		elseif ColorMode.Value == 'Pastel' then
+			return Color3.fromRGB(255, 174, 216), Color3.fromRGB(174, 219, 255)
+		end
 		if ColorMode.Value == 'Target' and death and death.Color then
 			return death.Color, death.Color:Lerp(Color3.new(1, 1, 1), 0.55)
 		elseif ColorMode.Value == 'Rainbow' then
@@ -4219,6 +4012,7 @@ run(function()
 
 		if mode == 'Random' then
 			local pool = {
+				'Supernova', 'Astral Bloom', 'Prism Break', 'Aurora', 'Starfall', 'Sakura', 'Love Burst', 'Kitty Pop',
 				'Nova', 'Lightning', 'Soul', 'Rings', 'Spiral', 'Firework', 'Tornado',
 				'Shatter', 'Slash', 'Beam', 'Pulse', 'Confetti', 'Galaxy', 'Freeze',
 				'Void', 'Ghost', 'Hearts', 'Skull', 'Black Hole', 'Disintegrate',
@@ -4338,6 +4132,8 @@ run(function()
 		end
 
 		playKillSound()
+		local upgraded = ({Nova = 'Supernova', Hearts = 'Love Burst', Galaxy = 'Aurora'})[mode] or mode
+		if impactVisuals:Play(upgraded, Folder, center, scale, life, a, b, Quality.Value, true) then return end
 
 		-- Universal cinematic base: white-hot core + colored bloom + debris.
 		flashLight(center, white, 8.5, 18 * scale, life * 0.42)
@@ -4699,10 +4495,10 @@ run(function()
 
 	Mode = KillEffects:CreateDropdown({
 		Name = 'Mode',
-		List = {'Nova', 'Explosion', 'Lightning', 'Soul', 'Rings', 'Spiral', 'Firework', 'Tornado', 'Shatter', 'Slash', 'Beam', 'Pulse', 'Shockwave', 'Confetti', 'Rainbow', 'Galaxy', 'Freeze', 'Void', 'Ghost', 'Hearts', 'Skull', 'Black Hole', 'Disintegrate', 'Crystal', 'Orbit', 'Pixel Burst', 'Random'},
-		Default = 'Nova'
+		List = {'Supernova', 'Astral Bloom', 'Prism Break', 'Aurora', 'Starfall', 'Sakura', 'Love Burst', 'Kitty Pop', 'Nova', 'Explosion', 'Lightning', 'Soul', 'Rings', 'Spiral', 'Firework', 'Tornado', 'Shatter', 'Slash', 'Beam', 'Pulse', 'Shockwave', 'Confetti', 'Rainbow', 'Galaxy', 'Freeze', 'Void', 'Ghost', 'Hearts', 'Skull', 'Black Hole', 'Disintegrate', 'Crystal', 'Orbit', 'Pixel Burst', 'Random'},
+		Default = 'Supernova'
 	})
-	ColorMode = KillEffects:CreateDropdown({Name = 'Color Mode', List = {'Custom', 'Target', 'Rainbow'}, Default = 'Custom'})
+	ColorMode = KillEffects:CreateDropdown({Name = 'Color Mode', List = {'Custom', 'Theme', 'Pastel', 'Target', 'Rainbow'}, Default = 'Custom'})
 	PrimaryColor = KillEffects:CreateColorSlider({Name = 'Primary Color', DefaultHue = 0.78, DefaultSat = 0.75, DefaultValue = 1})
 	SecondaryColor = KillEffects:CreateColorSlider({Name = 'Secondary Color', DefaultHue = 0.58, DefaultSat = 0.7, DefaultValue = 1})
 	EffectSize = KillEffects:CreateSlider({Name = 'Size', Min = 0.5, Max = 2.5, Default = 1, Decimal = 10})
@@ -5253,4 +5049,32 @@ run(function()
 			end
 		end
 	})
+end)
+
+-- CuteVisuals.java port: Frontlines kills replace Minecraft bed-break packets.
+run(function()
+ local createCuteVisuals = assert(loadstring(downloadFile('newvape/libraries/cutevisuals.lua'), 'CuteVisuals'))()
+ createCuteVisuals(vape, {
+  GetPosition = function()
+   local character = entitylib.isAlive and entitylib.character
+   local root = character and (character.RootPart or character.HumanoidRootPart)
+   if not root or not root.Parent then return nil, false end
+   local velocity = root.AssemblyLinearVelocity
+   return root.Position - Vector3.new(0, 2.5, 0), Vector3.new(velocity.X, 0, velocity.Z).Magnitude > 0.1
+  end,
+  ConnectBurst = function(module, emit)
+   local lastHit, lastTime
+   module:Clean(frontlines.LocalHitEvent.Event:Connect(function(_, position)
+    lastHit, lastTime = position, os.clock()
+   end))
+   module:Clean(frontlines.KillEffectEvent.Event:Connect(function()
+    if lastHit and os.clock() - lastTime < 3 then
+     emit(lastHit)
+    elseif entitylib.isAlive and entitylib.character.RootPart then
+     emit(entitylib.character.RootPart.Position)
+    end
+    lastHit, lastTime = nil, nil
+   end))
+  end
+ })
 end)
