@@ -29,8 +29,6 @@ local cloneref = cloneref or function(obj)
 	return obj
 end
 local playersService = cloneref(game:GetService('Players'))
-local loading = loadstring(readfile('newvape/guis/loading.lua'), 'Vape loading screen')()
-
 local function downloadFile(path, func)
 	if not isfile(path) then
 		local suc, res = pcall(function()
@@ -46,6 +44,9 @@ local function downloadFile(path, func)
 	end
 	return (func or readfile)(path)
 end
+
+downloadFile('newvape/guis/themes.lua')
+local loading = loadstring(downloadFile('newvape/guis/loading.lua'), 'Vape loading screen')()
 
 local function finishLoading()
 	vape.Init = nil
