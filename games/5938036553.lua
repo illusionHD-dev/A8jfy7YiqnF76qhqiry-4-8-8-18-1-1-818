@@ -12,15 +12,40 @@ local isfile = isfile or function(file)
 	end)
 	return suc and res ~= nil and res ~= ''
 end
+local REPO_RAW = 'https://raw.githubusercontent.com/illusionhd-dev/A8jfy7YiqnF76qhqiry-4-8-8-18-1-1-818/main/'
+
+local function invalidDownload(data, path)
+	if type(data) ~= 'string' or data == '' then return true end
+	local head = data:sub(1, 512):lower()
+	if head:find('404: not found', 1, true)
+		or head:find('<!doctype html', 1, true)
+		or head:find('<html', 1, true)
+		or head:find('<svg', 1, true)
+		or head:find('repository not found', 1, true) then
+		return true
+	end
+	if path and path:match('%.lua$') and head:match('^%s*<') then
+		return true
+	end
+	return false
+end
+
+local function validCachedFile(path)
+	if not isfile(path) then return false end
+	local ok, data = pcall(readfile, path)
+	return ok and not invalidDownload(data, path)
+end
+
 local function downloadFile(path, func)
-	if not isfile(path) then
+	if not validCachedFile(path) then
+		local remotePath = select(1, path:gsub('newvape/', ''))
 		local suc, res = pcall(function()
-			return game:HttpGet('https://raw.githubusercontent.com/illusionhd-dev/A8jfy7YiqnF76qhqiry-4-8-8-18-1-1-818/'..readfile('newvape/profiles/commit.txt')..'/'..select(1, path:gsub('newvape/', '')), true)
+			return game:HttpGet(REPO_RAW..remotePath, true)
 		end)
-		if not suc or res == '404: Not Found' then
-			error(res)
+		if not suc or invalidDownload(res, path) then
+			error('Failed to download '..remotePath..' from GitHub: '..tostring(res), 2)
 		end
-		if path:find('.lua') then
+		if path:find('.lua', 1, true) then
 			res = '--This watermark is used to delete the file if its cached, remove it to make the file persist after vape updates.\n'..res
 		end
 		writefile(path, res)
@@ -164,7 +189,7 @@ local function isFriend(plr, recolor)
 	return nil
 end
 
---[[run(function()
+run(function()
 	repeat
 		if not frontlines.ShootFunction then
 			local gc = getgc(true)
@@ -292,7 +317,7 @@ end
 		table.clear(frontlines.Functions)
 		table.clear(frontlines)
 	end)
-end)]]
+end)
 if vape.Loaded == nil then return end
 
 run(function()
