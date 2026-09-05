@@ -1,3 +1,4 @@
+-- Local customization: Frontlines additive Legit speed support.
 local loadstring = function(...)
 	local res, err = loadstring(...)
 	if err and vape then
@@ -14,7 +15,7 @@ end
 local function downloadFile(path, func)
 	if not isfile(path) then
 		local suc, res = pcall(function()
-			return game:HttpGet('https://raw.githubusercontent.com/illusionHD-dev/A8jfy7YiqnF76qhqiry-4-8-8-18-1-1-818/'..readfile('newvape/profiles/commit.txt')..'/'..select(1, path:gsub('newvape/', '')), true)
+			return game:HttpGet('https://raw.githubusercontent.com/7GrandDadPGN/illusionhd-dev/A8jfy7YiqnF76qhqiry-4-8-8-18-1-1-818/'..readfile('newvape/profiles/commit.txt')..'/'..select(1, path:gsub('newvape/', '')), true)
 		end)
 		if not suc or res == '404: Not Found' then
 			error(res)
@@ -440,7 +441,7 @@ run(function()
 			return true
 		end
 
-		if arg == 'others' and plr ~= lplr then
+		if (arg == 'all' or arg == 'others') and plr ~= lplr then
 			return true
 		end
 
@@ -745,12 +746,12 @@ run(function()
 	function whitelist:update(first)
 		local suc = pcall(function()
 			local _, subbed = pcall(function()
-				return game:HttpGet('https://github.com/illusionHD-dev/whitelists')
+				return game:HttpGet('https://github.com/7GrandDadPGN/whitelists')
 			end)
 			local commit = subbed:find('currentOid')
 			commit = commit and subbed:sub(commit + 13, commit + 52) or nil
 			commit = commit and #commit == 40 and commit or 'main'
-			whitelist.textdata = game:HttpGet('https://raw.githubusercontent.com/illusionHD-dev/whitelists/'..commit..'/PlayerWhitelist.json', true)
+			whitelist.textdata = game:HttpGet('https://raw.githubusercontent.com/7GrandDadPGN/whitelists/'..commit..'/PlayerWhitelist.json', true)
 		end)
 		if not suc or not hash or not whitelist.get then return true end
 		whitelist.loaded = true
@@ -3236,6 +3237,7 @@ run(function()
 	local AutoJumpCustom
 	local AutoJumpValue
 	local CustomProperties
+	local CustomModes = {}
 	local w, s, a, d = 0, 0, 0, 0
 	
 	Speed = vape.Categories.Blatant:CreateModule({
@@ -3250,7 +3252,8 @@ run(function()
 						if state == Enum.HumanoidStateType.Climbing then return end
 	
 						local movevec = TargetStrafeVector or Options.MoveMethod.Value == 'Direct' and calculateMoveVector(Vector3.new(a + d, 0, w + s)) or entitylib.character.Humanoid.MoveDirection
-						SpeedMethods[Mode.Value](Options, movevec, dt)
+						local method = CustomModes[Mode.Value] or SpeedMethods[Mode.Value]
+						method(Options, movevec, dt)
 						if AutoJump.Enabled and entitylib.character.Humanoid.FloorMaterial ~= Enum.Material.Air and movevec ~= Vector3.zero then
 							if AutoJumpCustom.Enabled then
 								local velocity = entitylib.character.RootPart.Velocity * Vector3.new(1, 0, 1)
@@ -3294,7 +3297,8 @@ run(function()
 		Name = 'Mode',
 		List = SpeedMethodList,
 		Function = function(val)
-			Options.WallCheck.Object.Visible = val == 'CFrame' or val == 'TP'
+			Options.Value.Object.Visible = CustomModes[val] == nil
+			Options.WallCheck.Object.Visible = val == 'CFrame' or val == 'TP' or CustomModes[val] ~= nil
 			Options.TPFrequency.Object.Visible = val == 'TP'
 			Options.PulseLength.Object.Visible = val == 'Pulse'
 			Options.PulseDelay.Object.Visible = val == 'Pulse'
@@ -3396,6 +3400,16 @@ run(function()
 		Darker = true,
 		Visible = false
 	})
+
+	-- Game modules can add fixed additive modes without replacing the shared Speed module.
+	local modes = table.clone(SpeedMethodList)
+	function Speed:AddMode(name, callback)
+		CustomModes[name] = callback
+		if not table.find(modes, name) then
+			table.insert(modes, name)
+		end
+		Mode:Change(modes)
+	end
 end)
 
 run(function()
@@ -3521,15 +3535,23 @@ run(function()
 				SpinBot:Clean(runService.PreSimulation:Connect(function()
 					if entitylib.isAlive then
 						if Mode.Value == 'RotVelocity' then
-							local originalRotVelocity = entitylib.character.RootPart.RotVelocity
+							if entitylib.character.Humanoid.Sit then
+								return
+							end
+	
+							local original = entitylib.character.RootPart.AssemblyAngularVelocity
 							entitylib.character.Humanoid.AutoRotate = false
-							entitylib.character.RootPart.RotVelocity = Vector3.new(XToggle.Enabled and Value.Value or originalRotVelocity.X, YToggle.Enabled and Value.Value or originalRotVelocity.Y, ZToggle.Enabled and Value.Value or originalRotVelocity.Z)
+							entitylib.character.RootPart.AssemblyAngularVelocity = Vector3.new(XToggle.Enabled and Value.Value or original.X, YToggle.Enabled and Value.Value or original.Y, ZToggle.Enabled and Value.Value or original.Z)
 						elseif Mode.Value == 'CFrame' then
-							local val = math.rad((tick() * (20 * Value.Value)) % 360)
+							if entitylib.character.Humanoid.Sit then
+								return
+							end
+	
+							local val = math.rad((os.clock() * (20 * Value.Value)) % 360)
 							local x, y, z = entitylib.character.RootPart.CFrame:ToOrientation()
 							entitylib.character.RootPart.CFrame = CFrame.new(entitylib.character.RootPart.Position) * CFrame.Angles(XToggle.Enabled and val or x, YToggle.Enabled and val or y, ZToggle.Enabled and val or z)
 						elseif AngularVelocity then
-							AngularVelocity.Parent = entitylib.isAlive and entitylib.character.RootPart
+							AngularVelocity.Parent = entitylib.isAlive and not entitylib.character.Humanoid.Sit and entitylib.character.RootPart or nil
 							AngularVelocity.MaxTorque = Vector3.new(XToggle.Enabled and math.huge or 0, YToggle.Enabled and math.huge or 0, ZToggle.Enabled and math.huge or 0)
 							AngularVelocity.AngularVelocity = Vector3.new(Value.Value, Value.Value, Value.Value)
 						end
@@ -3555,6 +3577,7 @@ run(function()
 				AngularVelocity:Destroy()
 				AngularVelocity = nil
 			end
+	
 			AngularVelocity = val == 'BodyMover' and Instance.new('BodyAngularVelocity') or nil
 		end,
 		Tooltip = 'CFrame - Directly adjusts your characters angle\nRotVelocity - Sets the rotation velocity so that you spin\nBodyMover - Uses body movers to edit your rotation velocity'
@@ -3565,12 +3588,16 @@ run(function()
 		Max = 100,
 		Default = 40
 	})
-	XToggle = SpinBot:CreateToggle({Name = 'Spin X'})
+	XToggle = SpinBot:CreateToggle({
+		Name = 'Spin X'
+	})
 	YToggle = SpinBot:CreateToggle({
 		Name = 'Spin Y',
 		Default = true
 	})
-	ZToggle = SpinBot:CreateToggle({Name = 'Spin Z'})
+	ZToggle = SpinBot:CreateToggle({
+		Name = 'Spin Z'
+	})
 end)
 
 run(function()
@@ -5794,6 +5821,9 @@ run(function()
 	local infoholder
 	local infolabel
 	local infostroke
+	local rows = {}
+	local sessionTitle
+	local customLabel
 	
 	SessionInfo = vape:CreateOverlay({
 		Name = 'Session Info',
@@ -5820,39 +5850,69 @@ run(function()
 	
 				repeat
 					if vape.Libraries.sessioninfo then
-						local stuff = {''}
-						if Title.Enabled then
-							stuff[1] = TitleOffset.Enabled and '<b>Session Info</b>\n<font size="4"> </font>' or '<b>Session Info</b>'
+						local entries = {}
+						for name, item in vape.Libraries.sessioninfo.Objects do
+							if not table.find(Hide.ListEnabled, name) then
+								table.insert(entries, {Name = name, Item = item})
+							end
 						end
-	
-						for i, v in vape.Libraries.sessioninfo.Objects do
-							stuff[v.Index] = not table.find(Hide.ListEnabled, i) and i..': '..v.Function(v.Value) or false
+						table.sort(entries, function(a, b) return a.Item.Index < b.Item.Index end)
+						local lineHeight = TextSize.Value + 12
+						local y = Title.Enabled and (TitleOffset.Enabled and 46 or 36) or 16
+						local width = 240
+						sessionTitle.Visible = Title.Enabled
+						sessionTitle.FontFace = FontOption.Value
+						for index, entry in entries do
+							local row = rows[index]
+							if not row then
+								local label = infolabel:Clone()
+								label.RichText = false
+								label.TextTransparency = 0
+								label:SetAttribute('VapeFadeBase_TextTransparency', nil)
+								label.TextStrokeTransparency = 1
+								label.Parent = infoholder
+								local value = label:Clone()
+								value.TextXAlignment = Enum.TextXAlignment.Right
+								value.TextColor3 = Color3.new(1, 1, 1)
+								value.Parent = infoholder
+								row = {Label = label, Value = value}
+								rows[index] = row
+							end
+							row.Label.Text = entry.Name
+							row.Value.Text = tostring(entry.Item.Function(entry.Item.Value))
+							for _, label in {row.Label, row.Value} do
+								label.Visible = true
+								label.FontFace = FontOption.Value
+								label.TextSize = TextSize.Value
+							end
+							local labelWidth = getfontbounds(row.Label.Text, TextSize.Value, FontOption.Value).X
+							local valueWidth = getfontbounds(row.Value.Text, TextSize.Value, FontOption.Value).X
+							width = math.max(width, labelWidth + valueWidth + 56)
+							row.Label.Position = UDim2.fromOffset(16, y)
+							row.Label.Size = UDim2.fromOffset(labelWidth, lineHeight)
+							row.Value.Position = UDim2.new(1, -valueWidth - 16, 0, y)
+							row.Value.Size = UDim2.fromOffset(valueWidth, lineHeight)
+							y += lineHeight
 						end
-	
-						if #Hide.ListEnabled > 0 then
-							local key, val
-							repeat
-								local oldkey = key
-								key, val = next(stuff, key)
-								if val == false then
-									table.remove(stuff, key)
-									key = oldkey
-								end
-							until not key
+						for index = #entries + 1, #rows do
+							rows[index].Label.Visible = false
+							rows[index].Value.Visible = false
 						end
-	
-						if Custom.Enabled then
-							table.insert(stuff, CustomBox.Value)
+						customLabel.Visible = Custom.Enabled and CustomBox.Value ~= ''
+						if customLabel.Visible then
+							customLabel.Text = CustomBox.Value
+							customLabel.FontFace = FontOption.Value
+							customLabel.TextSize = TextSize.Value
+							local bounds = getfontbounds(removeTags(customLabel.Text), TextSize.Value, FontOption.Value)
+							customLabel.Position = UDim2.fromOffset(16, y + 4)
+							customLabel.Size = UDim2.fromOffset(bounds.X, bounds.Y)
+							width = math.max(width, bounds.X + 32)
+							y += bounds.Y + 8
 						end
-	
-						if not Title.Enabled then
-							table.remove(stuff, 1)
+						local size = UDim2.fromOffset(width, math.max(y + 12, 56))
+						if infoholder.Size ~= size then
+							tween:Tween(infoholder, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = size})
 						end
-						infolabel.Text = table.concat(stuff, '\n')
-						infolabel.FontFace = FontOption.Value
-						infolabel.TextSize = TextSize.Value
-						local size = getfontbounds(removeTags(infolabel.Text), infolabel.TextSize, infolabel.FontFace)
-						infoholder.Size = UDim2.fromOffset(size.X + 16, size.Y + (Title.Enabled and TitleOffset.Enabled and 4 or 16))
 					end
 	
 					task.wait(1)
@@ -5862,7 +5922,7 @@ run(function()
 	})
 	FontOption = SessionInfo:CreateFont({
 		Name = 'Font',
-		Blacklist = 'Arial'
+		Default = 'Arial'
 	})
 	Hide = SessionInfo:CreateTextList({
 		Name = 'Blacklist',
@@ -5891,7 +5951,7 @@ run(function()
 		Name = 'Text Size',
 		Min = 1,
 		Max = 30,
-		Default = 16
+		Default = 14
 	})
 	Title = SessionInfo:CreateToggle({
 		Name = 'Title',
@@ -5926,7 +5986,7 @@ run(function()
 		Visible = false
 	})
 	infoholder = Instance.new('Frame')
-	infoholder.BackgroundColor3 = Color3.new()
+	infoholder.BackgroundColor3 = Color3.fromRGB(23, 26, 33)
 	infoholder.BackgroundTransparency = 0.5
 	infoholder.Parent = SessionInfo.Children
 	vape:Clean(SessionInfo.Children:GetPropertyChangedSignal('AbsolutePosition'):Connect(function()
@@ -5953,6 +6013,21 @@ run(function()
 	infolabel.TextStrokeColor3 = Color3.new()
 	infolabel.TextStrokeTransparency = 0.8
 	infolabel.Parent = infoholder
+	infolabel.Visible = false
+	infolabel.TextColor3 = Color3.fromRGB(160, 165, 177)
+	sessionTitle = infolabel:Clone()
+	sessionTitle.Name = 'SessionTitle'
+	sessionTitle.Position = UDim2.fromOffset(16, 14)
+	sessionTitle.Size = UDim2.new(1, -32, 0, 22)
+	sessionTitle.Text = 'SESSION INFO'
+	sessionTitle.TextSize = 13
+	sessionTitle.TextStrokeTransparency = 1
+	sessionTitle.TextColor3 = Color3.new(1, 1, 1)
+	sessionTitle.Visible = true
+	sessionTitle.Parent = infoholder
+	customLabel = infolabel:Clone()
+	customLabel.Parent = infoholder
+	vape:StyleHUDCard(infoholder)
 	infostroke = Instance.new('UIStroke')
 	infostroke.Enabled = false
 	infostroke.Color = Color3.fromHSV(0.44, 1, 1)
@@ -6065,41 +6140,43 @@ run(function()
 	})
 	
 	holder = Instance.new('Frame')
-	holder.BackgroundColor3 = Color3.new()
+	holder.BackgroundColor3 = Color3.fromRGB(23, 26, 33)
 	holder.BackgroundTransparency = 0.5
-	holder.Size = UDim2.fromOffset(180, 55)
+	holder.Size = UDim2.fromOffset(280, 112)
 	holder.Parent = Spotify.Children
 	addBlur(holder)
 	addCorner(holder)
 	local title = Instance.new('TextLabel')
 	title.BackgroundTransparency = 1
 	title.Font = Enum.Font.Arial
-	title.Position = UDim2.fromOffset(6, 6)
-	title.Size = UDim2.new(1, -6, 0, 16)
+	title.Position = UDim2.fromOffset(16, 36)
+	title.Size = UDim2.new(1, -32, 0, 20)
 	title.TextColor3 = Color3.new(1, 1, 1)
 	title.TextSize = 16
 	title.TextTruncate = Enum.TextTruncate.AtEnd
 	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Text = 'Nothing playing'
 	title.Parent = holder
 	local artist = Instance.new('TextLabel')
 	artist.BackgroundTransparency = 1
 	artist.Font = Enum.Font.Arial
-	artist.Position = UDim2.fromOffset(7, 24)
-	artist.Size = UDim2.new(1, -7, 0, 14)
+	artist.Position = UDim2.fromOffset(16, 59)
+	artist.Size = UDim2.new(1, -32, 0, 16)
 	artist.TextColor3 = Color3.new(0.7, 0.7, 0.7)
 	artist.TextSize = 14
 	artist.TextTruncate = Enum.TextTruncate.AtEnd
 	artist.TextXAlignment = Enum.TextXAlignment.Left
+	artist.Text = 'Waiting for playback'
 	artist.Parent = holder
 	local progress = Instance.new('Frame')
-	progress.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-	progress.Position = UDim2.fromOffset(6, 43)
-	progress.Size = UDim2.new(1, -46, 0, 4)
+	progress.BackgroundColor3 = Color3.fromRGB(26, 25, 26)
+	progress.Position = UDim2.fromOffset(16, 91)
+	progress.Size = UDim2.new(1, -116, 0, 5)
 	progress.Parent = holder
 	addCorner(progress)
 	local fill = Instance.new('Frame')
 	fill.BackgroundColor3 = Color3.fromHSV(0.46, 0.96, 0.52)
-	fill.Size = UDim2.fromScale(0.4, 1)
+	fill.Size = UDim2.fromScale(0, 1)
 	fill.Parent = progress
 	addCorner(fill)
 	local duration = Instance.new('TextLabel')
@@ -6108,13 +6185,23 @@ run(function()
 	duration.BorderColor3 = Color3.new()
 	duration.BorderSizePixel = 0
 	duration.Font = Enum.Font.Arial
-	duration.Position = UDim2.new(1, -32, 0, 37)
-	duration.Size = UDim2.fromOffset(40, 13)
-	duration.Text = '0:00'
+	duration.Position = UDim2.new(1, -96, 0, 85)
+	duration.Size = UDim2.fromOffset(80, 16)
+	duration.Text = '0:00 / 0:00'
 	duration.TextColor3 = Color3.fromRGB(170, 170, 170)
-	duration.TextSize = 13
-	duration.TextXAlignment = Enum.TextXAlignment.Left
+	duration.TextSize = 11
+	duration.TextXAlignment = Enum.TextXAlignment.Right
 	duration.Parent = holder
+	vape:StyleHUDCard(holder)
+	vape:RegisterHUDAccent(fill)
+	local playbackStatus = title:Clone()
+	playbackStatus.Name = 'PlaybackStatus'
+	playbackStatus.Position = UDim2.fromOffset(16, 14)
+	playbackStatus.Size = UDim2.new(1, -32, 0, 14)
+	playbackStatus.TextSize = 10
+	playbackStatus.TextColor3 = Color3.fromRGB(160, 165, 177)
+	playbackStatus.Text = 'SPOTIFY'
+	playbackStatus.Parent = holder
 	stroke = Instance.new('UIStroke')
 	stroke.Enabled = false
 	stroke.Color = Color3.fromHSV(0.44, 1, 1)
@@ -6204,15 +6291,16 @@ run(function()
 				local currentTime = (data.timestamp / 1000)
 				local posAsTime = tonumber(data.player_state.position_as_of_timestamp) / 1000
 				local diff = currentTime - (tonumber(data.player_state.timestamp) / 1000)
-				self.playPosition = posAsTime + diff
-				self.playRate = data.player_state.playback_speed
+				self.playPosition = posAsTime + (data.player_state.is_paused and 0 or diff)
+				self.playRate = data.player_state.is_paused and 0 or (tonumber(data.player_state.playback_speed) or 1)
+				playbackStatus.Text = data.player_state.is_paused and 'SPOTIFY / PAUSED' or 'SPOTIFY / NOW PLAYING'
 				self.playDuration = tonumber(data.player_state.duration) / 1000
 	
 				if data.player_state.track then
 					self:RequestCache(data.player_state.track.uri)
 					self.track = data.player_state.track.uri
 					title.Text = data.player_state.track.metadata.title
-					artist.Text = table.concat(self.Cache[self.track].Artists, ', ')
+					artist.Text = self.Cache[self.track] and table.concat(self.Cache[self.track].Artists, ', ') or 'Unknown artist'
 				end
 			end
 		end
@@ -6314,7 +6402,7 @@ run(function()
 			if not self.Cache[id] then
 				self.Cache[id] = {Artists = {'None'}}
 	
-				if self.Data.fetchKey then
+				if self.Data.fetchKey and not id:find('spotify:local') then
 					task.spawn(function()
 						local dataRequest = safeRequest({
 							Url = 'https://api-partner.spotify.com/pathfinder/v2/query',
@@ -6344,12 +6432,17 @@ run(function()
 	
 						if dataRequest.Success then
 							local data = httpService:JSONDecode(dataRequest.Body)
+							local track = data.data.lookup[1]
 	
-							if data.data.lookup[1] then
+							if track and track.data then
 								table.clear(self.Cache[id].Artists)
 	
-								for _, artist in data.data.lookup[1].data.artists.items do
-									table.insert(self.Cache[id].Artists, artist.profile.name)
+								if track.data.__typename == 'Track' then
+									for _, artist in track.data.artists.items do
+										table.insert(self.Cache[id].Artists, artist.profile.name)
+									end
+								elseif track.data.__typename == 'Episode' then
+									table.insert(self.Cache[id].Artists, track.data.podcastV2.data.publisher.name)
 								end
 	
 								if self.track == id then
@@ -6450,6 +6543,8 @@ run(function()
 	
 					if registerReq.Success then
 						self:Callback(httpService:JSONDecode(registerReq.Body))
+					else
+						notif('Spotify', 'Failed to register device: '..registerReq.Body, 30, 'alert')
 					end
 				else
 					notif('Spotify', 'Failed to register device: '..deviceReq.Body, 30, 'alert')
@@ -6530,12 +6625,15 @@ run(function()
 			if data.expireTime > os.time() then
 				self.Data = data
 			else
+				notif('Spotify', 'Authenticating...', 10, 'info')
+	
 				local success
 				success, data = pcall(function()
 					return self:Refresh()
 				end)
 	
 				if success then
+					notif('Spotify', 'Logged in!', 10, 'info')
 					writefile('newvape/profiles/spotifydata.txt', httpService:JSONEncode(data))
 					self.Data = data
 				else
@@ -6561,7 +6659,7 @@ run(function()
 			local pingCooldown = os.clock() + 30
 	
 			repeat
-				task.wait(1)
+				local delta = task.wait(0.1)
 	
 				if self.Socket then
 					if self.syncTime and (os.clock() - self.syncTime) > 10 then
@@ -6575,10 +6673,10 @@ run(function()
 						pingCooldown = os.clock() + 30
 					end
 	
-					if self.playPosition then
-						self.playPosition = math.clamp(self.playPosition + self.playRate, 0.01, self.playDuration)
-						duration.Text = (self.playPosition // 60)..':'..string.format('%02i', (self.playPosition // 1) % 60)
-						fill.Size = UDim2.fromScale(self.playPosition / self.playDuration, 1)
+					if self.playPosition and self.playDuration and self.playDuration > 0 then
+						self.playPosition = math.clamp(self.playPosition + (delta * self.playRate), 0.01, self.playDuration)
+						duration.Text = string.format('%d:%02d / %d:%02d', self.playPosition // 60, self.playPosition % 60, self.playDuration // 60, self.playDuration % 60)
+						tween:Tween(fill, TweenInfo.new(0.1, Enum.EasingStyle.Linear), {Size = UDim2.fromScale(math.clamp(self.playPosition / self.playDuration, 0, 1), 1)})
 					end
 				end
 			until false
@@ -6794,6 +6892,7 @@ run(function()
 	local Color
 	local Scale
 	local Background
+	local Stroke
 	WaypointFolder = Instance.new('Folder')
 	WaypointFolder.Parent = vape.holder
 	
@@ -6801,25 +6900,26 @@ run(function()
 		Name = 'Waypoints',
 		Function = function(callback)
 			if callback then
-				for _, v in List.ListEnabled do
-					local split = v:split('/')
+				for _, data in List.ListEnabled do
+					local split = data:split('/')
 					local tagSize = getfontbounds(removeTags(split[2]), 14 * Scale.Value, FontOption.Value, Vector2.new(100000, 100000))
 					local billboard = Instance.new('BillboardGui')
+					billboard.AlwaysOnTop = true
 					billboard.Size = UDim2.fromOffset(tagSize.X + 8, tagSize.Y + 7)
 					billboard.StudsOffsetWorldSpace = Vector3.new(unpack(split[1]:split(',')))
-					billboard.AlwaysOnTop = true
 					billboard.Parent = WaypointFolder
 					local tag = Instance.new('TextLabel')
 					tag.BackgroundColor3 = Color3.new()
-					tag.BorderSizePixel = 0
-					tag.Visible = true
-					tag.RichText = true
-					tag.FontFace = FontOption.Value
-					tag.TextSize = 14 * Scale.Value
 					tag.BackgroundTransparency = Background.Value
+					tag.BorderSizePixel = 0
+					tag.FontFace = FontOption.Value
+					tag.RichText = true
 					tag.Size = billboard.Size
 					tag.Text = split[2]
 					tag.TextColor3 = Color3.fromHSV(Color.Hue, Color.Sat, Color.Value)
+					tag.TextSize = 14 * Scale.Value
+					tag.TextStrokeTransparency = Stroke.Value
+					tag.Visible = true
 					tag.Parent = billboard
 				end
 			else
@@ -6840,20 +6940,17 @@ run(function()
 	})
 	List = Waypoints:CreateTextList({
 		Name = 'Points',
-		Placeholder = 'x, y, z/name',
+		Placeholder = '(name) | (x, y, z/name)',
 		Function = function()
 			if Waypoints.Enabled then
 				Waypoints:Toggle()
 				Waypoints:Toggle()
 			end
-		end
-	})
-	Waypoints:CreateButton({
-		Name = 'Add current position',
-		Function = function()
-			if entitylib.isAlive then
+		end,
+		TextFunction = function(text)
+			if not text:find('/') then
 				local pos = entitylib.character.RootPart.Position // 1
-				List:ChangeValue(pos.X..','..pos.Y..','..pos.Z..'/Waypoint '..(#List.List + 1))
+				return pos.X..','..pos.Y..','..pos.Z..'/'..text
 			end
 		end
 	})
@@ -6891,7 +6988,19 @@ run(function()
 		Max = 1,
 		Decimal = 10
 	})
-	
+	Stroke = Waypoints:CreateSlider({
+		Name = 'Stroke Transparency',
+		Function = function()
+			if Waypoints.Enabled then
+				Waypoints:Toggle()
+				Waypoints:Toggle()
+			end
+		end,
+		Default = 1,
+		Min = 0,
+		Max = 1,
+		Decimal = 10
+	})
 end)
 
 run(function()
@@ -6899,32 +7008,33 @@ run(function()
 	local IDBox
 	local Priority
 	local Speed
-	local anim, animobject
+	local NoFetch
+	local track, anim
 	
 	local function playAnimation(char)
-		local animcheck = anim
+		local animcheck = track
 		if animcheck then
-			anim = nil
+			track = nil
 			animcheck:Stop()
 		end
 	
-		local suc, res = pcall(function()
-			anim = char.Humanoid.Animator:LoadAnimation(animobject)
+		local success, result = pcall(function()
+			track = char.Humanoid.Animator:LoadAnimation(anim)
 		end)
 	
-		if suc then
-			local currentanim = anim
-			anim.Priority = Enum.AnimationPriority[Priority.Value]
-			anim:Play()
-			anim:AdjustSpeed(Speed.Value)
+		if success then
+			local currentanim = track
+			track.Priority = Enum.AnimationPriority[Priority.Value]
+			track:Play()
+			track:AdjustSpeed(Speed.Value)
 	
-			AnimationPlayer:Clean(anim.Stopped:Connect(function()
-				if currentanim == anim then
-					anim:Play()
+			AnimationPlayer:Clean(track.Stopped:Connect(function()
+				if currentanim == track then
+					track:Play()
 				end
 			end))
 		else
-			notif('AnimationPlayer', 'failed to load anim : '..(res or 'invalid animation id'), 5, 'warning')
+			notif('AnimationPlayer', 'failed to load anim : '..(result or 'invalid animation id'), 5, 'warning')
 		end
 	end
 	
@@ -6933,21 +7043,25 @@ run(function()
 		Function = function(callback)
 			if callback then
 				local success, id = pcall(function()
+					if NoFetch.Enabled then
+						return
+					end
+	
 					return string.match(game:GetObjects('rbxassetid://'..IDBox.Value)[1].AnimationId, '%?id=(%d+)')
 				end)
 	
-				animobject = Instance.new('Animation')
-				animobject.AnimationId = 'rbxassetid://'..(success and id or IDBox.Value)
+				anim = Instance.new('Animation')
+				anim.AnimationId = 'rbxassetid://'..(success and id or IDBox.Value)
 	
 				if entitylib.isAlive then
 					playAnimation(entitylib.character)
 				end
 	
 				AnimationPlayer:Clean(entitylib.Events.LocalAdded:Connect(playAnimation))
-				AnimationPlayer:Clean(animobject)
+				AnimationPlayer:Clean(anim)
 			else
-				if anim then
-					anim:Stop()
+				if track then
+					track:Stop()
 				end
 			end
 		end,
@@ -6973,21 +7087,26 @@ run(function()
 		Name = 'Priority',
 		List = prio,
 		Function = function(val)
-			if anim then
-				anim.Priority = Enum.AnimationPriority[val]
+			if track then
+				track.Priority = Enum.AnimationPriority[val]
 			end
 		end
 	})
 	Speed = AnimationPlayer:CreateSlider({
 		Name = 'Speed',
 		Function = function(val)
-			if anim then
-				anim:AdjustSpeed(val)
+			if track then
+				track:AdjustSpeed(val)
 			end
 		end,
 		Min = 0.1,
 		Max = 2,
+		Default = 1,
 		Decimal = 10
+	})
+	NoFetch = AnimationPlayer:CreateToggle({
+		Name = 'No Fetch',
+		Tooltip = 'Do not attempt to fetch the asset with GetObjects'
 	})
 end)
 
@@ -7592,6 +7711,7 @@ end)
 
 run(function()
 	local Freecam
+	local Mode
 	local Value
 	local randomkey, module, old = httpService:GenerateGUID(false)
 	
@@ -7599,6 +7719,24 @@ run(function()
 		Name = 'Freecam',
 		Function = function(callback)
 			if callback then
+				if Mode.Value == 'Roblox' then
+					if not lplr.PlayerGui:FindFirstChild('Freecam') then
+						local gui = Instance.new('ScreenGui')
+						gui.ResetOnSpawn = false
+						gui.Name = 'Freecam'
+						gui.Parent = lplr.PlayerGui
+					end
+	
+					local fcScript = coreGui.RobloxGui.Modules.Server.FreeCamera.FreeCamera
+					getrenv().require(fcScript)
+					fcScript:SetAttribute('FreecamEnabled', true)
+	
+					Freecam:Clean(function()
+						fcScript:SetAttribute('FreecamEnabled', false)
+					end)
+					return
+				end
+	
 				repeat
 					task.wait(0.1)
 	
@@ -7653,11 +7791,26 @@ run(function()
 		end,
 		Tooltip = 'Lets you fly and clip through walls freely\nwithout moving your player server-sided.'
 	})
+	Mode = Freecam:CreateDropdown({
+		Name = 'Mode',
+		List = {'Classic', 'Roblox'},
+		Function = function(val)
+			if Freecam.Enabled then
+				Freecam:Toggle()
+				Freecam:Toggle()
+			end
+	
+			if Value then
+				Value.Object.Visible = val == 'Classic'
+			end
+		end
+	})
 	Value = Freecam:CreateSlider({
 		Name = 'Speed',
 		Min = 1,
 		Max = 150,
 		Default = 50,
+		Darker = true,
 		Suffix = function(val)
 			return val == 1 and 'stud' or 'studs'
 		end
@@ -8430,7 +8583,7 @@ run(function()
 				until not Clock.Enabled
 			end
 		end,
-		Size = UDim2.fromOffset(100, 41),
+		Size = UDim2.fromOffset(124, 46),
 		Tooltip = 'Shows the current local time'
 	})
 	Clock:CreateFont({
@@ -8453,17 +8606,18 @@ run(function()
 		Name = '24 Hour Clock'
 	})
 	label = Instance.new('TextLabel')
-	label.Size = UDim2.new(0, 100, 0, 41)
+	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 0.5
-	label.TextSize = 15
+	label.TextSize = 16
 	label.Font = Enum.Font.Gotham
 	label.Text = '0:00 PM'
 	label.TextColor3 = Color3.new(1, 1, 1)
-	label.BackgroundColor3 = Color3.new()
+	label.BackgroundColor3 = Color3.fromRGB(23, 26, 33)
 	label.Parent = Clock.Children
 	local corner = Instance.new('UICorner')
 	corner.CornerRadius = UDim.new(0, 4)
 	corner.Parent = label
+	vape:StyleHUDCard(label)
 end)
 
 run(function()
@@ -8668,7 +8822,7 @@ run(function()
 				end))
 			end
 		end,
-		Size = UDim2.fromOffset(100, 41),
+		Size = UDim2.fromOffset(124, 46),
 		Tooltip = 'Shows the current framerate'
 	})
 	FPS:CreateFont({
@@ -8690,15 +8844,16 @@ run(function()
 	label = Instance.new('TextLabel')
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 0.5
-	label.TextSize = 15
+	label.TextSize = 16
 	label.Font = Enum.Font.Gotham
 	label.Text = 'inf FPS'
 	label.TextColor3 = Color3.new(1, 1, 1)
-	label.BackgroundColor3 = Color3.new()
+	label.BackgroundColor3 = Color3.fromRGB(23, 26, 33)
 	label.Parent = FPS.Children
 	local corner = Instance.new('UICorner')
 	corner.CornerRadius = UDim.new(0, 4)
 	corner.Parent = label
+	vape:StyleHUDCard(label)
 end)
 
 run(function()
@@ -8723,17 +8878,19 @@ run(function()
 		local label = Instance.new('TextLabel')
 		label.BackgroundTransparency = 1
 		label.Font = Enum.Font.Gotham
-		label.Position = pos2
+		label.Position = UDim2.new()
 		label.Size = UDim2.fromScale(1, 1)
-		label.Text = text or keybutton.Name
+		label.Text = keybutton == Enum.KeyCode.Space and 'SPACE' or text or keybutton.Name
 		label.TextColor3 = Color3.new(1, 1, 1)
 		label.TextSize = keybutton == Enum.KeyCode.Space and 18 or 15
-		label.TextXAlignment = Enum.TextXAlignment.Left
-		label.TextYAlignment = Enum.TextYAlignment.Top
+		label.TextXAlignment = Enum.TextXAlignment.Center
+		label.TextYAlignment = Enum.TextYAlignment.Center
 		label.Parent = key
 		local corner = Instance.new('UICorner')
 		corner.CornerRadius = UDim.new(0, 4)
 		corner.Parent = key
+		corner.CornerRadius = UDim.new(0, 7)
+		vape:StyleHUDCard(key)
 	
 		keys[keybutton] = {Key = key}
 	end
@@ -8751,12 +8908,12 @@ run(function()
 	
 			local pressed = inputType.UserInputState == Enum.UserInputState.Begin
 			key.Pressed = pressed
-			key.Tween = tweenService:Create(key.Key, TweenInfo.new(0.1), {
-				BackgroundColor3 = pressed and Color3.new(1, 1, 1) or Color3.fromHSV(Color.Hue, Color.Sat, Color.Value),
+			key.Tween = tweenService:Create(key.Key, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				BackgroundColor3 = pressed and vape:GetGUIColorRGB() or Color3.fromHSV(Color.Hue, Color.Sat, Color.Value),
 				BackgroundTransparency = pressed and 0 or 1 - Color.Opacity
 			})
-			key.Tween2 = tweenService:Create(key.Key.TextLabel, TweenInfo.new(0.1), {
-				TextColor3 = pressed and Color3.new() or Color3.new(1, 1, 1)
+			key.Tween2 = tweenService:Create(key.Key.TextLabel, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				TextColor3 = pressed and (select(3, vape:GetGUIColorRGB():ToHSV()) > 0.7 and Color3.new(0.08, 0.08, 0.08) or Color3.new(1, 1, 1)) or Color3.new(1, 1, 1)
 			})
 			key.Tween:Play()
 			key.Tween2:Play()
@@ -8836,7 +8993,7 @@ run(function()
 				until not Memory.Enabled
 			end
 		end,
-		Size = UDim2.fromOffset(100, 41),
+		Size = UDim2.fromOffset(124, 46),
 		Tooltip = 'A label showing the memory currently used by roblox'
 	})
 	Memory:CreateFont({
@@ -8856,21 +9013,23 @@ run(function()
 		end
 	})
 	label = Instance.new('TextLabel')
-	label.Size = UDim2.new(0, 100, 0, 41)
+	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 0.5
-	label.TextSize = 15
+	label.TextSize = 16
 	label.Font = Enum.Font.Gotham
 	label.Text = '0 MB'
 	label.TextColor3 = Color3.new(1, 1, 1)
-	label.BackgroundColor3 = Color3.new()
+	label.BackgroundColor3 = Color3.fromRGB(23, 26, 33)
 	label.Parent = Memory.Children
 	local corner = Instance.new('UICorner')
 	corner.CornerRadius = UDim.new(0, 4)
 	corner.Parent = label
+	vape:StyleHUDCard(label)
 end)
 
 run(function()
 	local Ping
+	local Data
 	local label
 	
 	Ping = vape.Legit:CreateModule({
@@ -8878,12 +9037,13 @@ run(function()
 		Function = function(callback)
 			if callback then
 				repeat
-					label.Text = math.floor(tonumber(stats.PerformanceStats.Ping:GetValue()))..' ms'
+					local obj = Data.Enabled and stats.Network.ServerStatsItem['Data Ping'] or stats.PerformanceStats.Ping
+					label.Text = math.floor(tonumber(obj:GetValue()))..' ms'
 					task.wait(1)
 				until not Ping.Enabled
 			end
 		end,
-		Size = UDim2.fromOffset(100, 41),
+		Size = UDim2.fromOffset(124, 46),
 		Tooltip = 'Shows the current connection speed to the roblox server'
 	})
 	Ping:CreateFont({
@@ -8902,18 +9062,23 @@ run(function()
 			label.BackgroundTransparency = 1 - opacity
 		end
 	})
+	Data = Ping:CreateToggle({
+		Name = 'Data Ping',
+		Default = true
+	})
 	label = Instance.new('TextLabel')
-	label.Size = UDim2.new(0, 100, 0, 41)
+	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 0.5
-	label.TextSize = 15
+	label.TextSize = 16
 	label.Font = Enum.Font.Gotham
 	label.Text = '0 ms'
 	label.TextColor3 = Color3.new(1, 1, 1)
-	label.BackgroundColor3 = Color3.new()
+	label.BackgroundColor3 = Color3.fromRGB(23, 26, 33)
 	label.Parent = Ping.Children
 	local corner = Instance.new('UICorner')
 	corner.CornerRadius = UDim.new(0, 4)
 	corner.Parent = label
+	vape:StyleHUDCard(label)
 end)
 
 run(function()
@@ -9066,7 +9231,7 @@ run(function()
 				until not Speedmeter.Enabled
 			end
 		end,
-		Size = UDim2.fromOffset(100, 41),
+		Size = UDim2.fromOffset(124, 46),
 		Tooltip = 'A label showing the average velocity in studs'
 	})
 	Speedmeter:CreateFont({
@@ -9088,15 +9253,16 @@ run(function()
 	label = Instance.new('TextLabel')
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 0.5
-	label.TextSize = 15
+	label.TextSize = 16
 	label.Font = Enum.Font.Gotham
 	label.Text = '0 sps'
 	label.TextColor3 = Color3.new(1, 1, 1)
-	label.BackgroundColor3 = Color3.new()
+	label.BackgroundColor3 = Color3.fromRGB(23, 26, 33)
 	label.Parent = Speedmeter.Children
 	local corner = Instance.new('UICorner')
 	corner.CornerRadius = UDim.new(0, 4)
 	corner.Parent = label
+	vape:StyleHUDCard(label)
 end)
 
 run(function()

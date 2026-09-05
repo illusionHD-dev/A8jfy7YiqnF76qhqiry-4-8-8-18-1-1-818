@@ -1,3 +1,4 @@
+-- Local customization: additive Legit speed (+1.7 studs/second).
 local loadstring = function(...)
 	local res, err = loadstring(...)
 	if err and vape then
@@ -14,7 +15,7 @@ end
 local function downloadFile(path, func)
 	if not isfile(path) then
 		local suc, res = pcall(function()
-			return game:HttpGet('https://raw.githubusercontent.com/illusionHD-dev/A8jfy7YiqnF76qhqiry-4-8-8-18-1-1-818/'..readfile('newvape/profiles/commit.txt')..'/'..select(1, path:gsub('newvape/', '')), true)
+			return game:HttpGet('https://raw.githubusercontent.com/7GrandDadPGN/illusionhd-dev/A8jfy7YiqnF76qhqiry-4-8-8-18-1-1-818/'..readfile('newvape/profiles/commit.txt')..'/'..select(1, path:gsub('newvape/', '')), true)
 		end)
 		if not suc or res == '404: Not Found' then
 			error(res)
@@ -95,6 +96,10 @@ if not select(1, ...) and game.PlaceId == 5938036553 then
 end
 
 local frontlines = {Functions = {}}
+frontlines.KillEffectEvent = Instance.new('BindableEvent')
+frontlines.LocalBulletEvent = Instance.new('BindableEvent')
+frontlines.LocalHitEvent = Instance.new('BindableEvent')
+frontlines.LastLocalHit = nil
 
 local function addBlur(parent)
 	local blur = Instance.new('ImageLabel')
@@ -159,7 +164,7 @@ local function isFriend(plr, recolor)
 	return nil
 end
 
-run(function()
+--[[run(function()
 	repeat
 		if not frontlines.ShootFunction then
 			local gc = getgc(true)
@@ -195,12 +200,38 @@ run(function()
 	frontlines.PickupBit = debug.getupvalue(frontlines.Events[frontlines.Main.exe_func_t.INIT_FPV_SOL_AMMO_PICKUP], 5)
 	--frontlines.Chat = debug.getupvalue(frontlines.Events[frontlines.Main.exe_func_t.UPDATE_CHAT_GUI], 1)
 
+	-- One shared FPV bullet hook. Modules listen to LocalBulletEvent / LocalHitEvent instead of
+	-- stacking hookfunction calls on SPAWN_FPV_SOL_BULLET.
+	hookEvent('SPAWN_FPV_SOL_BULLET', function(id, btype, origin, velocity)
+		if frontlines.LocalBulletEvent then
+			frontlines.LocalBulletEvent:Fire(id, btype, origin, velocity)
+		end
+		task.defer(function()
+			if not frontlines.ResolveBulletHit then return end
+			local ent, ray, headshot = frontlines.ResolveBulletHit(origin, velocity)
+			if ent and ray then
+				frontlines.LastLocalHit = {
+					Id = ent.Id,
+					Time = tick(),
+					Headshot = headshot,
+					Position = ray.Position
+				}
+				if frontlines.LocalHitEvent then
+					frontlines.LocalHitEvent:Fire(ent, ray.Position, headshot, ray.Instance)
+				end
+			end
+		end)
+	end)
+
 	local kills = sessioninfo:AddItem('Kills')
 	local deaths = sessioninfo:AddItem('Deaths')
 
 	hookEvent('SET_CLI_MATCH_KILLS', function(id)
 		if id == frontlines.Main.globals.cli_state.fpv_sol_id then
 			kills:Increment()
+			if frontlines.KillEffectEvent then
+				frontlines.KillEffectEvent:Fire()
+			end
 		end
 	end)
 
@@ -252,13 +283,16 @@ run(function()
 
 	vape:Clean(Drawing.kill or function() end)
 	vape:Clean(function()
+		if frontlines.KillEffectEvent then frontlines.KillEffectEvent:Destroy() end
+		if frontlines.LocalBulletEvent then frontlines.LocalBulletEvent:Destroy() end
+		if frontlines.LocalHitEvent then frontlines.LocalHitEvent:Destroy() end
 		for i, v in frontlines.Functions do
 			hookfunction(i, v)
 		end
 		table.clear(frontlines.Functions)
 		table.clear(frontlines)
 	end)
-end)
+end)]]
 if vape.Loaded == nil then return end
 
 run(function()
@@ -400,11 +434,108 @@ run(function()
 		entitylib.Running = true
 	end
 end)
+
+-- Resolve the local FPV bullet ray back to a Vape entity and classify the hit as a headshot.
+-- Frontlines' hitboxes are not guaranteed to literally be named "Head", so Smart detection
+-- falls back to the hit position relative to the soldier root/head proxy.
+frontlines.ResolveBulletHit = function(origin, velocity)
+	if typeof(origin) ~= 'Vector3' or typeof(velocity) ~= 'Vector3' or velocity.Magnitude <= 0.001 then
+		return
+	end
+
+	local ray = workspace:Raycast(origin, velocity.Unit * 1000, frontlines.ShootRay)
+	if not ray or not ray.Instance then return end
+
+	local hit = ray.Instance
+	local ent
+	local matchedHitbox
+	local hash = frontlines.Main and frontlines.Main.globals and frontlines.Main.globals.soldier_hitbox_hash
+
+	if hash then
+		for hitbox, id in hash do
+			if typeof(hitbox) == 'Instance' and (hit == hitbox or hit:IsDescendantOf(hitbox)) then
+				matchedHitbox = hitbox
+				ent = entitylib.getEntity(id)
+
+				if not ent then
+					local weld = hitbox:FindFirstChild('Weld')
+					local root = weld and weld.Part0
+					if root then
+						if entitylib.character and root == entitylib.character.RootPart then
+							ent = entitylib.character
+						else
+							for _, candidate in entitylib.List do
+								if candidate.RootPart == root then
+									ent = candidate
+									break
+								end
+							end
+						end
+					end
+				end
+				break
+			end
+		end
+	end
+
+	if not ent then
+		for _, candidate in entitylib.List do
+			if candidate.Character and hit:IsDescendantOf(candidate.Character) then
+				ent = candidate
+				break
+			end
+		end
+	end
+
+	if not ent or ent == entitylib.character or ent.Targetable == false then return end
+
+	local function hasHeadName(obj)
+		local depth = 0
+		while obj and depth < 5 do
+			if tostring(obj.Name):lower():find('head', 1, true) then
+				return true
+			end
+			obj = obj.Parent
+			depth += 1
+		end
+		return false
+	end
+
+	local headshot = hasHeadName(hit) or hasHeadName(matchedHitbox)
+	if not headshot and ent.RootPart then
+		local headpos = ent.Head and ent.Head.Position or (ent.RootPart.Position + Vector3.new(0, 3, 0))
+		local relativeY = ray.Position.Y - ent.RootPart.Position.Y
+		headshot = relativeY >= 2.0 or (ray.Position - headpos).Magnitude <= 1.35
+	end
+
+	return ent, ray, headshot, matchedHitbox
+end
+
 entitylib.start()
 
 for i, v in {'Reach', 'Health', 'TriggerBot', 'AntiFall', 'AntiRagdoll', 'Invisible', 'Disabler', 'Freecam', 'Parkour', 'HitBoxes', 'SafeWalk', 'Spider', 'Swim', 'GamingChair', 'TargetStrafe', 'Timer', 'MurderMystery', 'Blink', 'AnimationPlayer'} do
 	vape:Remove(v)
 end
+
+run(function()
+	vape.Modules.Speed:AddMode('Legit', function(options, moveDirection, dt)
+		local root = entitylib.character.RootPart
+		local direction = moveDirection * Vector3.new(1, 0, 1)
+		local magnitude = direction.Magnitude
+		if magnitude <= 0 or dt <= 0 then return end
+
+		-- Add 1.7 studs/second to normal movement, including backwards and strafing.
+		-- Position offset avoids repeatedly compounding the previous frame's velocity.
+		local offset = direction / magnitude * math.min(magnitude, 1) * 1.7 * dt
+		if options.WallCheck.Enabled then
+			options.rayCheck.FilterDescendantsInstances = {entitylib.character.Character, gameCamera}
+			options.rayCheck.CollisionGroup = root.CollisionGroup
+			local ray = workspace:Raycast(root.Position, offset, options.rayCheck)
+			if ray then return end
+		end
+		root.CFrame += offset
+	end)
+end)
 
 
 run(function()
@@ -1296,6 +1427,606 @@ run(function()
 	})
 end)
 
+
+run(function()
+	local KillEffects
+	local Mode
+	local ColorMode
+	local PrimaryColor
+	local SecondaryColor
+	local EffectSize
+	local Lifetime
+	local Quality
+	local KillSound
+	local KillSoundFile
+	local KillSoundVolume
+	local Folder = Instance.new('Folder')
+	Folder.Name = 'VapeKillEffects'
+	Folder.Parent = workspace
+
+	local healthCache = {}
+	local recentDeaths = {}
+	local recentHits = {}
+	local cachedSoundInput
+	local cachedSoundAsset
+	local customAsset = getcustomasset or getsynasset or getasset
+
+	local function resolveSound(value)
+		value = tostring(value or ''):gsub('^%s+', ''):gsub('%s+$', '')
+		if value == '' then return end
+		if cachedSoundInput == value then return cachedSoundAsset end
+		cachedSoundInput = value
+		cachedSoundAsset = nil
+
+		if value:match('^%d+$') then
+			cachedSoundAsset = 'rbxassetid://'..value
+		elseif value:match('^rbxassetid://') or value:match('^rbxasset://') then
+			cachedSoundAsset = value
+		elseif customAsset then
+			local path = value:gsub('^file://', ''):gsub('\\', '/')
+			local ok, asset = pcall(customAsset, path)
+			if ok and asset then
+				cachedSoundAsset = asset
+			end
+		end
+		return cachedSoundAsset
+	end
+
+	local function amount(base)
+		local multiplier = Quality.Value == 'Low' and 0.6 or Quality.Value == 'High' and 1.45 or 1
+		return math.max(1, math.floor(base * multiplier + 0.5))
+	end
+
+	local function colors(death)
+		if ColorMode.Value == 'Target' and death and death.Color then
+			return death.Color, death.Color:Lerp(Color3.new(1, 1, 1), 0.55)
+		elseif ColorMode.Value == 'Rainbow' then
+			local hue = (tick() * 0.18) % 1
+			return Color3.fromHSV(hue, 0.8, 1), Color3.fromHSV((hue + 0.5) % 1, 0.8, 1)
+		end
+		return Color3.fromHSV(PrimaryColor.Hue, PrimaryColor.Sat, PrimaryColor.Value), Color3.fromHSV(SecondaryColor.Hue, SecondaryColor.Sat, SecondaryColor.Value)
+	end
+
+	local function cleanup(obj, delayTime)
+		debrisService:AddItem(obj, math.max(delayTime or Lifetime.Value, 0.05) + 0.15)
+		return obj
+	end
+
+	local function part(size, cf, color, transparency, material, shape)
+		local obj = Instance.new('Part')
+		obj.Size = size
+		obj.CFrame = cf
+		obj.Anchored = true
+		obj.CanCollide = false
+		obj.CanTouch = false
+		obj.CanQuery = false
+		obj.CastShadow = false
+		obj.Color = color
+		obj.Transparency = transparency or 0
+		obj.Material = material or Enum.Material.Neon
+		if shape then obj.Shape = shape end
+		obj.Parent = Folder
+		return obj
+	end
+
+	local function tween(obj, duration, props, style, direction)
+		local tw = tweenService:Create(obj, TweenInfo.new(duration, style or Enum.EasingStyle.Quad, direction or Enum.EasingDirection.Out), props)
+		tw:Play()
+		tw.Completed:Connect(function()
+			pcall(function() tw:Destroy() end)
+		end)
+		return tw
+	end
+
+	local function sphere(pos, startSize, endSize, color, duration, startTransparency)
+		local obj = part(Vector3.one * math.max(startSize, 0.05), CFrame.new(pos), color, startTransparency or 0, Enum.Material.Neon, Enum.PartType.Ball)
+		tween(obj, duration, {Size = Vector3.one * math.max(endSize, 0.05), Transparency = 1}, Enum.EasingStyle.Quart)
+		return cleanup(obj, duration)
+	end
+
+	local function line(a, b, width, color, duration)
+		local dist = (b - a).Magnitude
+		if dist <= 0.01 then return end
+		local obj = part(Vector3.new(width, width, dist), CFrame.lookAt((a + b) / 2, b), color, 0, Enum.Material.Neon)
+		tween(obj, duration, {Transparency = 1, Size = Vector3.new(math.max(width * 0.15, 0.02), math.max(width * 0.15, 0.02), dist)}, Enum.EasingStyle.Quart)
+		return cleanup(obj, duration)
+	end
+
+	local function burst(pos, count, radius, size, a, b, life, cubes, upward, rainbow)
+		for i = 1, amount(count) do
+			local dir = Vector3.new(math.random(-100, 100) / 100, math.random(-35, 100) / 100 + (upward or 0), math.random(-100, 100) / 100)
+			if dir.Magnitude < 0.05 then dir = Vector3.yAxis end
+			dir = dir.Unit
+			local color = rainbow and Color3.fromHSV(i / math.max(amount(count), 1), 0.85, 1) or (i % 2 == 0 and a or b)
+			local obj = part(Vector3.one * size, CFrame.new(pos) * CFrame.Angles(math.random(), math.random(), math.random()), color, 0, Enum.Material.Neon, cubes and nil or Enum.PartType.Ball)
+			local endpoint = pos + dir * radius * (0.65 + math.random() * 0.45)
+			tween(obj, life, {
+				CFrame = CFrame.new(endpoint) * CFrame.Angles(math.random() * 6, math.random() * 6, math.random() * 6),
+				Size = Vector3.one * math.max(size * 0.15, 0.03),
+				Transparency = 1
+			}, Enum.EasingStyle.Quart)
+			cleanup(obj, life)
+		end
+	end
+
+	local function symbol(pos, text, color, life, count, scale)
+		for i = 1, amount(count or 1) do
+			local anchor = part(Vector3.one * 0.05, CFrame.new(pos + Vector3.new(math.random(-12, 12) / 10, math.random(0, 12) / 10, math.random(-12, 12) / 10)), color, 1, Enum.Material.SmoothPlastic)
+			local gui = Instance.new('BillboardGui')
+			gui.Size = UDim2.fromOffset(72 * (scale or 1), 72 * (scale or 1))
+			gui.AlwaysOnTop = true
+			gui.Adornee = anchor
+			gui.Parent = anchor
+			local label = Instance.new('TextLabel')
+			label.Size = UDim2.fromScale(1, 1)
+			label.BackgroundTransparency = 1
+			label.Text = text
+			label.TextScaled = true
+			label.TextColor3 = color
+			label.TextStrokeTransparency = 0.35
+			label.Font = Enum.Font.GothamBold
+			label.Parent = gui
+			tween(anchor, life, {CFrame = anchor.CFrame + Vector3.new(math.random(-18, 18) / 10, 5 + math.random() * 2, math.random(-18, 18) / 10)}, Enum.EasingStyle.Sine)
+			tween(label, life, {TextTransparency = 1, TextStrokeTransparency = 1}, Enum.EasingStyle.Quad)
+			cleanup(anchor, life)
+		end
+	end
+
+	local function playKillSound()
+		if not KillSound.Enabled then return end
+		local asset = resolveSound(KillSoundFile.Value)
+		if not asset then return end
+		local sound = Instance.new('Sound')
+		sound.SoundId = asset
+		sound.Volume = KillSoundVolume.Value
+		sound.Parent = gameCamera
+		sound:Play()
+		debrisService:AddItem(sound, 6)
+	end
+
+	local function ghostEffect(death, a, scale, life)
+		local char = death.Character
+		if not char or not char.Parent then
+			sphere(death.Position + Vector3.new(0, 1.5 * scale, 0), 0.5 * scale, 4 * scale, a, life, 0.35)
+			return
+		end
+		local archivable = char.Archivable
+		char.Archivable = true
+		local ok, clone = pcall(function() return char:Clone() end)
+		char.Archivable = archivable
+		if not ok or not clone then return end
+		clone.Name = 'KillEffectGhost'
+		clone.Parent = Folder
+		for _, obj in clone:GetDescendants() do
+			if obj:IsA('BasePart') then
+				obj.Anchored = true
+				obj.CanCollide = false
+				obj.CanTouch = false
+				obj.CanQuery = false
+				obj.CastShadow = false
+				obj.Material = Enum.Material.ForceField
+				obj.Color = a
+				obj.Transparency = math.max(obj.Transparency, 0.28)
+				tween(obj, life, {CFrame = obj.CFrame + Vector3.new(0, 6 * scale, 0), Transparency = 1}, Enum.EasingStyle.Sine)
+			elseif obj:IsA('Decal') or obj:IsA('Texture') then
+				tween(obj, life, {Transparency = 1}, Enum.EasingStyle.Sine)
+			elseif obj:IsA('Script') or obj:IsA('LocalScript') then
+				obj:Destroy()
+			end
+		end
+		cleanup(clone, life)
+	end
+
+	local function runEffect(death)
+		if not death or not death.Position then return end
+		local pos = death.Position
+		local scale = EffectSize.Value
+		local life = math.max(Lifetime.Value, 0.15)
+		local a, b = colors(death)
+		local mode = Mode.Value
+		if mode == 'Random' then
+			local pool = {'Nova', 'Lightning', 'Soul', 'Rings', 'Spiral', 'Firework', 'Tornado', 'Shatter', 'Slash', 'Beam', 'Pulse', 'Confetti', 'Galaxy', 'Freeze', 'Void', 'Ghost', 'Hearts', 'Skull', 'Black Hole', 'Disintegrate', 'Crystal', 'Orbit'}
+			mode = pool[math.random(1, #pool)]
+		end
+
+		playKillSound()
+
+		if mode == 'Nova' or mode == 'Explosion' then
+			sphere(pos + Vector3.new(0, 1 * scale, 0), 0.35 * scale, 6.5 * scale, a, life * 0.8, 0.1)
+			sphere(pos + Vector3.new(0, 1 * scale, 0), 0.2 * scale, 3.8 * scale, b, life * 0.55, 0.15)
+			burst(pos + Vector3.new(0, 1 * scale, 0), 18, 7 * scale, 0.24 * scale, a, b, life, false, 0.1)
+			for i = 1, amount(10) do
+				local ang = (i / amount(10)) * math.pi * 2
+				line(pos + Vector3.new(0, 1 * scale, 0), pos + Vector3.new(math.cos(ang) * 7 * scale, 1 * scale, math.sin(ang) * 7 * scale), 0.08 * scale, i % 2 == 0 and a or b, life * 0.7)
+			end
+		elseif mode == 'Lightning' then
+			local top = pos + Vector3.new(0, 13 * scale, 0)
+			for strike = 1, amount(3) do
+				local last = top + Vector3.new(math.random(-18, 18) / 10 * scale, 0, math.random(-18, 18) / 10 * scale)
+				for step = 1, 7 do
+					local nextp = top:Lerp(pos + Vector3.new(0, 1 * scale, 0), step / 7) + Vector3.new(math.random(-12, 12) / 10 * scale, 0, math.random(-12, 12) / 10 * scale)
+					line(last, nextp, 0.11 * scale, strike % 2 == 0 and b or a, life * 0.65)
+					last = nextp
+				end
+			end
+			sphere(pos, 0.25 * scale, 3.5 * scale, b, life * 0.55, 0.1)
+		elseif mode == 'Soul' then
+			sphere(pos + Vector3.new(0, 1.5 * scale, 0), 0.4 * scale, 3.4 * scale, a, life, 0.4)
+			for i = 1, amount(14) do
+				local start = pos + Vector3.new(math.random(-16, 16) / 10, math.random(0, 25) / 10, math.random(-16, 16) / 10) * scale
+				local orb = part(Vector3.one * 0.18 * scale, CFrame.new(start), i % 2 == 0 and a or b, 0.15, Enum.Material.Neon, Enum.PartType.Ball)
+				tween(orb, life, {CFrame = CFrame.new(start + Vector3.new(math.random(-10, 10) / 10, 7 + math.random() * 3, math.random(-10, 10) / 10) * scale), Transparency = 1, Size = Vector3.one * 0.04}, Enum.EasingStyle.Sine)
+				cleanup(orb, life)
+			end
+		elseif mode == 'Rings' or mode == 'Orbit' then
+			for ring = 1, 3 do
+				for i = 1, amount(14) do
+					local ang = (i / amount(14)) * math.pi * 2 + ring
+					local start = pos + Vector3.new(math.cos(ang) * 1.2 * scale, (ring - 2) * 0.7 * scale + 1.5 * scale, math.sin(ang) * 1.2 * scale)
+					local finish = pos + Vector3.new(math.cos(ang + 1.5) * (3 + ring) * scale, (ring - 2) * 0.8 * scale + 1.5 * scale, math.sin(ang + 1.5) * (3 + ring) * scale)
+					local orb = part(Vector3.one * 0.12 * scale, CFrame.new(start), ring % 2 == 0 and a or b, 0, Enum.Material.Neon, Enum.PartType.Ball)
+					tween(orb, life, {CFrame = CFrame.new(finish), Transparency = 1}, Enum.EasingStyle.Sine)
+					cleanup(orb, life)
+				end
+			end
+		elseif mode == 'Spiral' or mode == 'Tornado' then
+			for i = 1, amount(26) do
+				local alpha = i / amount(26)
+				local ang = alpha * math.pi * (mode == 'Tornado' and 8 or 5)
+				local radius = (mode == 'Tornado' and (0.6 + alpha * 3) or 2.6) * scale
+				local start = pos + Vector3.new(math.cos(ang) * radius, alpha * 6 * scale, math.sin(ang) * radius)
+				local orb = part(Vector3.one * (0.12 + alpha * 0.1) * scale, CFrame.new(start), i % 2 == 0 and a or b, 0, Enum.Material.Neon, Enum.PartType.Ball)
+				tween(orb, life, {CFrame = CFrame.new(start + Vector3.new(math.cos(ang + 2) * 2 * scale, 3 * scale, math.sin(ang + 2) * 2 * scale)), Transparency = 1}, Enum.EasingStyle.Sine)
+				cleanup(orb, life)
+			end
+		elseif mode == 'Firework' then
+			local sky = pos + Vector3.new(0, 7 * scale, 0)
+			line(pos, sky, 0.12 * scale, a, life * 0.45)
+			task.delay(life * 0.25, function()
+				if KillEffects.Enabled then
+					sphere(sky, 0.2 * scale, 2.7 * scale, b, life * 0.55, 0.2)
+					burst(sky, 26, 6 * scale, 0.16 * scale, a, b, life * 0.75, false, 0.15)
+				end
+			end)
+		elseif mode == 'Shatter' or mode == 'Disintegrate' or mode == 'Pixel Burst' then
+			burst(pos + Vector3.new(0, 1.5 * scale, 0), mode == 'Disintegrate' and 30 or 22, 6 * scale, 0.3 * scale, a, b, life, true, mode == 'Disintegrate' and 0.8 or 0.15)
+		elseif mode == 'Slash' then
+			for i = 1, amount(4) do
+				local yaw = (i / amount(4)) * math.pi
+				local center = pos + Vector3.new(0, 1.8 * scale, 0)
+				local dir = Vector3.new(math.cos(yaw), (i % 2 == 0 and 0.45 or -0.45), math.sin(yaw)).Unit * 5.5 * scale
+				line(center - dir, center + dir, 0.16 * scale, i % 2 == 0 and a or b, life * 0.75)
+			end
+			sphere(pos + Vector3.new(0, 1.5 * scale, 0), 0.2 * scale, 2.7 * scale, a, life * 0.5, 0.25)
+		elseif mode == 'Beam' then
+			line(pos - Vector3.new(0, 3 * scale, 0), pos + Vector3.new(0, 14 * scale, 0), 0.35 * scale, a, life)
+			line(pos - Vector3.new(0, 2 * scale, 0), pos + Vector3.new(0, 11 * scale, 0), 0.12 * scale, b, life * 0.75)
+			sphere(pos + Vector3.new(0, 1.5 * scale, 0), 0.4 * scale, 4 * scale, b, life * 0.65, 0.25)
+		elseif mode == 'Pulse' or mode == 'Shockwave' then
+			for i = 1, 3 do
+				task.delay((i - 1) * life * 0.12, function()
+					if KillEffects.Enabled then
+						sphere(pos + Vector3.new(0, 1 * scale, 0), 0.3 * scale, (3 + i * 1.8) * scale, i % 2 == 0 and a or b, life * 0.65, 0.65)
+					end
+				end)
+			end
+		elseif mode == 'Confetti' or mode == 'Rainbow' then
+			burst(pos + Vector3.new(0, 2 * scale, 0), 34, 7 * scale, 0.18 * scale, a, b, life, true, 0.8, mode == 'Rainbow')
+		elseif mode == 'Galaxy' then
+			sphere(pos + Vector3.new(0, 1.5 * scale, 0), 0.4 * scale, 3.2 * scale, b, life, 0.45)
+			for i = 1, amount(30) do
+				local ang = (i / amount(30)) * math.pi * 4
+				local rad = (1 + (i % 5) * 0.45) * scale
+				local start = pos + Vector3.new(math.cos(ang) * rad, 1.5 * scale + math.sin(ang * 0.5) * 0.8 * scale, math.sin(ang) * rad)
+				local orb = part(Vector3.one * 0.11 * scale, CFrame.new(start), i % 2 == 0 and a or b, 0, Enum.Material.Neon, Enum.PartType.Ball)
+				tween(orb, life, {CFrame = CFrame.new(pos + Vector3.new(math.cos(ang + 2) * (rad + 2 * scale), 1.5 * scale + math.sin(ang) * 1.5 * scale, math.sin(ang + 2) * (rad + 2 * scale))), Transparency = 1}, Enum.EasingStyle.Sine)
+				cleanup(orb, life)
+			end
+		elseif mode == 'Freeze' or mode == 'Crystal' then
+			for i = 1, amount(16) do
+				local ang = (i / amount(16)) * math.pi * 2
+				local endpoint = pos + Vector3.new(math.cos(ang) * (2.5 + math.random() * 3) * scale, (1 + math.random() * 4) * scale, math.sin(ang) * (2.5 + math.random() * 3) * scale)
+				local shard = line(pos + Vector3.new(0, 0.6 * scale, 0), endpoint, (0.08 + math.random() * 0.13) * scale, i % 2 == 0 and a or b, life)
+				if shard then shard.Material = Enum.Material.Ice end
+			end
+			sphere(pos + Vector3.new(0, 1 * scale, 0), 0.25 * scale, 3.2 * scale, a, life * 0.65, 0.45)
+		elseif mode == 'Void' or mode == 'Black Hole' then
+			local center = pos + Vector3.new(0, 1.7 * scale, 0)
+			sphere(center, 0.35 * scale, 3.8 * scale, Color3.new(0.01, 0.01, 0.02), life, 0.05)
+			for i = 1, amount(26) do
+				local ang = (i / amount(26)) * math.pi * 5
+				local start = center + Vector3.new(math.cos(ang) * 5 * scale, math.sin(ang * 0.5) * 2.2 * scale, math.sin(ang) * 5 * scale)
+				local orb = part(Vector3.one * 0.14 * scale, CFrame.new(start), i % 2 == 0 and a or b, 0, Enum.Material.Neon, Enum.PartType.Ball)
+				tween(orb, life, {CFrame = CFrame.new(center), Transparency = 1, Size = Vector3.one * 0.03}, Enum.EasingStyle.Quint)
+				cleanup(orb, life)
+			end
+		elseif mode == 'Ghost' then
+			ghostEffect(death, a, scale, life)
+		elseif mode == 'Hearts' then
+			symbol(pos + Vector3.new(0, 1.5 * scale, 0), '♥', a, life, 9, scale)
+		elseif mode == 'Skull' then
+			symbol(pos + Vector3.new(0, 3 * scale, 0), '☠', a, life, 1, 1.35 * scale)
+			sphere(pos + Vector3.new(0, 1 * scale, 0), 0.25 * scale, 3.5 * scale, b, life * 0.7, 0.5)
+		end
+	end
+
+	local function rememberDeath(ent)
+		if not ent or ent == entitylib.character or not ent.Id then return end
+		local newHealth = ent.Health or 0
+		local oldHealth = healthCache[ent.Id]
+		healthCache[ent.Id] = newHealth
+		if oldHealth and oldHealth > 0 and newHealth <= 0 and ent.RootPart then
+			local hit = recentHits[ent.Id]
+			table.insert(recentDeaths, 1, {
+				Id = ent.Id,
+				Position = ent.RootPart.Position,
+				CFrame = ent.RootPart.CFrame,
+				Character = ent.Character,
+				Color = entitylib.getEntityColor(ent),
+				Time = tick(),
+				LocalHitTime = hit and hit.Time,
+				Headshot = hit and hit.Headshot or false,
+				Used = false
+			})
+			while #recentDeaths > 16 do table.remove(recentDeaths) end
+		end
+	end
+
+	local function consumeDeath()
+		local now = tick()
+		local preferred = frontlines.LastLocalHit
+		if preferred and now - preferred.Time <= 1.5 then
+			for _, death in recentDeaths do
+				if not death.Used and death.Id == preferred.Id and now - death.Time <= 1.5 then
+					death.Used = true
+					return death
+				end
+			end
+		end
+		for _, death in recentDeaths do
+			if not death.Used and death.LocalHitTime and now - death.LocalHitTime <= 1.6 and now - death.Time <= 1.5 then
+				death.Used = true
+				return death
+			end
+		end
+		for _, death in recentDeaths do
+			if not death.Used and now - death.Time <= 0.7 then
+				death.Used = true
+				return death
+			end
+		end
+	end
+
+	KillEffects = vape.Categories.Render:CreateModule({
+		Name = 'KillEffects',
+		Function = function(callback)
+			if callback then
+				table.clear(healthCache)
+				table.clear(recentDeaths)
+				table.clear(recentHits)
+				for _, ent in entitylib.List do
+					healthCache[ent.Id] = ent.Health or 100
+				end
+
+				KillEffects:Clean(frontlines.LocalHitEvent.Event:Connect(function(ent, pos, headshot)
+					if ent and ent.Id then
+						recentHits[ent.Id] = {Time = tick(), Position = pos, Headshot = headshot}
+					end
+				end))
+				KillEffects:Clean(entitylib.Events.EntityUpdated:Connect(rememberDeath))
+				KillEffects:Clean(entitylib.Events.EntityAdded:Connect(function(ent)
+					healthCache[ent.Id] = ent.Health or 100
+				end))
+				KillEffects:Clean(entitylib.Events.EntityRemoved:Connect(function(ent)
+					if ent and ent.Id then healthCache[ent.Id] = nil end
+				end))
+				KillEffects:Clean(frontlines.KillEffectEvent.Event:Connect(function()
+					task.spawn(function()
+						for _ = 1, 8 do
+							if not KillEffects.Enabled then return end
+							local death = consumeDeath()
+							if death then
+								runEffect(death)
+								return
+							end
+							task.wait(0.035)
+						end
+					end)
+				end))
+			else
+				Folder:ClearAllChildren()
+				table.clear(healthCache)
+				table.clear(recentDeaths)
+				table.clear(recentHits)
+			end
+		end,
+		Tooltip = 'Reworked kill effects with local-hit matching and performance-aware visuals.'
+	})
+
+	Mode = KillEffects:CreateDropdown({
+		Name = 'Mode',
+		List = {'Nova', 'Explosion', 'Lightning', 'Soul', 'Rings', 'Spiral', 'Firework', 'Tornado', 'Shatter', 'Slash', 'Beam', 'Pulse', 'Shockwave', 'Confetti', 'Rainbow', 'Galaxy', 'Freeze', 'Void', 'Ghost', 'Hearts', 'Skull', 'Black Hole', 'Disintegrate', 'Crystal', 'Orbit', 'Pixel Burst', 'Random'},
+		Default = 'Nova'
+	})
+	ColorMode = KillEffects:CreateDropdown({Name = 'Color Mode', List = {'Custom', 'Target', 'Rainbow'}, Default = 'Custom'})
+	PrimaryColor = KillEffects:CreateColorSlider({Name = 'Primary Color', DefaultHue = 0.78, DefaultSat = 0.75, DefaultValue = 1})
+	SecondaryColor = KillEffects:CreateColorSlider({Name = 'Secondary Color', DefaultHue = 0.58, DefaultSat = 0.7, DefaultValue = 1})
+	EffectSize = KillEffects:CreateSlider({Name = 'Size', Min = 0.5, Max = 2.5, Default = 1, Decimal = 10})
+	Lifetime = KillEffects:CreateSlider({Name = 'Lifetime', Min = 0.2, Max = 3, Default = 0.9, Decimal = 100, Suffix = 's'})
+	Quality = KillEffects:CreateDropdown({Name = 'Quality', List = {'Low', 'Normal', 'High'}, Default = 'Normal'})
+	KillSound = KillEffects:CreateToggle({
+		Name = 'Kill Sound',
+		Function = function(callback)
+			KillSoundFile.Object.Visible = callback
+			KillSoundVolume.Object.Visible = callback
+		end
+	})
+	KillSoundFile = KillEffects:CreateTextBox({
+		Name = 'Kill Sound File / ID',
+		Default = 'rbxassetid://9118823106',
+		Darker = true,
+		Visible = false,
+		Function = function()
+			cachedSoundInput = nil
+			cachedSoundAsset = nil
+		end
+	})
+	KillSoundVolume = KillEffects:CreateSlider({Name = 'Kill Sound Volume', Min = 0, Max = 2, Default = 0.7, Decimal = 100, Darker = true, Visible = false})
+
+	vape:Clean(function()
+		if Folder then Folder:Destroy() end
+	end)
+end)
+
+run(function()
+	local HeadshotSound
+	local SoundFile
+	local Volume
+	local Pitch
+	local ConfirmedHits
+	local Cooldown
+	local pending = {}
+	local cachedPath
+	local cachedAsset
+	local lastPlay = 0
+	local lastError = 0
+	local customAsset = getcustomasset or getsynasset or getasset
+
+	-- SoundFile is ALWAYS a real file inside the executor workspace.
+	-- Examples: "headshot.mp3", "sounds/headshot.ogg", "assets/hit.wav"
+	local function normalizeWorkspacePath(value)
+		local path = tostring(value or ''):gsub('^%s+', ''):gsub('%s+$', ''):gsub('\\', '/')
+		path = path:gsub('^file://', '')
+		path = path:gsub('^workspace/', '')
+		path = path:gsub('^Workspace/', '')
+		path = path:gsub('^/', '')
+		return path
+	end
+
+	local function resolveWorkspaceSound(value)
+		local path = normalizeWorkspacePath(value)
+		if path == '' then return nil, 'No file selected.' end
+
+		-- Explicitly reject Roblox asset IDs: this module is workspace-file only.
+		if path:match('^%d+$') or path:lower():match('^rbxasset') then
+			return nil, 'Use a file from your executor workspace, not a Roblox asset ID.'
+		end
+
+		if cachedPath == path and cachedAsset then
+			return cachedAsset
+		end
+
+		if type(isfile) == 'function' then
+			local ok, exists = pcall(isfile, path)
+			if ok and not exists then
+				return nil, 'File not found in workspace: '..path
+			end
+		end
+
+		if not customAsset then
+			return nil, 'Your executor does not provide getcustomasset/getsynasset/getasset.'
+		end
+
+		local ok, asset = pcall(customAsset, path)
+		if not ok or not asset then
+			return nil, 'Could not load workspace file: '..path
+		end
+
+		cachedPath = path
+		cachedAsset = asset
+		return asset
+	end
+
+	local function playHeadshot()
+		if tick() - lastPlay < Cooldown.Value then return end
+
+		local asset, err = resolveWorkspaceSound(SoundFile.Value)
+		if not asset then
+			if tick() - lastError > 2 then
+				lastError = tick()
+				notif('HeadshotSound', err or 'Failed to load workspace sound file.', 5, 'alert')
+			end
+			return
+		end
+
+		lastPlay = tick()
+		local sound = Instance.new('Sound')
+		sound.Name = 'VapeHeadshotSound'
+		-- Roblox Sound objects still require a Content string internally.
+		-- getcustomasset/getsynasset creates that Content string directly from the local workspace file.
+		sound.SoundId = asset
+		sound.Volume = Volume.Value
+		sound.PlaybackSpeed = Pitch.Value
+		sound.Parent = gameCamera
+		sound:Play()
+		debrisService:AddItem(sound, 8)
+	end
+
+	local function trimPending()
+		local now = tick()
+		for i = #pending, 1, -1 do
+			if now - pending[i].Time > 0.7 then
+				table.remove(pending, i)
+			end
+		end
+	end
+
+	HeadshotSound = vape.Categories.Render:CreateModule({
+		Name = 'HeadshotSound',
+		Function = function(callback)
+			if callback then
+				table.clear(pending)
+				cachedPath = nil
+				cachedAsset = nil
+
+				HeadshotSound:Clean(frontlines.LocalHitEvent.Event:Connect(function(ent, _, headshot)
+					if not headshot or not ent or not ent.Id then return end
+					if not ConfirmedHits.Enabled then
+						playHeadshot()
+						return
+					end
+
+					trimPending()
+					table.insert(pending, {
+						Id = ent.Id,
+						Health = ent.Health or 100,
+						Time = tick()
+					})
+				end))
+
+				HeadshotSound:Clean(entitylib.Events.EntityUpdated:Connect(function(ent)
+					if not ent or not ent.Id then return end
+					trimPending()
+					for i = #pending, 1, -1 do
+						local hit = pending[i]
+						if hit.Id == ent.Id and (ent.Health or 0) < hit.Health then
+							table.remove(pending, i)
+							playHeadshot()
+							break
+						end
+					end
+				end))
+			else
+				table.clear(pending)
+			end
+		end,
+		Tooltip = 'Plays a sound file directly from your executor workspace when you land a headshot.'
+	})
+
+	SoundFile = HeadshotSound:CreateTextBox({
+		Name = 'Workspace Sound File',
+		Default = 'headshot.mp3',
+		Function = function()
+			cachedPath = nil
+			cachedAsset = nil
+		end
+	})
+	Volume = HeadshotSound:CreateSlider({Name = 'Volume', Min = 0, Max = 2, Default = 1, Decimal = 100})
+	Pitch = HeadshotSound:CreateSlider({Name = 'Pitch', Min = 0.5, Max = 2, Default = 1, Decimal = 100})
+	Cooldown = HeadshotSound:CreateSlider({Name = 'Cooldown', Min = 0, Max = 0.5, Default = 0.03, Decimal = 100, Suffix = 's'})
+	ConfirmedHits = HeadshotSound:CreateToggle({Name = 'Confirmed Hits', Default = true})
+end)
+
 run(function()
 	local GrenadeESP
 	local Background
@@ -1578,7 +2309,7 @@ run(function()
 		Name = 'BulletTracers',
 		Function = function(callback)
 			if callback then 
-				BulletTracers:Clean(hookEvent('SPAWN_FPV_SOL_BULLET', function(id, btype, origin, velocity)
+				BulletTracers:Clean(frontlines.LocalBulletEvent.Event:Connect(function(id, btype, origin, velocity)
 					if DrawingToggle.Enabled then 
 						local obj = Drawing.new('Line')
 						obj.Color = Color3.fromHSV(Color.Hue, Color.Sat, Color.Value)
