@@ -1456,6 +1456,501 @@ end)
 
 
 
+
+-- ILLUSIONHD_CUSTOMKNIFE_V1
+run(function()
+	local CustomKnife
+	local AssetID
+	local AssetModel
+	local TargetModel
+	local Scale
+	local OffsetX
+	local OffsetY
+	local OffsetZ
+	local RotationX
+	local RotationY
+	local RotationZ
+	local HideOriginal
+
+	local Folder = Instance.new('Folder')
+	Folder.Name = 'IllusionHDCustomKnife'
+	Folder.Parent = gameCamera
+
+	local validNames = {
+		Knife1 = true,
+		Knife2 = true,
+		combat_knife = true
+	}
+
+	local template
+	local visual
+	local currentTarget
+	local hiddenParts = {}
+	local lastSearch = 0
+
+	local function restoreOriginal()
+		for part, transparency in hiddenParts do
+			if part and part.Parent then
+				pcall(function()
+					part.LocalTransparencyModifier = transparency
+				end)
+			end
+		end
+		table.clear(hiddenParts)
+	end
+
+	local function destroyVisual()
+		if visual then
+			visual:Destroy()
+			visual = nil
+		end
+		currentTarget = nil
+		restoreOriginal()
+	end
+
+	local function getPartFromObject(obj)
+		if not obj then return nil end
+		if obj:IsA('BasePart') then
+			return obj
+		end
+		if obj:IsA('Model') then
+			return obj.PrimaryPart or obj:FindFirstChildWhichIsA('BasePart', true)
+		end
+		if obj:IsA('Attachment') then
+			return obj
+		end
+		return obj:FindFirstChildWhichIsA('BasePart', true)
+	end
+
+	local function getObjectCFrame(obj)
+		if not obj then return nil end
+
+		if obj:IsA('BasePart') then
+			return obj.CFrame
+		elseif obj:IsA('Model') then
+			local ok, cf = pcall(function()
+				return obj:GetPivot()
+			end)
+			return ok and cf or nil
+		elseif obj:IsA('Attachment') then
+			return obj.WorldCFrame
+		elseif obj:IsA('Bone') then
+			return obj.TransformedWorldCFrame
+		end
+
+		local part = getPartFromObject(obj)
+		return part and part.CFrame or nil
+	end
+
+	local function addSearchRoot(list, seen, obj)
+		if typeof(obj) ~= 'Instance' or seen[obj] then return end
+		seen[obj] = true
+		table.insert(list, obj)
+	end
+
+	local function getSearchRoots()
+		local roots = {}
+		local seen = {}
+
+		addSearchRoot(roots, seen, gameCamera)
+		addSearchRoot(roots, seen, lplr.Character)
+
+		local instances = frontlines.Main
+			and frontlines.Main.globals
+			and frontlines.Main.globals.fpv_sol_instances
+
+		if type(instances) == 'table' then
+			for _, obj in instances do
+				addSearchRoot(roots, seen, obj)
+			end
+		end
+
+		return roots
+	end
+
+	local function findKnifeObjects()
+		local found = {}
+		local used = {}
+
+		local function add(obj)
+			if not obj or used[obj] or obj:IsDescendantOf(Folder) then return end
+			if validNames[obj.Name] then
+				used[obj] = true
+				table.insert(found, obj)
+			end
+		end
+
+		for _, root in getSearchRoots() do
+			add(root)
+			for _, obj in root:GetDescendants() do
+				add(obj)
+			end
+		end
+
+		return found
+	end
+
+	local function chooseTarget(objects)
+		if #objects == 0 then return nil end
+
+		if TargetModel.Value ~= 'Auto' then
+			for _, obj in objects do
+				if obj.Name == TargetModel.Value then
+					return obj
+				end
+			end
+		end
+
+		for _, wanted in {'combat_knife', 'Knife1', 'Knife2'} do
+			for _, obj in objects do
+				if obj.Name == wanted then
+					return obj
+				end
+			end
+		end
+
+		return objects[1]
+	end
+
+	local function hideKnifeObjects(objects)
+		restoreOriginal()
+		if not HideOriginal.Enabled then return end
+
+		for _, obj in objects do
+			local parts = {}
+
+			if obj:IsA('BasePart') then
+				parts[1] = obj
+			else
+				for _, desc in obj:GetDescendants() do
+					if desc:IsA('BasePart') then
+						table.insert(parts, desc)
+					end
+				end
+			end
+
+			for _, part in parts do
+				if hiddenParts[part] == nil then
+					hiddenParts[part] = part.LocalTransparencyModifier
+					part.LocalTransparencyModifier = 1
+				end
+			end
+		end
+	end
+
+	local function findAssetObject(root)
+		if not root then return nil end
+
+		local wanted = AssetModel.Value
+		if wanted ~= 'Auto' then
+			if root.Name == wanted then
+				return root
+			end
+			local exact = root:FindFirstChild(wanted, true)
+			if exact then
+				return exact
+			end
+		end
+
+		if validNames[root.Name] then
+			return root
+		end
+
+		for _, wantedName in {'combat_knife', 'Knife1', 'Knife2'} do
+			local exact = root:FindFirstChild(wantedName, true)
+			if exact then
+				return exact
+			end
+		end
+
+		-- Fallback: accept the asset root itself if the uploader wrapped
+		-- the knife inside a generic Model name.
+		return root
+	end
+
+	local function makeTemplate(obj)
+		local wrapper = Instance.new('Model')
+		wrapper.Name = 'CustomKnifeTemplate'
+
+		local clone = obj:Clone()
+		if clone:IsA('Model') then
+			for _, child in clone:GetChildren() do
+				child.Parent = wrapper
+			end
+			clone:Destroy()
+		else
+			clone.Parent = wrapper
+		end
+
+		for _, desc in wrapper:GetDescendants() do
+			if desc:IsA('Script') or desc:IsA('LocalScript') or desc:IsA('ModuleScript') then
+				desc:Destroy()
+			elseif desc:IsA('BasePart') then
+				desc.Anchored = true
+				desc.CanCollide = false
+				desc.CanTouch = false
+				desc.CanQuery = false
+				desc.CastShadow = false
+				desc.Massless = true
+			end
+		end
+
+		if not wrapper:FindFirstChildWhichIsA('BasePart', true) then
+			wrapper:Destroy()
+			return nil
+		end
+
+		return wrapper
+	end
+
+	local function rebuildVisual()
+		if visual then
+			visual:Destroy()
+			visual = nil
+		end
+
+		if not template or not CustomKnife.Enabled then return end
+
+		visual = template:Clone()
+		visual.Name = 'IllusionHDCustomKnifeModel'
+
+		pcall(function()
+			visual:ScaleTo(Scale.Value)
+		end)
+
+		for _, desc in visual:GetDescendants() do
+			if desc:IsA('BasePart') then
+				desc.Anchored = true
+				desc.CanCollide = false
+				desc.CanTouch = false
+				desc.CanQuery = false
+				desc.CastShadow = false
+				desc.Massless = true
+			end
+		end
+
+		visual.Parent = Folder
+	end
+
+	local function loadAsset()
+		if template then
+			template:Destroy()
+			template = nil
+		end
+		destroyVisual()
+
+		local id = tostring(AssetID.Value or ''):match('%d+')
+		if not id then
+			notif('CustomKnife', 'Enter a valid asset ID.', 5, 'alert')
+			return
+		end
+
+		local success, objects = pcall(function()
+			return game:GetObjects('rbxassetid://'..id)
+		end)
+
+		if not success or type(objects) ~= 'table' or not objects[1] then
+			notif('CustomKnife', 'Failed to load asset '..id, 5, 'alert')
+			return
+		end
+
+		local root = objects[1]
+		local chosen = findAssetObject(root)
+		if chosen then
+			template = makeTemplate(chosen)
+		end
+
+		for _, obj in objects do
+			pcall(function()
+				obj:Destroy()
+			end)
+		end
+
+		if not template then
+			notif('CustomKnife', 'Asset has no usable knife model/part.', 5, 'alert')
+			return
+		end
+
+		rebuildVisual()
+		lastSearch = 0
+	end
+
+	local function updateVisual()
+		if not visual or not visual.Parent then return end
+
+		local now = tick()
+		if not currentTarget or not currentTarget.Parent or now - lastSearch > 0.35 then
+			lastSearch = now
+			local objects = findKnifeObjects()
+			currentTarget = chooseTarget(objects)
+			hideKnifeObjects(objects)
+		end
+
+		if not currentTarget then
+			visual.Parent = nil
+			return
+		elseif visual.Parent ~= Folder then
+			visual.Parent = Folder
+		end
+
+		local cf = getObjectCFrame(currentTarget)
+		if not cf then return end
+
+		local offset = CFrame.new(
+			OffsetX.Value,
+			OffsetY.Value,
+			OffsetZ.Value
+		) * CFrame.Angles(
+			math.rad(RotationX.Value),
+			math.rad(RotationY.Value),
+			math.rad(RotationZ.Value)
+		)
+
+		pcall(function()
+			visual:PivotTo(cf * offset)
+		end)
+	end
+
+	CustomKnife = vape.Categories.Render:CreateModule({
+		Name = 'CustomKnife',
+		Function = function(callback)
+			if callback then
+				if not template then
+					loadAsset()
+				else
+					rebuildVisual()
+				end
+
+				CustomKnife:Clean(runService.RenderStepped:Connect(updateVisual))
+				CustomKnife:Clean(entitylib.Events.LocalAdded:Connect(function()
+					task.delay(0.5, function()
+						if CustomKnife.Enabled then
+							lastSearch = 0
+							rebuildVisual()
+						end
+					end)
+				end))
+			else
+				destroyVisual()
+			end
+		end,
+		Tooltip = 'Replaces the local FPV knife with a model loaded from a Roblox asset ID.'
+	})
+
+	AssetID = CustomKnife:CreateTextBox({
+		Name = 'Asset ID',
+		Default = '',
+		Function = function()
+			if CustomKnife.Enabled then
+				loadAsset()
+			end
+		end
+	})
+
+	AssetModel = CustomKnife:CreateDropdown({
+		Name = 'Asset Model',
+		List = {'Auto', 'Knife1', 'Knife2', 'combat_knife'},
+		Default = 'Auto',
+		Function = function()
+			if CustomKnife.Enabled and tostring(AssetID.Value or ''):match('%d+') then
+				loadAsset()
+			end
+		end
+	})
+
+	TargetModel = CustomKnife:CreateDropdown({
+		Name = 'Target Model',
+		List = {'Auto', 'Knife1', 'Knife2', 'combat_knife'},
+		Default = 'Auto',
+		Function = function()
+			currentTarget = nil
+			lastSearch = 0
+		end
+	})
+
+	Scale = CustomKnife:CreateSlider({
+		Name = 'Scale',
+		Min = 0.1,
+		Max = 5,
+		Default = 1,
+		Decimal = 100,
+		Function = function()
+			if CustomKnife.Enabled and template then
+				rebuildVisual()
+			end
+		end
+	})
+
+	OffsetX = CustomKnife:CreateSlider({
+		Name = 'Offset X',
+		Min = -5,
+		Max = 5,
+		Default = 0,
+		Decimal = 100
+	})
+
+	OffsetY = CustomKnife:CreateSlider({
+		Name = 'Offset Y',
+		Min = -5,
+		Max = 5,
+		Default = 0,
+		Decimal = 100
+	})
+
+	OffsetZ = CustomKnife:CreateSlider({
+		Name = 'Offset Z',
+		Min = -5,
+		Max = 5,
+		Default = 0,
+		Decimal = 100
+	})
+
+	RotationX = CustomKnife:CreateSlider({
+		Name = 'Rotation X',
+		Min = -180,
+		Max = 180,
+		Default = 0
+	})
+
+	RotationY = CustomKnife:CreateSlider({
+		Name = 'Rotation Y',
+		Min = -180,
+		Max = 180,
+		Default = 0
+	})
+
+	RotationZ = CustomKnife:CreateSlider({
+		Name = 'Rotation Z',
+		Min = -180,
+		Max = 180,
+		Default = 0
+	})
+
+	HideOriginal = CustomKnife:CreateToggle({
+		Name = 'Hide Original',
+		Default = true,
+		Function = function()
+			currentTarget = nil
+			lastSearch = 0
+			if not HideOriginal.Enabled then
+				restoreOriginal()
+			end
+		end
+	})
+
+	vape:Clean(function()
+		destroyVisual()
+		if template then
+			template:Destroy()
+			template = nil
+		end
+		pcall(function()
+			Folder:Destroy()
+		end)
+	end)
+end)
+-- ILLUSIONHD_CUSTOMKNIFE_END
+
 -- ILLUSIONHD_SKYTHEMES_V1
 run(function()
 	local SkyThemes
