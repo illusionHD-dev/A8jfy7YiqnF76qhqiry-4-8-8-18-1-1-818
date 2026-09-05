@@ -7,6 +7,7 @@ shared.Rise = riseRequested == true
 if shared.vape then shared.vape:Uninject() end
 
 local vape
+local baseVapeLoad
 local loadstring = function(...)
 	local res, err = loadstring(...)
 	if err then
@@ -76,7 +77,23 @@ local loading = loadstring(downloadFile('newvape/guis/loading.lua'), 'Vape loadi
 local function finishLoading()
 	vape.Init = nil
 	loading:WaitForMinimumDisplay()
-	vape:Load()
+
+	-- Frontlines can replace vape.Load during the actor bootstrap.
+	-- Some executors lose that temporary method during the handoff, so keep
+	-- the GUI's original Load function as a guaranteed fallback.
+	local loadMethod = vape and vape.Load
+	if type(loadMethod) ~= 'function' then
+		loadMethod = baseVapeLoad
+		if type(loadMethod) == 'function' then
+			vape.Load = loadMethod
+		end
+	end
+
+	if type(loadMethod) ~= 'function' then
+		error('[illusionHD] GUI loaded without a usable Load method.', 0)
+	end
+
+	loadMethod(vape)
 	if vape.HideLoadingScreen then
 		vape:HideLoadingScreen()
 	end
@@ -131,6 +148,13 @@ if not isfolder('newvape/assets/'..gui) then
 	makefolder('newvape/assets/'..gui)
 end
 vape = loadstring(downloadFile('newvape/guis/'..gui..'.lua'), 'gui')()
+if type(vape) ~= 'table' then
+	error('[illusionHD] GUI file did not return the Vape table.', 0)
+end
+baseVapeLoad = vape.Load
+if type(baseVapeLoad) ~= 'function' then
+	error('[illusionHD] GUI file is missing vape:Load(). Re-upload guis/new.lua.', 0)
+end
 shared.vape = vape
 -- ILLUSIONHD_LEAVE_SOUND_V1
 do
