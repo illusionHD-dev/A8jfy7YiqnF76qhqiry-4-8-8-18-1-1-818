@@ -1145,6 +1145,11 @@ run(function()
 	local Max
 	local Mouse
 	local Limit
+	local TargetStrafe
+	local StrafeRadius
+	local StrafeSpeed
+	local StrafeDirection
+	local StrafeWallCheck
 	local Box
 	local BoxSwingColor
 	local BoxAttackColor
@@ -1158,6 +1163,151 @@ run(function()
 	local hitdelay = tick()
 	local didattack = false
 	
+	local strafeDirection = 1
+	local strafeLocked = false
+	local strafeRay = RaycastParams.new()
+	strafeRay.RespectCanCollide = true
+	local contextActionService = cloneref(game:GetService('ContextActionService'))
+	local strafeActionName = 'IllusionHD_TargetStrafeLock'
+
+	local function strafeInputSink()
+		if strafeLocked and TargetStrafe and TargetStrafe.Enabled then
+			return Enum.ContextActionResult.Sink
+		end
+		return Enum.ContextActionResult.Pass
+	end
+
+	local function bindStrafeLock()
+		pcall(function()
+			contextActionService:UnbindAction(strafeActionName)
+		end)
+
+		contextActionService:BindActionAtPriority(
+			strafeActionName,
+			strafeInputSink,
+			false,
+			Enum.ContextActionPriority.High.Value + 100,
+			Enum.KeyCode.W,
+			Enum.KeyCode.A,
+			Enum.KeyCode.S,
+			Enum.KeyCode.D,
+			Enum.KeyCode.Up,
+			Enum.KeyCode.Down,
+			Enum.KeyCode.Left,
+			Enum.KeyCode.Right,
+			Enum.KeyCode.Thumbstick1
+		)
+	end
+
+	local function unbindStrafeLock()
+		strafeLocked = false
+		pcall(function()
+			contextActionService:UnbindAction(strafeActionName)
+		end)
+	end
+
+	local function getStrafeSide()
+		if not StrafeDirection then
+			return strafeDirection
+		end
+
+		if StrafeDirection.Value == 'Left' then
+			return -1
+		elseif StrafeDirection.Value == 'Right' then
+			return 1
+		end
+
+		return strafeDirection
+	end
+
+	local function targetStrafe(ent, dt)
+		if not (TargetStrafe and TargetStrafe.Enabled) then
+			strafeLocked = false
+			return
+		end
+
+		if not entitylib.isAlive or not entitylib.character or not ent or not ent.RootPart then
+			strafeLocked = false
+			return
+		end
+
+		local root = entitylib.character.RootPart
+		if not root or not root.Parent then
+			strafeLocked = false
+			return
+		end
+
+		strafeLocked = true
+
+		local targetPos = ent.RootPart.Position
+		local rootPos = root.Position
+		local delta = (rootPos - targetPos) * Vector3.new(1, 0, 1)
+		local distance = delta.Magnitude
+
+		if distance < 0.05 then
+			delta = Vector3.new(1, 0, 0)
+			distance = 1
+		end
+
+		local radial = delta.Unit
+		local side = getStrafeSide()
+		local tangent = Vector3.new(-radial.Z, 0, radial.X) * side
+
+		local wantedRadius = StrafeRadius and StrafeRadius.Value or 5
+		local speed = StrafeSpeed and StrafeSpeed.Value or 26
+
+		-- Kill all horizontal player-controlled momentum. Preserve Y velocity
+		-- so jumping/falling still behaves normally.
+		pcall(function()
+			local velocity = root.AssemblyLinearVelocity
+			root.AssemblyLinearVelocity = Vector3.new(0, velocity.Y, 0)
+		end)
+
+		-- Strong radius correction forces the player into the selected orbit.
+		-- Once at the radius, movement is almost entirely tangential.
+		local radiusError = wantedRadius - distance
+		local radialStrength = math.clamp(radiusError * 2.4, -speed, speed)
+
+		local velocityDirection = tangent * speed + radial * radialStrength
+		if velocityDirection.Magnitude < 0.01 then return end
+
+		local step = velocityDirection * math.clamp(dt, 0, 0.05)
+
+		if StrafeWallCheck and StrafeWallCheck.Enabled then
+			strafeRay.FilterDescendantsInstances = {
+				entitylib.character.Character,
+				gameCamera,
+				ent.Character
+			}
+			strafeRay.CollisionGroup = root.CollisionGroup
+
+			local ray = workspace:Raycast(
+				root.Position,
+				step.Unit * math.max(step.Magnitude + 2, 2.5),
+				strafeRay
+			)
+
+			if ray then
+				if StrafeDirection and StrafeDirection.Value == 'Auto' then
+					strafeDirection *= -1
+				end
+				return
+			end
+		end
+
+		-- Force the horizontal position ourselves, preserving current Y.
+		local nextPos = root.Position + Vector3.new(step.X, 0, step.Z)
+		local currentLook = root.CFrame.LookVector
+		root.CFrame = CFrame.lookAt(
+			Vector3.new(nextPos.X, root.Position.Y, nextPos.Z),
+			Vector3.new(
+				nextPos.X + currentLook.X,
+				root.Position.Y + currentLook.Y,
+				nextPos.Z + currentLook.Z
+			)
+		)
+	end
+
 	local function getAttackData()
 		if Mouse.Enabled then
 			if not inputService:IsMouseButtonPressed(0) then return false end
@@ -1176,9 +1326,17 @@ run(function()
 		Name = 'Killaura',
 		Function = function(callback)
 			if callback then
+				bindStrafeLock()
+				local lastStrafeStep = tick()
 				repeat
+					strafeLocked = false
+					local now = tick()
+					local strafeDt = math.min(now - lastStrafeStep, 0.05)
+					lastStrafeStep = now
+
 					local suc, knifecheck = getAttackData()
 					local attacked = {}
+					local strafeTarget
 					local prevattack = didattack
 					didattack = false
 					if suc then
@@ -1197,8 +1355,16 @@ run(function()
 	
 							for i, v in plrs do
 								local delta = (v.RootPart.Position - entitylib.character.RootPart.Position)
-								local angle = math.acos(localfacing:Dot((delta * Vector3.new(1, 0, 1)).Unit))
+								local flatDelta = delta * Vector3.new(1, 0, 1)
+								local angle = flatDelta.Magnitude > 0.001
+									and math.acos(math.clamp(localfacing.Unit:Dot(flatDelta.Unit), -1, 1))
+									or 0
 								if angle > (math.rad(Angle.Value) / 2) then continue end
+
+								if not strafeTarget then
+									strafeTarget = v
+								end
+
 								table.insert(attacked, {Entity = v, Check = delta.Magnitude > AttackRange.Value and BoxSwingColor or BoxAttackColor})
 								targetinfo.Targets[v] = tick() + 1
 	
@@ -1233,6 +1399,10 @@ run(function()
 					if didattack ~= prevattack and prevattack then
 						frontlines.Main.globals.ctrl_states.trigger = false
 					end
+
+					if strafeTarget then
+						targetStrafe(strafeTarget, strafeDt)
+					end
 	
 					for i, v in Boxes do
 						v.Adornee = attacked[i] and attacked[i].Entity.RootPart or nil
@@ -1250,6 +1420,8 @@ run(function()
 					task.wait()
 				until not Killaura.Enabled
 			else
+				strafeDirection = 1
+				unbindStrafeLock()
 				for i, v in Boxes do
 					v.Adornee = nil
 				end
@@ -1293,6 +1465,53 @@ run(function()
 	})
 	Mouse = Killaura:CreateToggle({Name = 'Require mouse down'})
 	Limit = Killaura:CreateToggle({Name = 'Knife only'})
+
+	TargetStrafe = Killaura:CreateToggle({
+		Name = 'Target Strafe',
+		Function = function(callback)
+			if not callback then
+				strafeLocked = false
+			end
+		end
+	})
+
+	StrafeRadius = Killaura:CreateSlider({
+		Name = 'Strafe Radius',
+		Min = 2,
+		Max = 8,
+		Default = 5,
+		Decimal = 10,
+		Suffix = function(val)
+			return val == 1 and ' stud' or ' studs'
+		end,
+		Darker = true
+	})
+
+	StrafeSpeed = Killaura:CreateSlider({
+		Name = 'Strafe Speed',
+		Min = 5,
+		Max = 45,
+		Default = 26,
+		Suffix = ' studs/s',
+		Darker = true
+	})
+
+	StrafeDirection = Killaura:CreateDropdown({
+		Name = 'Strafe Direction',
+		List = {'Auto', 'Left', 'Right'},
+		Default = 'Auto',
+		Function = function()
+			strafeDirection = 1
+		end,
+		Darker = true
+	})
+
+	StrafeWallCheck = Killaura:CreateToggle({
+		Name = 'Strafe Wall Check',
+		Default = true,
+		Darker = true
+	})
+
 	Box = Killaura:CreateToggle({
 		Name = 'Show target',
 		Function = function(callback)
@@ -1423,6 +1642,10 @@ run(function()
 		Darker = true,
 		Visible = false
 	})
+	vape:Clean(function()
+		unbindStrafeLock()
+	end)
+
 end)
 
 run(function()
