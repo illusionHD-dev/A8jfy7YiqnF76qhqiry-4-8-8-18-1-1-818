@@ -1457,7 +1457,7 @@ end)
 
 
 
--- ILLUSIONHD_CUSTOMKNIFE_V1
+-- ILLUSIONHD_CUSTOMKNIFE_V2
 run(function()
 	local CustomKnife
 	local AssetID
@@ -1471,6 +1471,9 @@ run(function()
 	local RotationY
 	local RotationZ
 	local HideOriginal
+
+	local optionsReady = false
+	local started = false
 
 	local Folder = Instance.new('Folder')
 	Folder.Name = 'IllusionHDCustomKnife'
@@ -1487,6 +1490,20 @@ run(function()
 	local currentTarget
 	local hiddenParts = {}
 	local lastSearch = 0
+
+	local function value(option, fallback)
+		if option and option.Value ~= nil then
+			return option.Value
+		end
+		return fallback
+	end
+
+	local function enabled(option, fallback)
+		if option and option.Enabled ~= nil then
+			return option.Enabled
+		end
+		return fallback
+	end
 
 	local function restoreOriginal()
 		for part, transparency in hiddenParts do
@@ -1508,20 +1525,6 @@ run(function()
 		restoreOriginal()
 	end
 
-	local function getPartFromObject(obj)
-		if not obj then return nil end
-		if obj:IsA('BasePart') then
-			return obj
-		end
-		if obj:IsA('Model') then
-			return obj.PrimaryPart or obj:FindFirstChildWhichIsA('BasePart', true)
-		end
-		if obj:IsA('Attachment') then
-			return obj
-		end
-		return obj:FindFirstChildWhichIsA('BasePart', true)
-	end
-
 	local function getObjectCFrame(obj)
 		if not obj then return nil end
 
@@ -1538,7 +1541,7 @@ run(function()
 			return obj.TransformedWorldCFrame
 		end
 
-		local part = getPartFromObject(obj)
+		local part = obj:FindFirstChildWhichIsA('BasePart', true)
 		return part and part.CFrame or nil
 	end
 
@@ -1573,7 +1576,9 @@ run(function()
 		local used = {}
 
 		local function add(obj)
-			if not obj or used[obj] or obj:IsDescendantOf(Folder) then return end
+			if not obj or used[obj] then return end
+			if obj == Folder or obj:IsDescendantOf(Folder) then return end
+
 			if validNames[obj.Name] then
 				used[obj] = true
 				table.insert(found, obj)
@@ -1593,14 +1598,16 @@ run(function()
 	local function chooseTarget(objects)
 		if #objects == 0 then return nil end
 
-		if TargetModel.Value ~= 'Auto' then
+		local selected = value(TargetModel, 'Auto')
+		if selected ~= 'Auto' then
 			for _, obj in objects do
-				if obj.Name == TargetModel.Value then
+				if obj.Name == selected then
 					return obj
 				end
 			end
 		end
 
+		-- Prefer the whole knife model when available.
 		for _, wanted in {'combat_knife', 'Knife1', 'Knife2'} do
 			for _, obj in objects do
 				if obj.Name == wanted then
@@ -1614,25 +1621,20 @@ run(function()
 
 	local function hideKnifeObjects(objects)
 		restoreOriginal()
-		if not HideOriginal.Enabled then return end
+		if not enabled(HideOriginal, true) then return end
 
 		for _, obj in objects do
-			local parts = {}
-
 			if obj:IsA('BasePart') then
-				parts[1] = obj
+				if hiddenParts[obj] == nil then
+					hiddenParts[obj] = obj.LocalTransparencyModifier
+					obj.LocalTransparencyModifier = 1
+				end
 			else
 				for _, desc in obj:GetDescendants() do
-					if desc:IsA('BasePart') then
-						table.insert(parts, desc)
+					if desc:IsA('BasePart') and hiddenParts[desc] == nil then
+						hiddenParts[desc] = desc.LocalTransparencyModifier
+						desc.LocalTransparencyModifier = 1
 					end
-				end
-			end
-
-			for _, part in parts do
-				if hiddenParts[part] == nil then
-					hiddenParts[part] = part.LocalTransparencyModifier
-					part.LocalTransparencyModifier = 1
 				end
 			end
 		end
@@ -1641,30 +1643,44 @@ run(function()
 	local function findAssetObject(root)
 		if not root then return nil end
 
-		local wanted = AssetModel.Value
-		if wanted ~= 'Auto' then
-			if root.Name == wanted then
+		local selected = value(AssetModel, 'Auto')
+		if selected ~= 'Auto' then
+			if root.Name == selected then
 				return root
 			end
-			local exact = root:FindFirstChild(wanted, true)
+
+			local exact = root:FindFirstChild(selected, true)
 			if exact then
 				return exact
 			end
+		end
+
+		-- Your model layout:
+		-- combat_knife
+		--   Knife1
+		--   Knife2
+		-- so Auto intentionally grabs combat_knife as a whole.
+		if root.Name == 'combat_knife' then
+			return root
+		end
+
+		local combat = root:FindFirstChild('combat_knife', true)
+		if combat then
+			return combat
 		end
 
 		if validNames[root.Name] then
 			return root
 		end
 
-		for _, wantedName in {'combat_knife', 'Knife1', 'Knife2'} do
+		for _, wantedName in {'Knife1', 'Knife2'} do
 			local exact = root:FindFirstChild(wantedName, true)
 			if exact then
 				return exact
 			end
 		end
 
-		-- Fallback: accept the asset root itself if the uploader wrapped
-		-- the knife inside a generic Model name.
+		-- Generic wrapper fallback.
 		return root
 	end
 
@@ -1673,11 +1689,11 @@ run(function()
 		wrapper.Name = 'CustomKnifeTemplate'
 
 		local clone = obj:Clone()
+
 		if clone:IsA('Model') then
-			for _, child in clone:GetChildren() do
-				child.Parent = wrapper
-			end
-			clone:Destroy()
+			-- Keep the cloned model intact so Knife1 + Knife2 retain their
+			-- relative transforms inside combat_knife.
+			clone.Parent = wrapper
 		else
 			clone.Parent = wrapper
 		end
@@ -1709,13 +1725,15 @@ run(function()
 			visual = nil
 		end
 
-		if not template or not CustomKnife.Enabled then return end
+		if not template or not CustomKnife or not CustomKnife.Enabled then
+			return
+		end
 
 		visual = template:Clone()
 		visual.Name = 'IllusionHDCustomKnifeModel'
 
 		pcall(function()
-			visual:ScaleTo(Scale.Value)
+			visual:ScaleTo(value(Scale, 1))
 		end)
 
 		for _, desc in visual:GetDescendants() do
@@ -1732,16 +1750,21 @@ run(function()
 		visual.Parent = Folder
 	end
 
-	local function loadAsset()
+	local function loadAsset(showError)
+		if not optionsReady then return end
+
 		if template then
 			template:Destroy()
 			template = nil
 		end
+
 		destroyVisual()
 
-		local id = tostring(AssetID.Value or ''):match('%d+')
+		local id = tostring(value(AssetID, '')):match('%d+')
 		if not id then
-			notif('CustomKnife', 'Enter a valid asset ID.', 5, 'alert')
+			if showError then
+				notif('CustomKnife', 'Enter a valid asset ID.', 5, 'alert')
+			end
 			return
 		end
 
@@ -1756,8 +1779,12 @@ run(function()
 
 		local root = objects[1]
 		local chosen = findAssetObject(root)
+
 		if chosen then
-			template = makeTemplate(chosen)
+			local ok, result = pcall(makeTemplate, chosen)
+			if ok then
+				template = result
+			end
 		end
 
 		for _, obj in objects do
@@ -1767,20 +1794,22 @@ run(function()
 		end
 
 		if not template then
-			notif('CustomKnife', 'Asset has no usable knife model/part.', 5, 'alert')
+			notif('CustomKnife', 'Asset has no usable combat_knife / Knife1 / Knife2 model.', 5, 'alert')
 			return
 		end
 
 		rebuildVisual()
+		currentTarget = nil
 		lastSearch = 0
 	end
 
 	local function updateVisual()
-		if not visual or not visual.Parent then return end
+		if not optionsReady or not visual or not visual.Parent then return end
 
 		local now = tick()
-		if not currentTarget or not currentTarget.Parent or now - lastSearch > 0.35 then
+		if not currentTarget or not currentTarget.Parent or now - lastSearch > 0.25 then
 			lastSearch = now
+
 			local objects = findKnifeObjects()
 			currentTarget = chooseTarget(objects)
 			hideKnifeObjects(objects)
@@ -1789,7 +1818,9 @@ run(function()
 		if not currentTarget then
 			visual.Parent = nil
 			return
-		elseif visual.Parent ~= Folder then
+		end
+
+		if visual.Parent ~= Folder then
 			visual.Parent = Folder
 		end
 
@@ -1797,13 +1828,13 @@ run(function()
 		if not cf then return end
 
 		local offset = CFrame.new(
-			OffsetX.Value,
-			OffsetY.Value,
-			OffsetZ.Value
+			value(OffsetX, 0),
+			value(OffsetY, 0),
+			value(OffsetZ, 0)
 		) * CFrame.Angles(
-			math.rad(RotationX.Value),
-			math.rad(RotationY.Value),
-			math.rad(RotationZ.Value)
+			math.rad(value(RotationX, 0)),
+			math.rad(value(RotationY, 0)),
+			math.rad(value(RotationZ, 0))
 		)
 
 		pcall(function()
@@ -1811,27 +1842,56 @@ run(function()
 		end)
 	end
 
+	local function startKnife()
+		if started or not optionsReady or not CustomKnife or not CustomKnife.Enabled then
+			return
+		end
+		started = true
+
+		if tostring(value(AssetID, '')):match('%d+') then
+			loadAsset(false)
+		end
+
+		CustomKnife:Clean(runService.RenderStepped:Connect(updateVisual))
+
+		CustomKnife:Clean(entitylib.Events.LocalAdded:Connect(function()
+			task.delay(0.5, function()
+				if CustomKnife and CustomKnife.Enabled and optionsReady then
+					currentTarget = nil
+					lastSearch = 0
+
+					if template then
+						rebuildVisual()
+					elseif tostring(value(AssetID, '')):match('%d+') then
+						loadAsset(false)
+					end
+				end
+			end)
+		end))
+	end
+
+	local function stopKnife()
+		started = false
+		destroyVisual()
+	end
+
 	CustomKnife = vape.Categories.Render:CreateModule({
 		Name = 'CustomKnife',
 		Function = function(callback)
 			if callback then
-				if not template then
-					loadAsset()
-				else
-					rebuildVisual()
-				end
+				-- Vape can restore this module from config before its controls
+				-- below have finished being created. Wait until they exist.
+				task.defer(function()
+					while CustomKnife and CustomKnife.Enabled and not optionsReady do
+						task.wait()
+					end
 
-				CustomKnife:Clean(runService.RenderStepped:Connect(updateVisual))
-				CustomKnife:Clean(entitylib.Events.LocalAdded:Connect(function()
-					task.delay(0.5, function()
-						if CustomKnife.Enabled then
-							lastSearch = 0
-							rebuildVisual()
-						end
-					end)
-				end))
+					if CustomKnife and CustomKnife.Enabled and optionsReady then
+						startKnife()
+					end
+				end)
 			else
-				destroyVisual()
+				stopKnife()
 			end
 		end,
 		Tooltip = 'Replaces the local FPV knife with a model loaded from a Roblox asset ID.'
@@ -1841,8 +1901,8 @@ run(function()
 		Name = 'Asset ID',
 		Default = '',
 		Function = function()
-			if CustomKnife.Enabled then
-				loadAsset()
+			if optionsReady and CustomKnife.Enabled then
+				loadAsset(false)
 			end
 		end
 	})
@@ -1852,8 +1912,10 @@ run(function()
 		List = {'Auto', 'Knife1', 'Knife2', 'combat_knife'},
 		Default = 'Auto',
 		Function = function()
-			if CustomKnife.Enabled and tostring(AssetID.Value or ''):match('%d+') then
-				loadAsset()
+			if optionsReady
+				and CustomKnife.Enabled
+				and tostring(value(AssetID, '')):match('%d+') then
+				loadAsset(false)
 			end
 		end
 	})
@@ -1863,6 +1925,7 @@ run(function()
 		List = {'Auto', 'Knife1', 'Knife2', 'combat_knife'},
 		Default = 'Auto',
 		Function = function()
+			if not optionsReady then return end
 			currentTarget = nil
 			lastSearch = 0
 		end
@@ -1875,7 +1938,7 @@ run(function()
 		Default = 1,
 		Decimal = 100,
 		Function = function()
-			if CustomKnife.Enabled and template then
+			if optionsReady and CustomKnife.Enabled and template then
 				rebuildVisual()
 			end
 		end
@@ -1929,21 +1992,34 @@ run(function()
 	HideOriginal = CustomKnife:CreateToggle({
 		Name = 'Hide Original',
 		Default = true,
-		Function = function()
+		Function = function(callback)
+			if not optionsReady then return end
+
 			currentTarget = nil
 			lastSearch = 0
-			if not HideOriginal.Enabled then
+
+			if not callback then
 				restoreOriginal()
 			end
 		end
 	})
 
+	optionsReady = true
+
+	-- Handles the case where Vape restored CustomKnife.Enabled from config
+	-- before the option objects above existed.
+	if CustomKnife.Enabled then
+		task.defer(startKnife)
+	end
+
 	vape:Clean(function()
-		destroyVisual()
+		stopKnife()
+
 		if template then
 			template:Destroy()
 			template = nil
 		end
+
 		pcall(function()
 			Folder:Destroy()
 		end)
