@@ -136,13 +136,6 @@ local function finishLoading()
 	end
 end
 
-if not isfile('newvape/profiles/gui.txt') then
-	writefile('newvape/profiles/gui.txt', 'new')
-end
-local gui = shared.Rise and 'rise-v7' or 'new'
-if shared.Rise then
-	assert(isfile('newvape/guis/rise-v7.lua'), 'Rise v7 is missing: install newvape/guis/rise-v7.lua')
-end
 
 if not isfolder('newvape/assets/'..gui) then
 	makefolder('newvape/assets/'..gui)
