@@ -1808,7 +1808,7 @@ end)
 
 
 
--- ILLUSIONHD_GUNCHANGER_V2
+-- ILLUSIONHD_GUNCHANGER_V4
 run(function()
 	local GunChanger
 	local RainbowSpeed
@@ -1819,8 +1819,10 @@ run(function()
 
 	local originals = {}
 	local textureOriginals = {}
+	local surfaceOriginals = {}
 	local gunParts = {}
 	local gunTextures = {}
+	local gunSurfaces = {}
 	local currentModel
 	local lastScan = 0
 
@@ -1835,11 +1837,52 @@ run(function()
 		return fallback
 	end
 
-	-- Frontlines' first-person firearm model is a direct child of workspace
-	-- and is literally named "Model".
-	local function getGunModel()
+	local function getFPVModel()
 		local model = workspace:FindFirstChild('Model')
 		return model and model:IsA('Model') and model or nil
+	end
+
+	local function looksLikeBody(name)
+		name = string.lower(tostring(name))
+		return name:find('arm', 1, true)
+			or name:find('hand', 1, true)
+			or name:find('glove', 1, true)
+			or name:find('sleeve', 1, true)
+			or name:find('body', 1, true)
+			or name:find('torso', 1, true)
+			or name:find('head', 1, true)
+	end
+
+	local function looksLikeReticle(name)
+		name = string.lower(tostring(name))
+		return name:find('reticle', 1, true)
+			or name:find('crosshair', 1, true)
+			or name:find('cross_hair', 1, true)
+			or name:find('aimdot', 1, true)
+			or name:find('aim_dot', 1, true)
+			or name == 'dot'
+			or name:find('hud', 1, true)
+	end
+
+	local function hasIgnoredAncestor(obj, root)
+		local current = obj
+		while current and current ~= root do
+			if looksLikeBody(current.Name) or looksLikeReticle(current.Name) then
+				return true
+			end
+			current = current.Parent
+		end
+		return false
+	end
+
+	local function isCandidatePart(part, root)
+		if not part:IsA('BasePart') then return false end
+		if hasIgnoredAncestor(part, root) then return false end
+		if part:FindFirstChildWhichIsA('SurfaceGui')
+			or part:FindFirstChildWhichIsA('BillboardGui') then
+			return false
+		end
+		return true
 	end
 
 	local function savePart(part)
@@ -1847,9 +1890,11 @@ run(function()
 
 		local old = {
 			Material = part.Material,
+			MaterialVariant = part.MaterialVariant,
 			Color = part.Color,
 			Reflectance = part.Reflectance,
-			Transparency = part.Transparency
+			Transparency = part.Transparency,
+			LocalTransparencyModifier = part.LocalTransparencyModifier
 		}
 
 		if part:IsA('MeshPart') then
@@ -1875,6 +1920,11 @@ run(function()
 		end
 	end
 
+	local function saveSurface(obj)
+		if surfaceOriginals[obj] then return end
+		surfaceOriginals[obj] = obj.Parent
+	end
+
 	local function restorePart(part)
 		local old = originals[part]
 		if not old then return end
@@ -1882,9 +1932,11 @@ run(function()
 		if part and part.Parent then
 			pcall(function()
 				part.Material = old.Material
+				part.MaterialVariant = old.MaterialVariant
 				part.Color = old.Color
 				part.Reflectance = old.Reflectance
 				part.Transparency = old.Transparency
+				part.LocalTransparencyModifier = old.LocalTransparencyModifier
 
 				if old.TextureID ~= nil and part:IsA('MeshPart') then
 					part.TextureID = old.TextureID
@@ -1899,7 +1951,7 @@ run(function()
 		local old = textureOriginals[obj]
 		if not old then return end
 
-		if obj and obj.Parent then
+		if obj then
 			pcall(function()
 				if old.Type == 'TextureObject' then
 					obj.Transparency = old.Transparency
@@ -1912,6 +1964,19 @@ run(function()
 		textureOriginals[obj] = nil
 	end
 
+	local function restoreSurface(obj)
+		local parent = surfaceOriginals[obj]
+		if not parent then return end
+
+		if obj then
+			pcall(function()
+				obj.Parent = parent
+			end)
+		end
+
+		surfaceOriginals[obj] = nil
+	end
+
 	local function restoreAll()
 		for part in originals do
 			restorePart(part)
@@ -1921,40 +1986,150 @@ run(function()
 			restoreTexture(obj)
 		end
 
+		for obj in surfaceOriginals do
+			restoreSurface(obj)
+		end
+
 		table.clear(gunParts)
 		table.clear(gunTextures)
+		table.clear(gunSurfaces)
 		currentModel = nil
 	end
 
+	local function partVolume(part)
+		local size = part.Size
+		return math.max(size.X * size.Y * size.Z, 0.000001)
+	end
+
+	local function findGunAssembly(model)
+		local candidates = {}
+		local candidateSet = {}
+
+		for _, obj in model:GetDescendants() do
+			if obj:IsA('BasePart') and isCandidatePart(obj, model) then
+				table.insert(candidates, obj)
+				candidateSet[obj] = true
+			end
+		end
+
+		if #candidates == 0 then
+			return {}, {}
+		end
+
+		local adjacency = {}
+		for _, part in candidates do
+			adjacency[part] = {}
+		end
+
+		for _, obj in model:GetDescendants() do
+			if obj:IsA('JointInstance') or obj:IsA('WeldConstraint') then
+				local p0 = obj.Part0
+				local p1 = obj.Part1
+
+				if candidateSet[p0] and candidateSet[p1] then
+					table.insert(adjacency[p0], p1)
+					table.insert(adjacency[p1], p0)
+				end
+			end
+		end
+
+		local visited = {}
+		local bestParts = {}
+		local bestScore = -math.huge
+
+		for _, seed in candidates do
+			if visited[seed] then continue end
+
+			local queue = {seed}
+			visited[seed] = true
+			local component = {}
+			local volume = 0
+
+			while #queue > 0 do
+				local part = table.remove(queue)
+				table.insert(component, part)
+				volume += partVolume(part)
+
+				for _, neighbor in adjacency[part] do
+					if not visited[neighbor] then
+						visited[neighbor] = true
+						table.insert(queue, neighbor)
+					end
+				end
+			end
+
+			local score = volume + (#component * 0.08)
+			if score > bestScore then
+				bestScore = score
+				bestParts = component
+			end
+		end
+
+		-- Fallback for guns whose client-side welds are hidden.
+		if #bestParts <= 1 and #candidates > 1 then
+			local maxVolume = 0
+
+			for _, part in candidates do
+				maxVolume = math.max(maxVolume, partVolume(part))
+			end
+
+			bestParts = {}
+			for _, part in candidates do
+				if partVolume(part) >= maxVolume * 0.025 then
+					table.insert(bestParts, part)
+				end
+			end
+		end
+
+		local selected = {}
+		for _, part in bestParts do
+			selected[part] = true
+		end
+
+		return bestParts, selected
+	end
+
 	local function scanGun()
-		local model = getGunModel()
+		local model = getFPVModel()
 
 		if not model then
 			restoreAll()
 			return
 		end
 
-		-- If Frontlines replaced workspace.Model during a gun swap/reload,
-		-- restore the old model first and start tracking the new one.
 		if currentModel ~= model then
 			restoreAll()
 			currentModel = model
 		end
 
-		local newParts = {}
+		local newParts, selected = findGunAssembly(model)
 		local newTextures = {}
+		local newSurfaces = {}
 		local activeParts = {}
 		local activeTextures = {}
+		local activeSurfaces = {}
+
+		for _, part in newParts do
+			savePart(part)
+			activeParts[part] = true
+		end
 
 		for _, obj in model:GetDescendants() do
-			if obj:IsA('BasePart') then
-				savePart(obj)
-				table.insert(newParts, obj)
-				activeParts[obj] = true
-			elseif obj:IsA('Decal') or obj:IsA('Texture') or obj:IsA('SpecialMesh') then
-				saveTexture(obj)
-				table.insert(newTextures, obj)
-				activeTextures[obj] = true
+			if obj:IsA('Decal') or obj:IsA('Texture') or obj:IsA('SpecialMesh') then
+				local parentPart = obj:FindFirstAncestorWhichIsA('BasePart')
+				if parentPart and selected[parentPart] then
+					saveTexture(obj)
+					table.insert(newTextures, obj)
+					activeTextures[obj] = true
+				end
+
+			elseif obj:IsA('SurfaceAppearance') then
+				local parentPart = obj:FindFirstAncestorWhichIsA('BasePart')
+				if parentPart and selected[parentPart] then
+					saveSurface(obj)
+					table.insert(newSurfaces, obj)
+					activeSurfaces[obj] = true
+				end
 			end
 		end
 
@@ -1970,11 +2145,20 @@ run(function()
 			end
 		end
 
+		for obj in surfaceOriginals do
+			if not activeSurfaces[obj] then
+				restoreSurface(obj)
+			end
+		end
+
 		gunParts = newParts
 		gunTextures = newTextures
+		gunSurfaces = newSurfaces
 	end
 
 	local function applyGun(now)
+		if not currentModel then return end
+
 		local hue = (now * (optionValue(RainbowSpeed, 8) / 10)) % 1
 		local rainbow = Color3.fromHSV(
 			hue,
@@ -1982,32 +2166,40 @@ run(function()
 			optionValue(Brightness, 1)
 		)
 
-		for _, part in gunParts do
-			if part and part.Parent and part:IsDescendantOf(currentModel) then
+		-- Pull SurfaceAppearance off the selected gun assembly so PBR maps
+		-- cannot override the actual ForceField material.
+		for _, surface in gunSurfaces do
+			if surface then
 				pcall(function()
-					part.Material = Enum.Material.ForceField
-					part.Color = rainbow
-					part.Reflectance = 0
-
-					if part:IsA('MeshPart') then
-						part.TextureID = ''
-					end
-
-					if optionEnabled(BrightForceField, true) then
-						part.Transparency = math.min(part.Transparency, 0.06)
-					end
+					surface.Parent = nil
 				end)
 			end
 		end
 
-		-- Hide texture overlays that would otherwise cover the ForceField color.
 		for _, obj in gunTextures do
-			if obj and obj.Parent and obj:IsDescendantOf(currentModel) then
+			if obj then
 				pcall(function()
 					if obj:IsA('Decal') or obj:IsA('Texture') then
 						obj.Transparency = 1
 					elseif obj:IsA('SpecialMesh') then
 						obj.TextureId = ''
+					end
+				end)
+			end
+		end
+
+		for _, part in gunParts do
+			if part and part.Parent and part:IsDescendantOf(currentModel) then
+				pcall(function()
+					part.MaterialVariant = ''
+					part.Material = Enum.Material.ForceField
+					part.Color = rainbow
+					part.Reflectance = 0
+					part.Transparency = 0
+					part.LocalTransparencyModifier = 0
+
+					if part:IsA('MeshPart') then
+						part.TextureID = ''
 					end
 				end)
 			end
@@ -2030,7 +2222,7 @@ run(function()
 						if not optionsReady then return end
 
 						local now = tick()
-						local model = getGunModel()
+						local model = getFPVModel()
 
 						if not model then
 							if currentModel then
@@ -2044,13 +2236,9 @@ run(function()
 							scanGun()
 						end
 
-						if currentModel and currentModel.Parent then
-							applyGun(now)
-						end
+						applyGun(now)
 					end))
 
-					-- Frontlines commonly destroys/recreates workspace.Model
-					-- when switching weapons, so force an immediate rescan.
 					GunChanger:Clean(workspace.ChildAdded:Connect(function(obj)
 						if obj.Name == 'Model' and obj:IsA('Model') then
 							lastScan = 0
@@ -2068,7 +2256,7 @@ run(function()
 				restoreAll()
 			end
 		end,
-		Tooltip = 'Changes workspace.Model (Frontlines firearm) into an animated rainbow ForceField.'
+		Tooltip = 'Applies a hard rainbow ForceField override to the actual Frontlines firearm assembly.'
 	})
 
 	RainbowSpeed = GunChanger:CreateSlider({
