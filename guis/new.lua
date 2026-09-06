@@ -29,6 +29,7 @@ local cloneref = cloneref or function(obj)
 end
 local tweenService = cloneref(game:GetService('TweenService'))
 local inputService = cloneref(game:GetService('UserInputService'))
+local contextService = cloneref(game:GetService('ContextActionService'))
 local textService = cloneref(game:GetService('TextService'))
 local guiService = cloneref(game:GetService('GuiService'))
 local runService = cloneref(game:GetService('RunService'))
@@ -1053,10 +1054,40 @@ function vape:LoadGUI()
 	scarcitybanner.TextStrokeTransparency = 0.5
 	scarcitybanner.Parent = clickgui
 	local modal = Instance.new('TextButton')
+	modal.Name = 'InputBlocker'
+	modal.Active = true
+	modal.AutoButtonColor = false
 	modal.BackgroundTransparency = 1
 	modal.Modal = true
+	modal.Position = UDim2.fromScale(0, 0)
+	modal.Size = UDim2.fromScale(1, 1)
 	modal.Text = ''
+	modal.ZIndex = 0
 	modal.Parent = clickgui
+
+	-- Stop ClickGUI interactions from falling through into equipped tools/guns.
+	-- The full-screen Modal button handles Roblox's normal Tool activation path,
+	-- while this high-priority action also sinks game actions bound through CAS.
+	local guiInputAction = 'VapeGuiInputSink_'..randomString()
+	contextService:BindActionAtPriority(guiInputAction, function(_, inputState)
+		local legitVisible = vape.Legit and vape.Legit.Window and vape.Legit.Window.Visible
+		if clickgui.Visible or legitVisible then
+			if inputState == Enum.UserInputState.Begin
+				or inputState == Enum.UserInputState.Change
+				or inputState == Enum.UserInputState.End then
+				return Enum.ContextActionResult.Sink
+			end
+		end
+		return Enum.ContextActionResult.Pass
+	end, false, Enum.ContextActionPriority.High.Value + 1000,
+		Enum.UserInputType.MouseButton1,
+		Enum.UserInputType.MouseButton2
+	)
+	vape:Clean(function()
+		pcall(function()
+			contextService:UnbindAction(guiInputAction)
+		end)
+	end)
 	local cursor = Instance.new('ImageLabel')
 	cursor.BackgroundTransparency = 1
 	cursor.Image = 'rbxasset://textures/Cursors/KeyboardMouse/ArrowFarCursor.png'
