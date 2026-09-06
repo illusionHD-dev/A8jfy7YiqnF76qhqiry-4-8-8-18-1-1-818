@@ -2296,657 +2296,470 @@ run(function()
 end)
 -- ILLUSIONHD_GUNCHANGER_END
 
--- ILLUSIONHD_CUSTOMKNIFE_V3
+-- ILLUSIONHD_CUSTOMKNIFE_V5
 run(function()
-	local CustomKnife
-	local AssetID
-	local AssetModel
-	local TargetModel
-	local Scale
-	local OffsetX
-	local OffsetY
-	local OffsetZ
-	local RotationX
-	local RotationY
-	local RotationZ
-	local HideOriginal
-
-	local optionsReady = false
-	local started = false
-
-	local Folder = Instance.new('Folder')
-	Folder.Name = 'IllusionHDCustomKnife'
-	Folder.Parent = gameCamera
-
-	local validNames = {
-		Knife1 = true,
-		Knife2 = true,
-		combat_knife = true
-	}
-
-	local template
-	local visual
-	local currentTarget
-	local hiddenParts = {}
-	local lastSearch = 0
-	local assetListChanging = false
-
-	local function value(option, fallback)
-		if option and option.Value ~= nil then
-			return option.Value
-		end
-		return fallback
-	end
-
-	local function enabled(option, fallback)
-		if option and option.Enabled ~= nil then
-			return option.Enabled
-		end
-		return fallback
-	end
-
-	local function restoreOriginal()
-		for part, transparency in hiddenParts do
-			if part and part.Parent then
-				pcall(function()
-					part.LocalTransparencyModifier = transparency
-				end)
-			end
-		end
-		table.clear(hiddenParts)
-	end
-
-	local function destroyVisual()
-		if visual then
-			visual:Destroy()
-			visual = nil
-		end
-		currentTarget = nil
-		restoreOriginal()
-	end
-
-	local function getObjectCFrame(obj)
-		if not obj then return nil end
-
-		if obj:IsA('BasePart') then
-			return obj.CFrame
-		elseif obj:IsA('Model') then
-			local ok, cf = pcall(function()
-				return obj:GetPivot()
-			end)
-			return ok and cf or nil
-		elseif obj:IsA('Attachment') then
-			return obj.WorldCFrame
-		elseif obj:IsA('Bone') then
-			return obj.TransformedWorldCFrame
-		end
-
-		local part = obj:FindFirstChildWhichIsA('BasePart', true)
-		return part and part.CFrame or nil
-	end
-
-	local function addSearchRoot(list, seen, obj)
-		if typeof(obj) ~= 'Instance' or seen[obj] then return end
-		seen[obj] = true
-		table.insert(list, obj)
-	end
-
-	local function getSearchRoots()
-		local roots = {}
-		local seen = {}
-
-		addSearchRoot(roots, seen, gameCamera)
-		addSearchRoot(roots, seen, lplr.Character)
-
-		local instances = frontlines.Main
-			and frontlines.Main.globals
-			and frontlines.Main.globals.fpv_sol_instances
-
-		if type(instances) == 'table' then
-			for _, obj in instances do
-				addSearchRoot(roots, seen, obj)
-			end
-		end
-
-		return roots
-	end
-
-	local function findKnifeObjects()
-		local found = {}
-		local used = {}
-
-		local function add(obj)
-			if not obj or used[obj] then return end
-			if obj == Folder or obj:IsDescendantOf(Folder) then return end
-
-			if validNames[obj.Name] then
-				used[obj] = true
-				table.insert(found, obj)
-			end
-		end
-
-		for _, root in getSearchRoots() do
-			add(root)
-			for _, obj in root:GetDescendants() do
-				add(obj)
-			end
-		end
-
-		return found
-	end
-
-	local function chooseTarget(objects)
-		if #objects == 0 then return nil end
-
-		local selected = value(TargetModel, 'Auto')
-		if selected ~= 'Auto' then
-			for _, obj in objects do
-				if obj.Name == selected then
-					return obj
-				end
-			end
-		end
-
-		-- Prefer the whole knife model when available.
-		for _, wanted in {'combat_knife', 'Knife1', 'Knife2'} do
-			for _, obj in objects do
-				if obj.Name == wanted then
-					return obj
-				end
-			end
-		end
-
-		return objects[1]
-	end
-
-	local function hideKnifeObjects(objects)
-		restoreOriginal()
-		if not enabled(HideOriginal, true) then return end
-
-		for _, obj in objects do
-			if obj:IsA('BasePart') then
-				if hiddenParts[obj] == nil then
-					hiddenParts[obj] = obj.LocalTransparencyModifier
-					obj.LocalTransparencyModifier = 1
-				end
-			else
-				for _, desc in obj:GetDescendants() do
-					if desc:IsA('BasePart') and hiddenParts[desc] == nil then
-						hiddenParts[desc] = desc.LocalTransparencyModifier
-						desc.LocalTransparencyModifier = 1
-					end
-				end
-			end
-		end
-	end
-
-	local function getAssetCandidates(objects)
-		local candidates = {}
-		local labels = {'Auto'}
-		local usedLabels = {}
-
-		local function usableModel(obj)
-			return obj:IsA('Model') and obj:FindFirstChildWhichIsA('BasePart', true) ~= nil
-		end
-
-		local function makeLabel(obj)
-			local base = tostring(obj.Name)
-			if base == '' then
-				base = obj.ClassName
-			end
-
-			local label = base
-			local index = 2
-			while usedLabels[label] do
-				label = base..' #'..index
-				index += 1
-			end
-
-			usedLabels[label] = true
-			return label
-		end
-
-		-- Prefer actual Models from the asset. These are the useful choices
-		-- for most Roblox catalog/model asset IDs.
-		for _, root in objects do
-			if usableModel(root) then
-				local label = makeLabel(root)
-				candidates[label] = root
-				table.insert(labels, label)
-			end
-
-			for _, obj in root:GetDescendants() do
-				if usableModel(obj) then
-					local label = makeLabel(obj)
-					candidates[label] = obj
-					table.insert(labels, label)
-				end
-			end
-		end
-
-		-- Some assets are a loose MeshPart/Part with no Model wrapper.
-		if #labels == 1 then
-			for _, root in objects do
-				if root:IsA('BasePart') then
-					local label = makeLabel(root)
-					candidates[label] = root
-					table.insert(labels, label)
-				end
-
-				for _, obj in root:GetDescendants() do
-					if obj:IsA('BasePart') then
-						local label = makeLabel(obj)
-						candidates[label] = obj
-						table.insert(labels, label)
-					end
-				end
-			end
-		end
-
-		return candidates, labels
-	end
-
-	local function chooseAssetCandidate(candidates, selected)
-		if selected and selected ~= 'Auto' and candidates[selected] then
-			return candidates[selected]
-		end
-
-		local best
-		local bestScore = -1
-
-		for _, obj in candidates do
-			local score = 0
-
-			if obj:IsA('Model') then
-				for _, desc in obj:GetDescendants() do
-					if desc:IsA('BasePart') then
-						score += 1
-						if desc:IsA('MeshPart') then
-							score += 0.2
-						end
-					end
-				end
-
-				-- Prefer a complete model over an individual loose part.
-				score += 5
-			elseif obj:IsA('BasePart') then
-				score = 1
-			end
-
-			if score > bestScore then
-				bestScore = score
-				best = obj
-			end
-		end
-
-		return best
-	end
-
-	local function makeTemplate(obj)
-		local wrapper = Instance.new('Model')
-		wrapper.Name = 'CustomKnifeTemplate'
-
-		local clone = obj:Clone()
-
-		if clone:IsA('Model') then
-			-- Keep the cloned model intact so Knife1 + Knife2 retain their
-			-- relative transforms inside combat_knife.
-			clone.Parent = wrapper
-		else
-			clone.Parent = wrapper
-		end
-
-		for _, desc in wrapper:GetDescendants() do
-			if desc:IsA('Script') or desc:IsA('LocalScript') or desc:IsA('ModuleScript') then
-				desc:Destroy()
-			elseif desc:IsA('BasePart') then
-				desc.Anchored = true
-				desc.CanCollide = false
-				desc.CanTouch = false
-				desc.CanQuery = false
-				desc.CastShadow = false
-				desc.Massless = true
-			end
-		end
-
-		if not wrapper:FindFirstChildWhichIsA('BasePart', true) then
-			wrapper:Destroy()
-			return nil
-		end
-
-		return wrapper
-	end
-
-	local function rebuildVisual()
-		if visual then
-			visual:Destroy()
-			visual = nil
-		end
-
-		if not template or not CustomKnife or not CustomKnife.Enabled then
-			return
-		end
-
-		visual = template:Clone()
-		visual.Name = 'IllusionHDCustomKnifeModel'
-
-		pcall(function()
-			visual:ScaleTo(value(Scale, 1))
-		end)
-
-		for _, desc in visual:GetDescendants() do
-			if desc:IsA('BasePart') then
-				desc.Anchored = true
-				desc.CanCollide = false
-				desc.CanTouch = false
-				desc.CanQuery = false
-				desc.CastShadow = false
-				desc.Massless = true
-			end
-		end
-
-		visual.Parent = Folder
-	end
-
-	local function loadAsset(showError)
-		if not optionsReady then return end
-
-		if template then
-			template:Destroy()
-			template = nil
-		end
-
-		destroyVisual()
-
-		local id = tostring(value(AssetID, '')):match('%d+')
-		if not id then
-			if showError then
-				notif('CustomKnife', 'Enter a valid asset ID.', 5, 'alert')
-			end
-
-			if AssetModel then
-				assetListChanging = true
-				AssetModel:Change({'Auto'})
-				AssetModel:SetValue('Auto', false)
-				assetListChanging = false
-			end
-			return
-		end
-
-		local success, objects = pcall(function()
-			return game:GetObjects('rbxassetid://'..id)
-		end)
-
-		if not success or type(objects) ~= 'table' or not objects[1] then
-			notif('CustomKnife', 'Failed to load asset '..id, 5, 'alert')
-			return
-		end
-
-		local candidates, labels = getAssetCandidates(objects)
-
-		-- Populate the dropdown with the ACTUAL model names inside this asset ID.
-		if AssetModel then
-			local previous = value(AssetModel, 'Auto')
-			assetListChanging = true
-			AssetModel:Change(labels)
-
-			if previous ~= 'Auto' and candidates[previous] then
-				AssetModel:SetValue(previous, false)
-			else
-				AssetModel:SetValue('Auto', false)
-			end
-
-			assetListChanging = false
-		end
-
-		local selected = value(AssetModel, 'Auto')
-		local chosen = chooseAssetCandidate(candidates, selected)
-
-		if chosen then
-			local ok, result = pcall(makeTemplate, chosen)
-			if ok then
-				template = result
-			end
-		end
-
-		for _, obj in objects do
-			pcall(function()
-				obj:Destroy()
-			end)
-		end
-
-		if not template then
-			notif('CustomKnife', 'Asset '..id..' has no usable Model or BasePart.', 5, 'alert')
-			return
-		end
-
-		rebuildVisual()
-		currentTarget = nil
-		lastSearch = 0
-	end
-
-	local function updateVisual()
-		if not optionsReady or not visual or not visual.Parent then return end
-
-		local now = tick()
-		if not currentTarget or not currentTarget.Parent or now - lastSearch > 0.25 then
-			lastSearch = now
-
-			local objects = findKnifeObjects()
-			currentTarget = chooseTarget(objects)
-			hideKnifeObjects(objects)
-		end
-
-		if not currentTarget then
-			visual.Parent = nil
-			return
-		end
-
-		if visual.Parent ~= Folder then
-			visual.Parent = Folder
-		end
-
-		local cf = getObjectCFrame(currentTarget)
-		if not cf then return end
-
-		local offset = CFrame.new(
-			value(OffsetX, 0),
-			value(OffsetY, 0),
-			value(OffsetZ, 0)
-		) * CFrame.Angles(
-			math.rad(value(RotationX, 0)),
-			math.rad(value(RotationY, 0)),
-			math.rad(value(RotationZ, 0))
-		)
-
-		pcall(function()
-			visual:PivotTo(cf * offset)
-		end)
-	end
-
-	local function startKnife()
-		if started or not optionsReady or not CustomKnife or not CustomKnife.Enabled then
-			return
-		end
-		started = true
-
-		if tostring(value(AssetID, '')):match('%d+') then
-			loadAsset(false)
-		end
-
-		CustomKnife:Clean(runService.RenderStepped:Connect(updateVisual))
-
-		CustomKnife:Clean(entitylib.Events.LocalAdded:Connect(function()
-			task.delay(0.5, function()
-				if CustomKnife and CustomKnife.Enabled and optionsReady then
-					currentTarget = nil
-					lastSearch = 0
-
-					if template then
-						rebuildVisual()
-					elseif tostring(value(AssetID, '')):match('%d+') then
-						loadAsset(false)
-					end
-				end
-			end)
-		end))
-	end
-
-	local function stopKnife()
-		started = false
-		destroyVisual()
-	end
-
-	CustomKnife = vape.Categories.Render:CreateModule({
-		Name = 'CustomKnife',
-		Function = function(callback)
-			if callback then
-				-- Vape can restore this module from config before its controls
-				-- below have finished being created. Wait until they exist.
-				task.defer(function()
-					while CustomKnife and CustomKnife.Enabled and not optionsReady do
-						task.wait()
-					end
-
-					if CustomKnife and CustomKnife.Enabled and optionsReady then
-						startKnife()
-					end
-				end)
-			else
-				stopKnife()
-			end
-		end,
-		Tooltip = 'Loads a Roblox asset ID, discovers the Models inside it, and uses the selected model as your local FPV knife.'
-	})
-
-	AssetID = CustomKnife:CreateTextBox({
-		Name = 'Asset ID',
-		Default = '',
-		Function = function()
-			if optionsReady then
-				loadAsset(false)
-			end
-		end
-	})
-
-	AssetModel = CustomKnife:CreateDropdown({
-		Name = 'Asset Model',
-		List = {'Auto'},
-		Default = 'Auto',
-		Function = function()
-			if assetListChanging then return end
-			if optionsReady
-				and CustomKnife.Enabled
-				and tostring(value(AssetID, '')):match('%d+') then
-				loadAsset(false)
-			end
-		end
-	})
-
-	TargetModel = CustomKnife:CreateDropdown({
-		Name = 'Target Model',
-		List = {'Auto', 'Knife1', 'Knife2', 'combat_knife'},
-		Default = 'Auto',
-		Function = function()
-			if not optionsReady then return end
-			currentTarget = nil
-			lastSearch = 0
-		end
-	})
-
-	Scale = CustomKnife:CreateSlider({
-		Name = 'Scale',
-		Min = 0.1,
-		Max = 5,
-		Default = 1,
-		Decimal = 100,
-		Function = function()
-			if optionsReady and CustomKnife.Enabled and template then
-				rebuildVisual()
-			end
-		end
-	})
-
-	OffsetX = CustomKnife:CreateSlider({
-		Name = 'Offset X',
-		Min = -5,
-		Max = 5,
-		Default = 0,
-		Decimal = 100
-	})
-
-	OffsetY = CustomKnife:CreateSlider({
-		Name = 'Offset Y',
-		Min = -5,
-		Max = 5,
-		Default = 0,
-		Decimal = 100
-	})
-
-	OffsetZ = CustomKnife:CreateSlider({
-		Name = 'Offset Z',
-		Min = -5,
-		Max = 5,
-		Default = 0,
-		Decimal = 100
-	})
-
-	RotationX = CustomKnife:CreateSlider({
-		Name = 'Rotation X',
-		Min = -180,
-		Max = 180,
-		Default = 0
-	})
-
-	RotationY = CustomKnife:CreateSlider({
-		Name = 'Rotation Y',
-		Min = -180,
-		Max = 180,
-		Default = 0
-	})
-
-	RotationZ = CustomKnife:CreateSlider({
-		Name = 'Rotation Z',
-		Min = -180,
-		Max = 180,
-		Default = 0
-	})
-
-	HideOriginal = CustomKnife:CreateToggle({
-		Name = 'Hide Original',
-		Default = true,
-		Function = function(callback)
-			if not optionsReady then return end
-
-			currentTarget = nil
-			lastSearch = 0
-
-			if not callback then
-				restoreOriginal()
-			end
-		end
-	})
-
-	optionsReady = true
-
-	-- Handles the case where Vape restored CustomKnife.Enabled from config
-	-- before the option objects above existed.
-	if CustomKnife.Enabled then
-		task.defer(startKnife)
-	end
-
-	vape:Clean(function()
-		stopKnife()
-
-		if template then
-			template:Destroy()
-			template = nil
-		end
-
-		pcall(function()
-			Folder:Destroy()
-		end)
-	end)
+    local CustomKnife
+    local AssetID
+    local AssetModel
+    local Scale
+    local OffsetX
+    local OffsetY
+    local OffsetZ
+    local RotationX
+    local RotationY
+    local RotationZ
+    local HideOriginal
+
+    local optionsReady = false
+    local changingAssetList = false
+    local template = nil
+    local visual = nil
+    local target = nil
+    local lastTargetScan = 0
+    local hiddenParts = {}
+
+    local folder = Instance.new('Folder')
+    folder.Name = 'IllusionHDCustomKnife'
+    folder.Parent = gameCamera
+
+    local function value(option, fallback)
+        if option ~= nil and option.Value ~= nil then
+            return option.Value
+        end
+        return fallback
+    end
+
+    local function enabled(option, fallback)
+        if option ~= nil and option.Enabled ~= nil then
+            return option.Enabled
+        end
+        return fallback
+    end
+
+    local function clearHidden()
+        for part, oldValue in pairs(hiddenParts) do
+            if part ~= nil and part.Parent ~= nil then
+                pcall(function()
+                    part.LocalTransparencyModifier = oldValue
+                end)
+            end
+        end
+        hiddenParts = {}
+    end
+
+    local function hideObject(obj)
+        clearHidden()
+        if not enabled(HideOriginal, true) then
+            return
+        end
+        if obj == nil then
+            return
+        end
+
+        if obj:IsA('BasePart') then
+            hiddenParts[obj] = obj.LocalTransparencyModifier
+            obj.LocalTransparencyModifier = 1
+            return
+        end
+
+        local descendants = obj:GetDescendants()
+        for i = 1, #descendants do
+            local part = descendants[i]
+            if part:IsA('BasePart') then
+                hiddenParts[part] = part.LocalTransparencyModifier
+                part.LocalTransparencyModifier = 1
+            end
+        end
+    end
+
+    local function destroyVisual()
+        if visual ~= nil then
+            visual:Destroy()
+            visual = nil
+        end
+        target = nil
+        clearHidden()
+    end
+
+    local function objectCFrame(obj)
+        if obj == nil then
+            return nil
+        end
+        if obj:IsA('BasePart') then
+            return obj.CFrame
+        end
+        if obj:IsA('Model') then
+            local ok, result = pcall(function()
+                return obj:GetPivot()
+            end)
+            if ok then
+                return result
+            end
+        end
+        local part = obj:FindFirstChildWhichIsA('BasePart', true)
+        if part ~= nil then
+            return part.CFrame
+        end
+        return nil
+    end
+
+    local function partCount(obj)
+        if obj == nil then
+            return 0
+        end
+        if obj:IsA('BasePart') then
+            return 1
+        end
+        local count = 0
+        local descendants = obj:GetDescendants()
+        for i = 1, #descendants do
+            if descendants[i]:IsA('BasePart') then
+                count = count + 1
+            end
+        end
+        return count
+    end
+
+    local function collectAssetModels(objects)
+        local choices = {}
+        local names = {'Auto'}
+        local used = {}
+
+        local function addChoice(obj)
+            if obj == nil or not obj:IsA('Model') then
+                return
+            end
+            if partCount(obj) == 0 then
+                return
+            end
+
+            local base = tostring(obj.Name)
+            if base == '' then
+                base = 'Model'
+            end
+            local label = base
+            local n = 2
+            while used[label] do
+                label = base .. ' #' .. tostring(n)
+                n = n + 1
+            end
+            used[label] = true
+            choices[label] = obj
+            names[#names + 1] = label
+        end
+
+        for i = 1, #objects do
+            local root = objects[i]
+            addChoice(root)
+            local descendants = root:GetDescendants()
+            for j = 1, #descendants do
+                addChoice(descendants[j])
+            end
+        end
+
+        if #names == 1 then
+            for i = 1, #objects do
+                local root = objects[i]
+                if root:IsA('BasePart') then
+                    local label = tostring(root.Name)
+                    if label == '' then
+                        label = root.ClassName
+                    end
+                    choices[label] = root
+                    names[#names + 1] = label
+                end
+
+                local descendants = root:GetDescendants()
+                for j = 1, #descendants do
+                    local obj = descendants[j]
+                    if obj:IsA('BasePart') then
+                        local base = tostring(obj.Name)
+                        if base == '' then
+                            base = obj.ClassName
+                        end
+                        local label = base
+                        local n = 2
+                        while choices[label] ~= nil do
+                            label = base .. ' #' .. tostring(n)
+                            n = n + 1
+                        end
+                        choices[label] = obj
+                        names[#names + 1] = label
+                    end
+                end
+            end
+        end
+
+        return choices, names
+    end
+
+    local function chooseAssetObject(choices)
+        local selected = value(AssetModel, 'Auto')
+        if selected ~= 'Auto' and choices[selected] ~= nil then
+            return choices[selected]
+        end
+
+        local best = nil
+        local bestScore = -1
+        for _, obj in pairs(choices) do
+            local score = partCount(obj)
+            if obj:IsA('Model') then
+                score = score + 10000
+            end
+            if score > bestScore then
+                bestScore = score
+                best = obj
+            end
+        end
+        return best
+    end
+
+    local function makeTemplate(obj)
+        if obj == nil then
+            return nil
+        end
+
+        local wrapper = Instance.new('Model')
+        wrapper.Name = 'CustomKnifeTemplate'
+        local clone = obj:Clone()
+        clone.Parent = wrapper
+
+        local descendants = wrapper:GetDescendants()
+        for i = 1, #descendants do
+            local item = descendants[i]
+            if item:IsA('Script') or item:IsA('LocalScript') or item:IsA('ModuleScript') then
+                item:Destroy()
+            elseif item:IsA('BasePart') then
+                item.Anchored = true
+                item.CanCollide = false
+                item.CanTouch = false
+                item.CanQuery = false
+                item.CastShadow = false
+                item.Massless = true
+            end
+        end
+
+        if wrapper:FindFirstChildWhichIsA('BasePart', true) == nil then
+            wrapper:Destroy()
+            return nil
+        end
+        return wrapper
+    end
+
+    local function rebuildVisual()
+        if visual ~= nil then
+            visual:Destroy()
+            visual = nil
+        end
+        if template == nil or CustomKnife == nil or not CustomKnife.Enabled then
+            return
+        end
+
+        visual = template:Clone()
+        visual.Name = 'IllusionHDCustomKnifeModel'
+        pcall(function()
+            visual:ScaleTo(value(Scale, 1))
+        end)
+        visual.Parent = folder
+    end
+
+    local function loadAsset(showError)
+        local id = tostring(value(AssetID, '')):match('%d+')
+        if id == nil then
+            if showError then
+                notif('CustomKnife', 'Enter a valid asset ID.', 5, 'alert')
+            end
+            return
+        end
+
+        local ok, objects = pcall(function()
+            return game:GetObjects('rbxassetid://' .. id)
+        end)
+        if not ok or type(objects) ~= 'table' or #objects == 0 then
+            notif('CustomKnife', 'Failed to load asset ' .. id, 5, 'alert')
+            return
+        end
+
+        local choices, names = collectAssetModels(objects)
+        local previous = value(AssetModel, 'Auto')
+
+        if AssetModel ~= nil then
+            changingAssetList = true
+            AssetModel:Change(names)
+            if previous ~= 'Auto' and choices[previous] ~= nil then
+                AssetModel:SetValue(previous, false)
+            else
+                AssetModel:SetValue('Auto', false)
+            end
+            changingAssetList = false
+        end
+
+        local chosen = chooseAssetObject(choices)
+        local newTemplate = makeTemplate(chosen)
+
+        for i = 1, #objects do
+            pcall(function()
+                objects[i]:Destroy()
+            end)
+        end
+
+        if newTemplate == nil then
+            notif('CustomKnife', 'No usable model or part found inside asset ' .. id, 5, 'alert')
+            return
+        end
+
+        if template ~= nil then
+            template:Destroy()
+        end
+        template = newTemplate
+        rebuildVisual()
+        target = nil
+        lastTargetScan = 0
+    end
+
+    local function findKnifeTarget()
+        local wanted = {
+            combat_knife = true,
+            Knife1 = true,
+            Knife2 = true
+        }
+        local roots = {}
+        roots[#roots + 1] = gameCamera
+        if lplr.Character ~= nil then
+            roots[#roots + 1] = lplr.Character
+        end
+
+        if frontlines.Main ~= nil and frontlines.Main.globals ~= nil then
+            local instances = frontlines.Main.globals.fpv_sol_instances
+            if type(instances) == 'table' then
+                for _, obj in pairs(instances) do
+                    if typeof(obj) == 'Instance' then
+                        roots[#roots + 1] = obj
+                    end
+                end
+            end
+        end
+
+        local fallback = nil
+        for i = 1, #roots do
+            local root = roots[i]
+            if root ~= nil and root.Parent ~= nil then
+                if wanted[root.Name] then
+                    if root.Name == 'combat_knife' then
+                        return root
+                    end
+                    fallback = fallback or root
+                end
+                local descendants = root:GetDescendants()
+                for j = 1, #descendants do
+                    local obj = descendants[j]
+                    if wanted[obj.Name] then
+                        if obj.Name == 'combat_knife' then
+                            return obj
+                        end
+                        fallback = fallback or obj
+                    end
+                end
+            end
+        end
+        return fallback
+    end
+
+    local function updateKnife()
+        if visual == nil or visual.Parent == nil then
+            return
+        end
+
+        local now = tick()
+        if target == nil or target.Parent == nil or now - lastTargetScan > 0.25 then
+            lastTargetScan = now
+            target = findKnifeTarget()
+            hideObject(target)
+        end
+
+        if target == nil then
+            return
+        end
+
+        local cf = objectCFrame(target)
+        if cf == nil then
+            return
+        end
+
+        local offset = CFrame.new(
+            value(OffsetX, 0),
+            value(OffsetY, 0),
+            value(OffsetZ, 0)
+        ) * CFrame.Angles(
+            math.rad(value(RotationX, 0)),
+            math.rad(value(RotationY, 0)),
+            math.rad(value(RotationZ, 0))
+        )
+
+        pcall(function()
+            visual:PivotTo(cf * offset)
+        end)
+    end
+
+    CustomKnife = vape.Categories.Render:CreateModule({
+        Name = 'CustomKnife',
+        Function = function(callback)
+            if callback then
+                if template == nil then
+                    loadAsset(true)
+                else
+                    rebuildVisual()
+                end
+                CustomKnife:Clean(runService.RenderStepped:Connect(updateKnife))
+            else
+                destroyVisual()
+            end
+        end,
+        Tooltip = 'Loads the models actually contained in an asset ID and uses the selected one as your Frontlines knife.'
+    })
+
+    AssetID = CustomKnife:CreateTextBox({
+        Name = 'Asset ID',
+        Default = '',
+        Function = function()
+            if optionsReady then
+                loadAsset(false)
+            end
+        end
+    })
+
+    AssetModel = CustomKnife:CreateDropdown({
+        Name = 'Asset Model',
+        List = {'Auto'},
+        Default = 'Auto',
+        Function = function()
+            if optionsReady and not changingAssetList then
+                loadAsset(false)
+            end
+        end
+    })
+
+    Scale = CustomKnife:CreateSlider({Name = 'Scale', Min = 0.1, Max = 5, Default = 1, Decimal = 100, Function = rebuildVisual})
+    OffsetX = CustomKnife:CreateSlider({Name = 'Offset X', Min = -5, Max = 5, Default = 0, Decimal = 100})
+    OffsetY = CustomKnife:CreateSlider({Name = 'Offset Y', Min = -5, Max = 5, Default = 0, Decimal = 100})
+    OffsetZ = CustomKnife:CreateSlider({Name = 'Offset Z', Min = -5, Max = 5, Default = 0, Decimal = 100})
+    RotationX = CustomKnife:CreateSlider({Name = 'Rotation X', Min = -180, Max = 180, Default = 0})
+    RotationY = CustomKnife:CreateSlider({Name = 'Rotation Y', Min = -180, Max = 180, Default = 0})
+    RotationZ = CustomKnife:CreateSlider({Name = 'Rotation Z', Min = -180, Max = 180, Default = 0})
+    HideOriginal = CustomKnife:CreateToggle({Name = 'Hide Original', Default = true, Function = function() target = nil end})
+
+    optionsReady = true
+
+    vape:Clean(function()
+        destroyVisual()
+        if template ~= nil then
+            template:Destroy()
+            template = nil
+        end
+        pcall(function()
+            folder:Destroy()
+        end)
+    end)
 end)
 -- ILLUSIONHD_CUSTOMKNIFE_END
 
