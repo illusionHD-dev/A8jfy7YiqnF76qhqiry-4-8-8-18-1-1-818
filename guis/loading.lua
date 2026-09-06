@@ -1,17 +1,23 @@
--- illusionHD / Vape loading screen
--- ILLUSIONHD_LOADING_TOPO_IMAGE_V2
--- Rewritten loader using the real topography image asset (2151741365).
+-- illusionHD / Vape | CONTOUR loading screen
+-- Drop-in replacement: shows immediately, then returns the loader API.
+-- ShowLoadingScreen(), WaitForMinimumDisplay(), HideLoadingScreen(immediate).
+-- Optional: SetLoadingProgress(0..1, status). Without updates, shows an indeterminate sweep.
+-- Shader-style UI lighting + an isolated BlurEffect; no camera/input hooks.
+-- API references: https://create.roblox.com/docs/reference/engine/classes/BlurEffect
+-- https://create.roblox.com/docs/reference/engine/classes/UIGradient
 local Players = game:GetService('Players')
 local RunService = game:GetService('RunService')
 local TweenService = game:GetService('TweenService')
 local HttpService = game:GetService('HttpService')
+local Lighting = game:GetService('Lighting')
 
 local playerGui = Players.LocalPlayer:WaitForChild('PlayerGui')
 local previous = playerGui:FindFirstChild('VapeLoadingScreen')
 if previous then previous:Destroy() end
 
 local vape = {
-	MinimumDisplayTime = 2.25
+	MinimumDisplayTime = 2.25,
+	BlurSize = 20
 }
 
 local palette = {
@@ -118,657 +124,332 @@ pcall(function()
 	)(context, {Main = palette.Main}, RunService)
 end)
 
+local WHITE = Color3.fromRGB(240, 248, 246)
+local MUTED = Color3.fromRGB(132, 153, 149)
+local INK = Color3.fromRGB(9, 15, 17)
+local function sequence(points)
+	local keys = {}
+	for _, point in ipairs(points) do
+		keys[#keys + 1] = NumberSequenceKeypoint.new(point[1], point[2])
+	end
+	return NumberSequence.new(keys)
+end
+local function frame(parent, name, x, y, w, h, color, transparency, z)
+	return new('Frame', parent, {
+		Name = name, Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(w, h),
+		BackgroundColor3 = color or WHITE, BackgroundTransparency = transparency or 0,
+		BorderSizePixel = 0, ZIndex = z or 1
+	})
+end
+local function label(parent, value, x, y, w, h, size, color, weight)
+	return new('TextLabel', parent, {
+		BackgroundTransparency = 1, Position = UDim2.fromOffset(x, y),
+		Size = UDim2.fromOffset(w, h), Text = value, TextSize = size,
+		FontFace = Font.fromEnum(Enum.Font.Gotham, weight or Enum.FontWeight.Medium),
+		TextColor3 = color or WHITE, TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 12
+	})
+end
+local function minimum(self)
+	local value = tonumber(self.MinimumDisplayTime)
+	return value and value == value and math.clamp(value, 0, 60) or 2.25
+end
+
 function vape:ShowLoadingScreen()
-	if self.LoadingScreen then
-		self.LoadingScreen:Destroy()
-	end
-
+	if self.LoadingScreen then self.LoadingScreen:Destroy() end
 	local screen = new('ScreenGui', playerGui, {
-		Name = 'VapeLoadingScreen',
-		DisplayOrder = 10000001,
-		IgnoreGuiInset = true,
-		ResetOnSpawn = false,
-		ZIndexBehavior = Enum.ZIndexBehavior.Global
+		Name = 'VapeLoadingScreen', DisplayOrder = 10000001, IgnoreGuiInset = true,
+		ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Global
 	})
-	pcall(function()
-		screen.OnTopOfCoreBlur = true
-	end)
-
 	local root = new('CanvasGroup', screen, {
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.new(),
-		BackgroundTransparency = 0.44,
-		GroupTransparency = 0,
-		ClipsDescendants = true
+		Name = 'Atmosphere', Size = UDim2.fromScale(1, 1), BackgroundColor3 = INK,
+		BackgroundTransparency = 0.13, GroupTransparency = 1,
+		BorderSizePixel = 0, ClipsDescendants = true
 	})
-
-	new('TextButton', root, {
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		Text = '',
-		Modal = true,
-		AutoButtonColor = false,
-		ZIndex = 0
-	})
-
-	-- Fullscreen atmospheric topography layer.
-	local ambient = new('ImageLabel', root, {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		BackgroundTransparency = 1,
-		Image = TOPOGRAPHY_IMAGE,
-		ImageColor3 = accent,
-		ImageTransparency = 0.975,
-		Position = UDim2.fromScale(0.72, 0.53),
-		Rotation = -6,
-		ScaleType = Enum.ScaleType.Fit,
-		Size = UDim2.fromScale(1.15, 1.15),
-		ZIndex = 0
-	})
-
-	local window = new('CanvasGroup', root, {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		BackgroundColor3 = palette.Main,
-		BorderSizePixel = 0,
-		ClipsDescendants = true,
-		GroupTransparency = 1,
-		Position = UDim2.new(0.5, 0, 0.5, 18),
-		Size = UDim2.fromOffset(540, 246),
-		ZIndex = 2
-	})
-	corner(window, UDim.new(0, 7))
-
-	local windowScale = new('UIScale', window, {Scale = 0.965})
-	new('UIStroke', window, {
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		Color = light(palette.Main, 0.09),
-		Transparency = 0.42,
-		Thickness = 1
-	})
-
-	-- Topography artwork lives inside the window.
-	local topoHolder = new('Frame', window, {
-		BackgroundTransparency = 1,
-		ClipsDescendants = true,
-		Position = UDim2.fromOffset(132, 42),
-		Size = UDim2.new(1, -132, 1, -42),
-		ZIndex = 2
-	})
-
-	local topoBack = new('ImageLabel', topoHolder, {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		BackgroundTransparency = 1,
-		Image = TOPOGRAPHY_IMAGE,
-		ImageColor3 = accent,
-		ImageTransparency = 0.91,
-		Position = UDim2.fromScale(0.68, 0.50),
-		Rotation = -4,
-		ScaleType = Enum.ScaleType.Fit,
-		Size = UDim2.fromScale(1.28, 1.28),
-		ZIndex = 2
-	})
-
-	local topoFront = new('ImageLabel', topoHolder, {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		BackgroundTransparency = 1,
-		Image = TOPOGRAPHY_IMAGE,
-		ImageColor3 = accent,
-		ImageTransparency = 0.965,
-		Position = UDim2.fromScale(0.76, 0.48),
-		Rotation = 5,
-		ScaleType = Enum.ScaleType.Fit,
-		Size = UDim2.fromScale(0.88, 0.88),
-		ZIndex = 3
-	})
-
-	local fade = new('UIGradient', topoHolder, {
-		Transparency = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 0.18),
-			NumberSequenceKeypoint.new(0.35, 0.35),
-			NumberSequenceKeypoint.new(1, 0.82)
-		})
-	})
-	fade.Rotation = 0
-
-	-- Header
-	local header = new('Frame', window, {
-		BackgroundColor3 = light(palette.Main, 0.012),
-		BorderSizePixel = 0,
-		Size = UDim2.new(1, 0, 0, 42),
-		ZIndex = 6
-	})
-
-	new('Frame', header, {
-		AnchorPoint = Vector2.new(0, 1),
-		BackgroundColor3 = light(palette.Main, 0.08),
-		BackgroundTransparency = 0.55,
-		BorderSizePixel = 0,
-		Position = UDim2.fromScale(0, 1),
-		Size = UDim2.new(1, 0, 0, 1),
-		ZIndex = 7
-	})
-
-	local logo = new('ImageLabel', header, {
-		BackgroundTransparency = 1,
-		Image = asset('newvape/assets/new/vapelogomini.png', '109041903452149'),
-		ImageColor3 = palette.Text,
-		Position = UDim2.fromOffset(15, 13),
-		Size = UDim2.fromOffset(52, 15),
-		ZIndex = 7
-	})
-
-	local version = new('ImageLabel', header, {
-		BackgroundTransparency = 1,
-		Image = asset('newvape/assets/new/v4mini.png', '115213099001611'),
-		ImageColor3 = accent,
-		Position = UDim2.fromOffset(71, 13),
-		Size = UDim2.fromOffset(21, 15),
-		ZIndex = 7
-	})
-
-	new('TextLabel', header, {
-		BackgroundTransparency = 1,
-		FontFace = palette.Font,
-		Position = UDim2.fromOffset(116, 0),
-		Size = UDim2.fromOffset(185, 42),
-		Text = 'Preparing interface',
-		TextColor3 = light(palette.Text, -0.1),
-		TextSize = 12,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 7
-	})
-
-	local chip = new('Frame', header, {
-		AnchorPoint = Vector2.new(1, 0.5),
-		BackgroundColor3 = light(palette.Main, 0.032),
-		Position = UDim2.new(1, -45, 0.5, 0),
-		Size = UDim2.fromOffset(72, 22),
-		ZIndex = 7
-	})
-	corner(chip, UDim.new(0, 4))
-
-	local chipDot = new('Frame', chip, {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		BackgroundColor3 = accent,
-		BorderSizePixel = 0,
-		Position = UDim2.fromOffset(10, 11),
-		Size = UDim2.fromOffset(5, 5),
-		ZIndex = 8
-	})
-	corner(chipDot, UDim.new(1, 0))
-
-	local chipText = new('TextLabel', chip, {
-		BackgroundTransparency = 1,
-		FontFace = palette.FontSemiBold,
-		Position = UDim2.fromOffset(19, 0),
-		Size = UDim2.new(1, -21, 1, 0),
-		Text = 'LOADING',
-		TextColor3 = light(palette.Text, -0.08),
-		TextSize = 8,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 8
-	})
-
-	local close = new('TextButton', header, {
-		AnchorPoint = Vector2.new(1, 0.5),
-		BackgroundTransparency = 1,
-		Position = UDim2.new(1, -10, 0.5, 0),
-		Size = UDim2.fromOffset(22, 22),
-		Text = '×',
-		FontFace = palette.Font,
-		TextColor3 = light(palette.Text, -0.22),
-		TextSize = 18,
-		AutoButtonColor = false,
-		ZIndex = 8
-	})
-
-	-- Sidebar
-	local rail = new('Frame', window, {
-		BackgroundColor3 = light(palette.Main, -0.01),
-		BorderSizePixel = 0,
-		Position = UDim2.fromOffset(0, 42),
-		Size = UDim2.new(0, 132, 1, -42),
-		ZIndex = 4
-	})
-
-	new('Frame', rail, {
-		AnchorPoint = Vector2.new(1, 0),
-		BackgroundColor3 = light(palette.Main, 0.08),
-		BackgroundTransparency = 0.58,
-		BorderSizePixel = 0,
-		Position = UDim2.fromScale(1, 0),
-		Size = UDim2.new(0, 1, 1, 0),
-		ZIndex = 5
-	})
-
-	new('TextLabel', rail, {
-		BackgroundTransparency = 1,
-		FontFace = palette.FontSemiBold,
-		Position = UDim2.fromOffset(14, 12),
-		Size = UDim2.fromOffset(95, 18),
-		Text = 'STARTUP',
-		TextColor3 = light(palette.Text, -0.27),
-		TextSize = 9,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 6
-	})
-
-	local stages = {
-		{'Interface', 'GUI'},
-		{'Universal', 'CORE'},
-		{'Game', 'PLACE'},
-		{'Profile', 'CONFIG'}
-	}
-
-	local stageRows = {}
-
-	for index, data in ipairs(stages) do
-		local row = new('Frame', rail, {
-			BackgroundColor3 = palette.Main,
-			BackgroundTransparency = index == 1 and 0.73 or 1,
-			BorderSizePixel = 0,
-			Position = UDim2.fromOffset(8, 37 + (index - 1) * 35),
-			Size = UDim2.fromOffset(116, 29),
-			ZIndex = 6
-		})
-		corner(row, UDim.new(0, 4))
-
-		local indicator = new('Frame', row, {
-			AnchorPoint = Vector2.new(0, 0.5),
-			BackgroundColor3 = accent,
-			BackgroundTransparency = index == 1 and 0 or 1,
-			BorderSizePixel = 0,
-			Position = UDim2.fromOffset(0, 14.5),
-			Size = UDim2.fromOffset(2, 13),
-			ZIndex = 7
-		})
-		corner(indicator, UDim.new(1, 0))
-
-		local label = new('TextLabel', row, {
-			BackgroundTransparency = 1,
-			FontFace = palette.Font,
-			Position = UDim2.fromOffset(12, 0),
-			Size = UDim2.new(1, -16, 1, 0),
-			Text = data[1],
-			TextColor3 = index == 1 and palette.Text or light(palette.Text, -0.2),
-			TextSize = 11,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			ZIndex = 7
-		})
-
-		stageRows[index] = {
-			Row = row,
-			Indicator = indicator,
-			Label = label
-		}
-	end
-
-	-- Content
-	local content = new('Frame', window, {
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(132, 42),
-		Size = UDim2.new(1, -132, 1, -42),
-		ZIndex = 5
-	})
-
-	local accentBar = new('Frame', content, {
-		BackgroundColor3 = accent,
-		BorderSizePixel = 0,
-		Position = UDim2.fromOffset(18, 23),
-		Size = UDim2.fromOffset(2, 48),
-		ZIndex = 7
-	})
-	corner(accentBar, UDim.new(1, 0))
-
-	local title = new('TextLabel', content, {
-		BackgroundTransparency = 1,
-		FontFace = palette.FontSemiBold,
-		Position = UDim2.fromOffset(31, 18),
-		Size = UDim2.fromOffset(290, 25),
-		Text = 'Loading Vape',
-		TextColor3 = palette.Text,
-		TextSize = 17,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 7
-	})
-
-	local status = new('TextLabel', content, {
-		BackgroundTransparency = 1,
-		FontFace = palette.Font,
-		Position = UDim2.fromOffset(31, 44),
-		Size = UDim2.fromOffset(320, 36),
-		Text = 'Preparing game modules',
-		TextColor3 = light(palette.Text, -0.18),
-		TextSize = 11,
-		TextWrapped = true,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextYAlignment = Enum.TextYAlignment.Top,
-		ZIndex = 7
-	})
-
-	local detail = new('TextLabel', content, {
-		BackgroundTransparency = 1,
-		FontFace = palette.Font,
-		Position = UDim2.fromOffset(18, 112),
-		Size = UDim2.fromOffset(305, 18),
-		Text = 'Initializing interface...',
-		TextColor3 = light(palette.Text, -0.26),
-		TextSize = 10,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 7
-	})
-
-	local progressTrack = new('Frame', content, {
-		AnchorPoint = Vector2.new(0, 1),
-		BackgroundColor3 = light(palette.Main, 0.08),
-		BackgroundTransparency = 0.32,
-		BorderSizePixel = 0,
-		Position = UDim2.new(0, 18, 1, -18),
-		Size = UDim2.fromOffset(350, 3),
-		ZIndex = 7
-	})
-	corner(progressTrack, UDim.new(1, 0))
-
-	local progress = new('Frame', progressTrack, {
-		BackgroundColor3 = accent,
-		BorderSizePixel = 0,
-		Size = UDim2.fromScale(0, 1),
-		ZIndex = 8
-	})
-	corner(progress, UDim.new(1, 0))
-
-	local percent = new('TextLabel', content, {
-		AnchorPoint = Vector2.new(1, 1),
-		BackgroundTransparency = 1,
-		FontFace = palette.Font,
-		Position = UDim2.new(1, -18, 1, -24),
-		Size = UDim2.fromOffset(45, 16),
-		Text = '0%',
-		TextColor3 = light(palette.Text, -0.28),
-		TextSize = 9,
-		TextXAlignment = Enum.TextXAlignment.Right,
-		ZIndex = 7
-	})
-
-	local uiScale = new('UIScale', window, {Scale = 1})
-	local function fit()
-		local viewport = root.AbsoluteSize
-		uiScale.Scale = math.clamp(
-			math.min(viewport.X / 680, viewport.Y / 380),
-			0.68,
-			1
-		)
-	end
-	fit()
-
 	local state = {
-		Screen = screen,
-		Root = root,
-		Window = window,
-		WindowScale = windowScale,
-		Started = os.clock(),
-		Alive = true,
-		Closing = false,
-		Tweens = {},
-		Ambient = ambient,
-		TopoBack = topoBack,
-		TopoFront = topoFront,
-		Version = version,
-		ChipDot = chipDot,
-		ChipText = chipText,
-		AccentBar = accentBar,
-		Progress = progress,
-		Percent = percent,
-		Detail = detail,
-		StageRows = stageRows
+		Screen = screen, Root = root, Started = os.clock(), Alive = true, Closing = false,
+		Tweens = {}, Connections = {}, Target = nil, Displayed = 0, Ready = false
 	}
-
-	self._loading = state
-	self.LoadingScreen = screen
-	self.LoadingPanel = window
-	self.LoadingStatus = status
-	self.LoadingStarted = state.Started
-	self.LoadingDismissPending = nil
-
-	state.Resize = root:GetPropertyChangedSignal('AbsoluteSize'):Connect(fit)
-
-	local function animate(object, duration, props, style, direction)
-		local m = tween(object, duration, props, style, direction)
-		table.insert(state.Tweens, m)
-		return m
+	self._loading, self.LoadingScreen = state, screen
+	self.LoadingStarted, self.LoadingDismissPending = state.Started, nil
+	local function connect(signal, callback)
+		local connection = signal:Connect(callback)
+		state.Connections[#state.Connections + 1] = connection
+		return connection
 	end
-
-	animate(window, 0.34, {
-		GroupTransparency = 0,
-		Position = UDim2.fromScale(0.5, 0.5)
-	}, Enum.EasingStyle.Quart)
-
-	animate(windowScale, 0.42, {
-		Scale = 1
-	}, Enum.EasingStyle.Back)
-
-	local pulse = TweenService:Create(
-		chipDot,
-		TweenInfo.new(0.85, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-		{BackgroundTransparency = 0.62}
-	)
-	pulse:Play()
-	state.Pulse = pulse
-
-	close.MouseEnter:Connect(function()
-		tween(close, 0.13, {TextColor3 = accent})
-	end)
-
-	close.MouseLeave:Connect(function()
-		tween(close, 0.13, {TextColor3 = light(palette.Text, -0.22)})
-	end)
-
-	close.Activated:Connect(function()
-		self:HideLoadingScreen(true)
-	end)
-
-	state.Connection = RunService.RenderStepped:Connect(function(dt)
-		if state.Closing then return end
-
-		if theme then
-			local ok = pcall(function()
-				theme:Update(dt)
-				accent = theme:GetColor(0.125)
-			end)
-			if not ok then
-				theme = nil
-			end
-		end
-
-		local now = os.clock()
-		local elapsed = now - state.Started
-		local ratio = math.clamp(elapsed / self.MinimumDisplayTime, 0, 1)
-
-		-- Image-based topography animation only.
-		ambient.Position = UDim2.fromScale(
-			0.72 + math.sin(elapsed * 0.18) * 0.018,
-			0.53 + math.cos(elapsed * 0.15) * 0.016
-		)
-		ambient.Rotation = -6 + math.sin(elapsed * 0.11) * 2
-		ambient.Size = UDim2.fromScale(
-			1.15 + math.sin(elapsed * 0.13) * 0.025,
-			1.15 + math.sin(elapsed * 0.13) * 0.025
-		)
-
-		topoBack.Position = UDim2.fromScale(
-			0.68 + math.sin(elapsed * 0.31) * 0.035,
-			0.50 + math.cos(elapsed * 0.27) * 0.03
-		)
-		topoBack.Rotation = -4 + math.sin(elapsed * 0.17) * 3
-		topoBack.Size = UDim2.fromScale(
-			1.28 + math.sin(elapsed * 0.21) * 0.055,
-			1.28 + math.sin(elapsed * 0.21) * 0.055
-		)
-
-		topoFront.Position = UDim2.fromScale(
-			0.76 + math.cos(elapsed * 0.39) * 0.045,
-			0.48 + math.sin(elapsed * 0.33) * 0.035
-		)
-		topoFront.Rotation = 5 + math.cos(elapsed * 0.16) * 4
-		topoFront.Size = UDim2.fromScale(
-			0.88 + math.cos(elapsed * 0.24) * 0.04,
-			0.88 + math.cos(elapsed * 0.24) * 0.04
-		)
-
-		ambient.ImageColor3 = accent
-		topoBack.ImageColor3 = accent
-		topoFront.ImageColor3 = accent
-		state.Version.ImageColor3 = accent
-		state.ChipDot.BackgroundColor3 = accent
-		state.AccentBar.BackgroundColor3 = accent
-		state.Progress.BackgroundColor3 = accent
-
-		state.Progress.Size = UDim2.fromScale(ratio, 1)
-		state.Percent.Text = tostring(math.floor(ratio * 100 + 0.5))..'%'
-
-		local stageIndex = math.clamp(math.floor(ratio * #state.StageRows) + 1, 1, #state.StageRows)
-		local stageNames = {
-			'Initializing interface...',
-			'Loading universal modules...',
-			'Loading game modules...',
-			'Applying profile...'
-		}
-		state.Detail.Text = ratio >= 0.995 and 'Ready.' or stageNames[stageIndex]
-
-		for index, row in ipairs(state.StageRows) do
-			local complete = index < stageIndex or ratio >= 0.995
-			local active = index == stageIndex and not complete
-
-			if complete then
-				row.Indicator.BackgroundTransparency = 0
-				row.Indicator.BackgroundColor3 = accent
-				row.Row.BackgroundTransparency = 0.84
-				row.Label.TextColor3 = palette.Text
-			elseif active then
-				local wave = (math.sin(elapsed * 6) + 1) * 0.5
-				row.Indicator.BackgroundTransparency = 0.18 + wave * 0.45
-				row.Indicator.BackgroundColor3 = accent
-				row.Row.BackgroundTransparency = 0.76
-				row.Label.TextColor3 = palette.Text
-			else
-				row.Indicator.BackgroundTransparency = 1
-				row.Row.BackgroundTransparency = 1
-				row.Label.TextColor3 = light(palette.Text, -0.2)
-			end
-		end
-
-		state.ChipText.Text = ratio >= 0.995 and 'READY' or 'LOADING'
-	end)
-
+	local function animate(object, duration, properties, style, direction)
+		local motion = tween(object, duration, properties, style, direction)
+		state.Tweens[#state.Tweens + 1] = motion
+		return motion
+	end
+	-- Register cleanup before constructing effects, including external destruction/re-execution.
 	screen.Destroying:Once(function()
 		state.Alive = false
-
-		if state.Connection then
-			state.Connection:Disconnect()
-		end
-		if state.Resize then
-			state.Resize:Disconnect()
-		end
-
-		if state.Pulse then
-			state.Pulse:Cancel()
-		end
-
-		for _, m in ipairs(state.Tweens) do
-			m:Cancel()
-		end
-
+		for _, connection in ipairs(state.Connections) do connection:Disconnect() end
+		for _, motion in ipairs(state.Tweens) do motion:Cancel() end
+		if state.Blur then state.Blur:Destroy() end
 		if self._loading == state then
-			self._loading = nil
-			self.LoadingScreen = nil
-			self.LoadingPanel = nil
-			self.LoadingStatus = nil
-			self.LoadingDismissPending = nil
+			self._loading, self.LoadingScreen, self.LoadingPanel = nil, nil, nil
+			self.LoadingStatus, self.LoadingStarted, self.LoadingDismissPending = nil, nil, nil
 		end
 	end)
+	pcall(function()
+		state.Blur = new('BlurEffect', Lighting, {
+			Name = 'VapeContourLoadingBlur', Enabled = true, Size = 0
+		})
+		animate(state.Blur, 0.6, {Size = math.clamp(tonumber(self.BlurSize) or 20, 0, 56)})
+	end)
 
-	RunService.RenderStepped:Wait()
+	-- A fixed design canvas keeps the artwork consistent on every aspect ratio.
+	local scenery = frame(root, 'BackgroundOnly', 0, 0, 1440, 900, WHITE, 1, 1)
+	scenery.AnchorPoint = Vector2.new(0.5, 0.5)
+	scenery.Position = UDim2.fromScale(0.5, 0.5)
+	local sceneryScale = new('UIScale', scenery, {Scale = 1})
+	local ribbons = {}
+	for i = 1, 3 do
+		local band = frame(scenery, 'LightField'..i, -320, 40 + i * 215, 2000, 260, accent, 0.87, 1)
+		band.Rotation = -23 + i * 8
+		new('UIGradient', band, {
+			Rotation = 90,
+			Transparency = sequence({{0, 1}, {0.22, 0.83}, {0.5, 0.05}, {0.78, 0.83}, {1, 1}})
+		})
+		ribbons[i] = band
+	end
+
+	-- Procedural contour geometry: no image permission or texture download required.
+	-- Built once; only the parent moves during animation (no per-frame geometry generation).
+	local contours = frame(scenery, 'TopographicContours', 745, 390, 0, 0, WHITE, 1, 2)
+	local lines = {}
+	local samples = 64
+	for level = 1, 14 do
+		local radius = 76 + level * 31
+		local function point(angle)
+			local ripple = 1 + 0.115 * math.sin(angle * 3 + level * 0.11)
+				+ 0.058 * math.cos(angle * 5 - level * 0.085) + 0.032 * math.sin(angle * 7)
+			return Vector2.new(math.cos(angle) * radius * ripple * 1.46,
+				math.sin(angle) * radius * ripple * 0.93)
+		end
+		for sample = 1, samples do
+			local a = point((sample - 1) / samples * math.pi * 2)
+			local b = point(sample / samples * math.pi * 2)
+			local d = b - a
+			local center = (a + b) * 0.5
+			local major = level % 4 == 0
+			local line = frame(contours, 'Contour', center.X, center.Y,
+				d.Magnitude + 0.8, major and 1.6 or 1, accent,
+				major and 0.51 or (0.73 + level * 0.006), 2)
+			line.AnchorPoint = Vector2.new(0.5, 0.5)
+			line.Rotation = math.deg(math.atan2(d.Y, d.X))
+			lines[#lines + 1] = line
+		end
+	end
+	-- A bright contour texture adds a second depth plane when the original asset loads.
+	local texture = new('ImageLabel', scenery, {
+		Name = 'DistantContours', BackgroundTransparency = 1, Image = TOPOGRAPHY_IMAGE,
+		ImageColor3 = accent, ImageTransparency = 0.86, Position = UDim2.fromOffset(-240, -110),
+		Size = UDim2.fromOffset(940, 940), ScaleType = Enum.ScaleType.Fit, Rotation = -18, ZIndex = 1
+	})
+	local vignette = frame(root, 'VerticalShade', 0, 0, 0, 0, INK, 0, 3)
+	vignette.Size = UDim2.fromScale(1, 1)
+	new('UIGradient', vignette, {
+		Rotation = 90, Transparency = sequence({{0, 0.08}, {0.28, 0.84}, {0.66, 0.9}, {1, 0.05}})
+	})
+
+	local stage = frame(root, 'ResponsiveStage', 0, 0, 700, 388, WHITE, 1, 5)
+	stage.AnchorPoint = Vector2.new(0.5, 0.5)
+	stage.Position = UDim2.fromScale(0.5, 0.5)
+	local fitScale = new('UIScale', stage, {Scale = 1})
+	local panel = new('CanvasGroup', stage, {
+		Name = 'GlassPanel', Position = UDim2.fromOffset(0, 24), Size = UDim2.fromOffset(700, 340),
+		BackgroundColor3 = INK, BackgroundTransparency = 0.1, BorderSizePixel = 0,
+		GroupTransparency = 1, ClipsDescendants = true, ZIndex = 6
+	})
+	corner(panel, UDim.new(0, 18))
+	local panelScale = new('UIScale', panel, {Scale = 0.96})
+	state.Window, state.WindowScale, self.LoadingPanel = panel, panelScale, panel
+	local border = new('UIStroke', panel, {Color = WHITE, Thickness = 1, Transparency = 0.75})
+	local borderGradient = new('UIGradient', border, {
+		Color = ColorSequence.new(accent, Color3.fromRGB(38, 54, 62)), Rotation = -25
+	})
+	local glass = frame(panel, 'GlassLight', 0, 0, 700, 340, WHITE, 0.95, 7)
+	new('UIGradient', glass, {Rotation = 35, Transparency = sequence({{0, 0.1}, {0.45, 0.87}, {1, 1}})})
+	local topLine = frame(panel, 'LuminousEdge', 32, 0, 636, 1, accent, 0.15, 9)
+	new('UIGradient', topLine, {Transparency = sequence({{0, 1}, {0.35, 0}, {0.65, 0.1}, {1, 1}})})
+
+	label(panel, 'I L L U S I O N H D', 32, 23, 260, 18, 10, MUTED)
+	local liveDot = frame(panel, 'StatusDot', 556, 30, 5, 5, accent, 0, 12)
+	corner(liveDot, UDim.new(1, 0))
+	local liveLabel = label(panel, 'STARTING', 570, 22, 80, 20, 9, accent)
+	local close = new('TextButton', panel, {
+		Name = 'Dismiss', Position = UDim2.fromOffset(654, 18), Size = UDim2.fromOffset(28, 28),
+		BackgroundTransparency = 1, Text = '×', TextSize = 21, TextColor3 = MUTED,
+		FontFace = palette.Font, AutoButtonColor = false, ZIndex = 14
+	})
+	local wordmark = label(panel, 'VAPE', 29, 64, 286, 81, 76, WHITE, Enum.FontWeight.Black)
+	local logo = new('ImageLabel', panel, {
+		Name = 'Wordmark', BackgroundTransparency = 1,
+		Image = asset('newvape/assets/new/vapelogomini.png', '109041903452149'),
+		Position = UDim2.fromOffset(34, 82), Size = UDim2.fromOffset(226, 65),
+		ImageColor3 = WHITE, ScaleType = Enum.ScaleType.Fit, Visible = false, ZIndex = 12
+	})
+	local function logoLoaded()
+		logo.Visible = logo.IsLoaded
+		wordmark.Visible = not logo.IsLoaded
+	end
+	connect(logo:GetPropertyChangedSignal('IsLoaded'), logoLoaded)
+	logoLoaded()
+	local version = label(panel, 'V4', 279, 88, 70, 48, 34, accent, Enum.FontWeight.Bold)
+	label(panel, 'Welcome back.', 34, 158, 410, 32, 25, WHITE, Enum.FontWeight.Medium)
+	local subtitle = label(panel, 'Your next session starts here.', 35, 194, 430, 23, 12, MUTED)
+
+	local number = label(panel, '···', 474, 76, 192, 80, 60, WHITE, Enum.FontWeight.Light)
+	number.TextXAlignment = Enum.TextXAlignment.Right
+	local numberCaption = label(panel, 'INITIALIZING', 476, 162, 190, 18, 9, MUTED)
+	numberCaption.TextXAlignment = Enum.TextXAlignment.Right
+	local elapsedLabel = label(panel, '00.0s', 550, 189, 116, 20, 11, MUTED)
+	elapsedLabel.TextXAlignment = Enum.TextXAlignment.Right
+
+	frame(panel, 'Divider', 34, 239, 632, 1, WHITE, 0.91, 10)
+	local status = label(panel, 'Preparing your interface', 35, 253, 506, 24, 12, WHITE)
+	self.LoadingStatus = status
+	local detail = label(panel, 'Please wait', 546, 255, 120, 20, 10, MUTED)
+	detail.TextXAlignment = Enum.TextXAlignment.Right
+	local track = frame(panel, 'ProgressTrack', 34, 291, 632, 4, WHITE, 0.92, 10)
+	corner(track, UDim.new(1, 0))
+	track.ClipsDescendants = true
+	local progress = frame(track, 'Progress', 0, 0, 0, 4, accent, 0, 11)
+	corner(progress, UDim.new(1, 0))
+	local sweep = frame(track, 'LightSweep', 0, 0, 160, 4, accent, 0, 12)
+	new('UIGradient', sweep, {Transparency = sequence({{0, 1}, {0.48, 0}, {0.65, 0}, {1, 1}})})
+	local footer = label(stage, 'V A P E   /   E L E V A T E   Y O U R   G A M E', 0, 358, 590, 20, 9, MUTED)
+	local dismissHint = label(stage, '×  dismiss', 600, 358, 100, 20, 9, MUTED)
+	dismissHint.TextXAlignment = Enum.TextXAlignment.Right
+	state.Progress, state.Percent, state.Detail = progress, number, detail
+	state.LiveLabel, state.Caption, state.Sweep = liveLabel, numberCaption, sweep
+	state.Status = status
+
+	local function fit()
+		local size = root.AbsoluteSize
+		if size.X <= 0 or size.Y <= 0 then return end
+		fitScale.Scale = math.max(0.1, math.min(1, (size.X - 36) / 700, (size.Y - 48) / 388))
+		sceneryScale.Scale = math.max(size.X / 1440, size.Y / 900)
+	end
+	connect(root:GetPropertyChangedSignal('AbsoluteSize'), fit)
+	fit()
+	connect(close.Activated, function() self:HideLoadingScreen(true) end)
+	connect(close.MouseEnter, function() close.TextColor3 = WHITE end)
+	connect(close.MouseLeave, function() close.TextColor3 = MUTED end)
+
+	animate(root, 0.55, {GroupTransparency = 0})
+	animate(panel, 0.65, {GroupTransparency = 0, Position = UDim2.fromOffset(0, 0)})
+	animate(panelScale, 0.7, {Scale = 1}, Enum.EasingStyle.Quint)
+	local colorClock, lastColor = 0, accent
+	connect(RunService.RenderStepped, function(dt)
+		if not state.Alive or state.Closing then return end
+		local elapsed = os.clock() - state.Started
+		colorClock = colorClock + dt
+		if theme then
+			local ok, value = pcall(function()
+				theme:Update(dt)
+				return theme:GetColor(0.125)
+			end)
+			if ok and typeof(value) == 'Color3' then accent = value else theme = nil end
+		end
+		if colorClock > 0.12 then
+			colorClock = 0
+			if accent ~= lastColor then
+				lastColor = accent
+				for _, line in ipairs(lines) do line.BackgroundColor3 = accent end
+				for _, band in ipairs(ribbons) do band.BackgroundColor3 = accent end
+				texture.ImageColor3 = accent
+				version.TextColor3, liveLabel.TextColor3 = accent, accent
+				progress.BackgroundColor3, sweep.BackgroundColor3 = accent, accent
+				liveDot.BackgroundColor3, topLine.BackgroundColor3 = accent, accent
+				borderGradient.Color = ColorSequence.new(accent, Color3.fromRGB(38, 54, 62))
+			end
+		end
+		contours.Position = UDim2.fromOffset(745 + math.sin(elapsed * 0.22) * 24, 390 + math.cos(elapsed * 0.18) * 20)
+		contours.Rotation = -12 + math.sin(elapsed * 0.13) * 5
+		texture.Position = UDim2.fromOffset(-240 + math.sin(elapsed * 0.15) * 18, -110 + math.cos(elapsed * 0.12) * 20)
+		for i, band in ipairs(ribbons) do
+			band.Position = UDim2.fromOffset(-320 + math.sin(elapsed * 0.18 + i) * 80,
+				40 + i * 215 + math.sin(elapsed * 0.3 + i * 1.7) * 48)
+			band.BackgroundTransparency = 0.86 + math.sin(elapsed * 0.5 + i) * 0.025
+		end
+		borderGradient.Rotation = -25 + math.sin(elapsed * 0.35) * 32
+		liveDot.BackgroundTransparency = state.Ready and 0 or 0.15 + (math.sin(elapsed * 4) + 1) * 0.24
+		elapsedLabel.Text = string.format('%04.1fs', elapsed)
+		if state.Target ~= nil then
+			state.Displayed = state.Displayed + (state.Target - state.Displayed) * (1 - math.exp(-dt * 9))
+			progress.Size = UDim2.new(state.Displayed, 0, 1, 0)
+			number.Text = string.format('%02d', math.floor(state.Displayed * 100 + 0.0001))
+			numberCaption.Text = state.Ready and 'READY TO GO' or 'PERCENT LOADED'
+			sweep.Visible = not state.Ready
+		else
+			number.Text = string.rep('·', 1 + math.floor(elapsed * 2) % 3)
+		end
+		sweep.Position = UDim2.new((elapsed * 0.55) % 1.3 - 0.3, 0, 0, 0)
+	end)
+	return screen
+end
+
+function vape:SetLoadingProgress(value, message)
+	local state = self._loading
+	if not state or not state.Alive or state.Closing then return end
+	if type(value) == 'number' and value == value then
+		state.Target = math.max(state.Target or 0, math.clamp(value, 0, 1))
+		state.Ready = state.Target >= 1
+		state.LiveLabel.Text = state.Ready and 'READY' or 'LOADING'
+		state.Detail.Text = state.Ready and 'Complete' or 'Please wait'
+		if state.Ready then
+			state.Displayed = 1
+			state.Progress.Size = UDim2.fromScale(1, 1)
+			state.Percent.Text = '100'
+			state.Caption.Text = 'READY TO GO'
+			state.Sweep.Visible = false
+		end
+	end
+	if message ~= nil then state.Status.Text = tostring(message) end
 end
 
 function vape:WaitForMinimumDisplay()
 	local state = self._loading
-	while state
-		and self._loading == state
-		and not state.Closing
-		and os.clock() - state.Started < self.MinimumDisplayTime do
+	while state and state.Alive and self._loading == state and not state.Closing
+		and os.clock() - state.Started < minimum(self) do
 		task.wait(0.05)
 	end
 end
 
 function vape:HideLoadingScreen(immediate)
 	local state = self._loading
-	if not state or state.Closing then return end
-
-	local remaining = self.MinimumDisplayTime - (os.clock() - state.Started)
+	if not state or not state.Alive or state.Closing then return end
+	-- The caller indicates readiness; elapsed time alone never claims that modules loaded.
+	if not immediate then self:SetLoadingProgress(1, 'Everything is ready.') end
+	local remaining = minimum(self) - (os.clock() - state.Started)
 	if not immediate and remaining > 0 then
 		if not state.Pending then
-			state.Pending = true
-			self.LoadingDismissPending = true
-
+			state.Pending, self.LoadingDismissPending = true, true
 			task.delay(remaining, function()
-				if self._loading == state then
-					self:HideLoadingScreen(true)
-				end
+				if state.Alive and self._loading == state then self:HideLoadingScreen(true) end
 			end)
 		end
 		return
 	end
-
 	state.Closing = true
-
-	if state.Connection then
-		state.Connection:Disconnect()
-		state.Connection = nil
-	end
-
-	if state.Pulse then
-		state.Pulse:Cancel()
-	end
-
-	for _, m in ipairs(state.Tweens) do
-		m:Cancel()
-	end
-
-	local closeScale = 0.975
-	if state.WindowScale then
-		local ok, currentScale = pcall(function()
-			return state.WindowScale.Scale
-		end)
-		if ok and type(currentScale) == 'number' then
-			closeScale = math.max(currentScale * 0.975, 0.01)
-		end
-	end
-
+	for _, motion in ipairs(state.Tweens) do motion:Cancel() end
 	state.Tweens = {}
-
-	if state.WindowScale then
-		table.insert(state.Tweens, tween(state.WindowScale, 0.22, {
-			Scale = closeScale
-		}, Enum.EasingStyle.Quart, Enum.EasingDirection.In))
-	end
-
-	if state.Window then
-		table.insert(state.Tweens, tween(state.Window, 0.24, {
-			GroupTransparency = 1,
-			Position = UDim2.new(0.5, 0, 0.5, -9)
-		}, Enum.EasingStyle.Quart, Enum.EasingDirection.In))
-	end
-
-	if state.Root then
-		table.insert(state.Tweens, tween(state.Root, 0.3, {
-			GroupTransparency = 1,
-			BackgroundTransparency = 1
-		}, Enum.EasingStyle.Quart, Enum.EasingDirection.In))
-	end
-
-	task.delay(0.31, function()
-		if state.Screen and state.Screen.Parent then
-			state.Screen:Destroy()
+	local function fade(object, duration, properties)
+		if object then
+			state.Tweens[#state.Tweens + 1] = tween(object, duration, properties,
+				Enum.EasingStyle.Quart, Enum.EasingDirection.In)
 		end
+	end
+	fade(state.Window, 0.28, {GroupTransparency = 1, Position = UDim2.fromOffset(0, -12)})
+	fade(state.WindowScale, 0.3, {Scale = 0.98})
+	fade(state.Root, 0.42, {GroupTransparency = 1})
+	if state.Blur and state.Blur.Parent then fade(state.Blur, 0.38, {Size = 0}) end
+	task.delay(0.44, function()
+		if state.Alive then state.Screen:Destroy() end
 	end)
 end
 
