@@ -4830,6 +4830,424 @@ run(function()
 	vape:Clean(function() if Folder then Folder:Destroy() end end)
 end)
 
+-- ILLUSIONHD_FAKEPLAYER_V1
+run(function()
+	local FakePlayer
+	local Distance
+	local SideOffset
+	local HitDamage
+	local LoopMode
+	local LoopDelay
+	local AutoRespawn
+	local RespawnDelay
+	local FacePlayer
+	local ShowHealth
+
+	local model
+	local fakeEntity
+	local healthFill
+	local healthText
+	local nameGui
+	local bodyParts = {}
+	local dead = false
+	local generation = 0
+	local fakeId = '__ILLUSIONHD_VFX_TEST_DUMMY__'
+	local maxHealth = 100
+	local mixedStep = 0
+
+	local function safeFire(signal, ...)
+		if signal then
+			pcall(function() signal:Fire(...) end)
+		end
+	end
+
+	local function setPartVisible(part, visible)
+		if not part or not part.Parent then return end
+		local base = part:GetAttribute('FakePlayerBaseTransparency')
+		if base == nil then base = part.Transparency end
+		part.Transparency = visible and base or 1
+	end
+
+	local function setVisible(visible)
+		for _, part in ipairs(bodyParts) do
+			setPartVisible(part, visible)
+		end
+		if nameGui then nameGui.Enabled = visible and (not ShowHealth or ShowHealth.Enabled) end
+	end
+
+	local function updateHealthUI()
+		if not fakeEntity then return end
+		local health = math.clamp(fakeEntity.Health or 0, 0, maxHealth)
+		if healthFill then
+			healthFill.Size = UDim2.new(health / maxHealth, 0, 1, 0)
+			healthFill.BackgroundColor3 = health > 60 and Color3.fromRGB(91, 235, 137)
+				or health > 30 and Color3.fromRGB(255, 194, 86)
+				or Color3.fromRGB(255, 83, 104)
+		end
+		if healthText then
+			healthText.Text = string.format('VFX TEST  •  %d HP', math.floor(health + 0.5))
+		end
+	end
+
+	local function makeBodyPart(parent, name, size, offset, color, transparency, shape)
+		local part = Instance.new('Part')
+		part.Name = name
+		part.Size = size
+		part.Anchored = true
+		part.CanCollide = false
+		part.CanTouch = false
+		part.CanQuery = false
+		part.CastShadow = true
+		part.Material = Enum.Material.SmoothPlastic
+		part.Color = color
+		part.Transparency = transparency or 0
+		part:SetAttribute('FakePlayerBaseTransparency', part.Transparency)
+		if shape then part.Shape = shape end
+		part.CFrame = CFrame.new(offset)
+		part.Parent = parent
+		table.insert(bodyParts, part)
+		return part
+	end
+
+	local function buildDummy()
+		if model then model:Destroy() end
+		table.clear(bodyParts)
+
+		model = Instance.new('Model')
+		model.Name = 'VFX Test Player'
+
+		local root = makeBodyPart(model, 'HumanoidRootPart', Vector3.new(1.8, 2, 1), Vector3.zero, Color3.new(), 1)
+		root.CastShadow = false
+		local torso = makeBodyPart(model, 'UpperTorso', Vector3.new(2.15, 2.15, 1.05), Vector3.new(0, 0.65, 0), Color3.fromRGB(40, 44, 58))
+		local lower = makeBodyPart(model, 'LowerTorso', Vector3.new(1.8, 1.05, 0.95), Vector3.new(0, -0.95, 0), Color3.fromRGB(58, 62, 79))
+		local head = makeBodyPart(model, 'Head', Vector3.new(1.55, 1.55, 1.55), Vector3.new(0, 2.55, 0), Color3.fromRGB(213, 185, 166), 0, Enum.PartType.Ball)
+		local leftArm = makeBodyPart(model, 'LeftUpperArm', Vector3.new(0.82, 2.25, 0.82), Vector3.new(-1.53, 0.58, 0), Color3.fromRGB(55, 60, 78))
+		local rightArm = makeBodyPart(model, 'RightUpperArm', Vector3.new(0.82, 2.25, 0.82), Vector3.new(1.53, 0.58, 0), Color3.fromRGB(55, 60, 78))
+		local leftLeg = makeBodyPart(model, 'LeftUpperLeg', Vector3.new(0.88, 2.25, 0.9), Vector3.new(-0.5, -2.42, 0), Color3.fromRGB(30, 33, 45))
+		local rightLeg = makeBodyPart(model, 'RightUpperLeg', Vector3.new(0.88, 2.25, 0.9), Vector3.new(0.5, -2.42, 0), Color3.fromRGB(30, 33, 45))
+
+		local chest = Instance.new('Part')
+		chest.Name = 'VFXAccent'
+		chest.Size = Vector3.new(1.52, 0.2, 1.09)
+		chest.Anchored = true
+		chest.CanCollide = false
+		chest.CanTouch = false
+		chest.CanQuery = false
+		chest.CastShadow = false
+		chest.Material = Enum.Material.Neon
+		chest.Color = Color3.fromRGB(137, 91, 255)
+		chest.CFrame = CFrame.new(0, 0.82, -0.54)
+		chest:SetAttribute('FakePlayerBaseTransparency', 0.08)
+		chest.Transparency = 0.08
+		chest.Parent = model
+		table.insert(bodyParts, chest)
+
+		local highlight = Instance.new('Highlight')
+		highlight.Name = 'VFXTestHighlight'
+		highlight.Adornee = model
+		highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+		highlight.FillColor = Color3.fromRGB(114, 76, 255)
+		highlight.FillTransparency = 0.82
+		highlight.OutlineColor = Color3.fromRGB(201, 183, 255)
+		highlight.OutlineTransparency = 0.24
+		highlight.Parent = model
+
+		nameGui = Instance.new('BillboardGui')
+		nameGui.Name = 'VFXTesterInfo'
+		nameGui.AlwaysOnTop = true
+		nameGui.Size = UDim2.fromOffset(176, 42)
+		nameGui.StudsOffset = Vector3.new(0, 2.15, 0)
+		nameGui.MaxDistance = 120
+		nameGui.Parent = head
+
+		local panel = Instance.new('Frame')
+		panel.Size = UDim2.fromScale(1, 1)
+		panel.BackgroundColor3 = Color3.fromRGB(14, 15, 22)
+		panel.BackgroundTransparency = 0.16
+		panel.BorderSizePixel = 0
+		panel.Parent = nameGui
+		local panelCorner = Instance.new('UICorner')
+		panelCorner.CornerRadius = UDim.new(0, 8)
+		panelCorner.Parent = panel
+		local panelStroke = Instance.new('UIStroke')
+		panelStroke.Thickness = 1
+		panelStroke.Transparency = 0.45
+		panelStroke.Color = Color3.fromRGB(151, 118, 255)
+		panelStroke.Parent = panel
+
+		healthText = Instance.new('TextLabel')
+		healthText.Size = UDim2.new(1, -12, 0, 22)
+		healthText.Position = UDim2.fromOffset(6, 2)
+		healthText.BackgroundTransparency = 1
+		healthText.Font = Enum.Font.GothamBold
+		healthText.TextSize = 12
+		healthText.TextColor3 = Color3.fromRGB(240, 238, 255)
+		healthText.TextXAlignment = Enum.TextXAlignment.Left
+		healthText.Parent = panel
+
+		local barBack = Instance.new('Frame')
+		barBack.Size = UDim2.new(1, -12, 0, 7)
+		barBack.Position = UDim2.new(0, 6, 1, -12)
+		barBack.BackgroundColor3 = Color3.fromRGB(40, 42, 53)
+		barBack.BorderSizePixel = 0
+		barBack.Parent = panel
+		local barBackCorner = Instance.new('UICorner')
+		barBackCorner.CornerRadius = UDim.new(1, 0)
+		barBackCorner.Parent = barBack
+
+		healthFill = Instance.new('Frame')
+		healthFill.Size = UDim2.fromScale(1, 1)
+		healthFill.BackgroundColor3 = Color3.fromRGB(91, 235, 137)
+		healthFill.BorderSizePixel = 0
+		healthFill.Parent = barBack
+		local fillCorner = Instance.new('UICorner')
+		fillCorner.CornerRadius = UDim.new(1, 0)
+		fillCorner.Parent = healthFill
+
+		model.PrimaryPart = root
+		model.Parent = workspace
+
+		fakeEntity = {
+			Id = fakeId,
+			Character = model,
+			RootPart = root,
+			HumanoidRootPart = root,
+			Head = head,
+			UpperTorso = torso,
+			LowerTorso = lower,
+			Health = maxHealth,
+			MaxHealth = maxHealth,
+			HipHeight = 2,
+			NPC = true,
+			Targetable = false,
+			Player = nil,
+			FakeVFXTester = true
+		}
+		dead = false
+		updateHealthUI()
+		safeFire(entitylib.Events.EntityAdded, fakeEntity)
+		return fakeEntity
+	end
+
+	local function localRoot()
+		return entitylib.character and (entitylib.character.RootPart or entitylib.character.HumanoidRootPart)
+	end
+
+	local function placeDummy()
+		if not model or not model.PrimaryPart then return end
+		local root = localRoot()
+		local camera = workspace.CurrentCamera
+		if not root then return end
+
+		local look = camera and camera.CFrame.LookVector or root.CFrame.LookVector
+		look = Vector3.new(look.X, 0, look.Z)
+		if look.Magnitude < 0.01 then look = Vector3.new(0, 0, -1) else look = look.Unit end
+		local right = Vector3.new(-look.Z, 0, look.X)
+		local target = root.Position + look * Distance.Value + right * SideOffset.Value
+		local y = root.Position.Y
+
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.IgnoreWater = true
+		local filter = {model}
+		if entitylib.character and entitylib.character.Character then table.insert(filter, entitylib.character.Character) end
+		if workspace.CurrentCamera then table.insert(filter, workspace.CurrentCamera) end
+		params.FilterDescendantsInstances = filter
+		local ray = workspace:Raycast(target + Vector3.new(0, 8, 0), Vector3.new(0, -30, 0), params)
+		if ray then y = ray.Position.Y + 3.55 end
+		target = Vector3.new(target.X, y, target.Z)
+
+		local cf
+		if FacePlayer.Enabled then
+			local face = Vector3.new(root.Position.X, target.Y, root.Position.Z)
+			cf = CFrame.lookAt(target, face)
+		else
+			cf = CFrame.lookAt(target, target - look)
+		end
+		model:PivotTo(cf)
+	end
+
+	local function primeHealth()
+		if not fakeEntity then return end
+		if fakeEntity.Health <= 0 then fakeEntity.Health = maxHealth end
+		updateHealthUI()
+		-- Seed effect health caches even when the tester was enabled before HitEffects/KillEffects.
+		safeFire(entitylib.Events.EntityUpdated, fakeEntity)
+	end
+
+	local function respawnDummy(reposition)
+		if not FakePlayer.Enabled then return end
+		if not model or not model.Parent or not fakeEntity then buildDummy() end
+		generation += 1
+		dead = false
+		fakeEntity.Health = maxHealth
+		setVisible(true)
+		if nameGui then nameGui.Enabled = ShowHealth.Enabled end
+		updateHealthUI()
+		if reposition ~= false then placeDummy() end
+		primeHealth()
+	end
+
+	local function hitPosition(headshot)
+		if not fakeEntity then return Vector3.zero end
+		if headshot and fakeEntity.Head then return fakeEntity.Head.Position end
+		if fakeEntity.UpperTorso then return fakeEntity.UpperTorso.Position + Vector3.new(0, 0.15, 0) end
+		return fakeEntity.RootPart.Position + Vector3.new(0, 1, 0)
+	end
+
+	local function markLocalHit(headshot, pos)
+		local stamp = tick()
+		frontlines.LastLocalHit = {Id = fakeId, Time = stamp, Headshot = headshot, Position = pos}
+		task.delay(1.65, function()
+			local current = frontlines.LastLocalHit
+			if current and current.Id == fakeId and current.Time == stamp then
+				frontlines.LastLocalHit = nil
+			end
+		end)
+	end
+
+	local function testHit(headshot)
+		if not FakePlayer.Enabled then return end
+		if not fakeEntity or not model or not model.Parent then buildDummy(); placeDummy() end
+		if dead or fakeEntity.Health <= math.max(HitDamage.Value, 1) then respawnDummy(false) end
+		primeHealth()
+
+		local pos = hitPosition(headshot)
+		markLocalHit(headshot, pos)
+		safeFire(frontlines.LocalHitEvent, fakeEntity, pos, headshot, headshot and fakeEntity.Head or fakeEntity.UpperTorso)
+		task.delay(0.018, function()
+			if not FakePlayer.Enabled or not fakeEntity or dead then return end
+			fakeEntity.Health = math.max(1, fakeEntity.Health - HitDamage.Value)
+			updateHealthUI()
+			safeFire(entitylib.Events.EntityUpdated, fakeEntity)
+		end)
+	end
+
+	local function testKill(headshot)
+		if not FakePlayer.Enabled then return end
+		if not fakeEntity or not model or not model.Parent then buildDummy(); placeDummy() end
+		if dead or fakeEntity.Health <= 0 then respawnDummy(false) end
+		primeHealth()
+
+		local thisGeneration = generation
+		local pos = hitPosition(headshot)
+		markLocalHit(headshot, pos)
+		safeFire(frontlines.LocalHitEvent, fakeEntity, pos, headshot, headshot and fakeEntity.Head or fakeEntity.UpperTorso)
+
+		task.delay(0.022, function()
+			if not FakePlayer.Enabled or not fakeEntity or dead or thisGeneration ~= generation then return end
+			dead = true
+			fakeEntity.Health = 0
+			updateHealthUI()
+			safeFire(entitylib.Events.EntityUpdated, fakeEntity)
+			task.delay(0.028, function()
+				if not FakePlayer.Enabled or thisGeneration ~= generation then return end
+				safeFire(frontlines.KillEffectEvent)
+			end)
+			-- Leave the body around briefly so clone/ghost-based kill effects can capture it.
+			task.delay(0.22, function()
+				if FakePlayer.Enabled and dead and thisGeneration == generation then setVisible(false) end
+			end)
+			if AutoRespawn.Enabled then
+				task.delay(RespawnDelay.Value, function()
+					if FakePlayer.Enabled and dead and thisGeneration == generation then respawnDummy(false) end
+				end)
+			end
+		end)
+	end
+
+	local function runLoopAction(mode)
+		if mode == 'Hit' then
+			testHit(false)
+		elseif mode == 'Headshot' then
+			testHit(true)
+		elseif mode == 'Kill' then
+			testKill(false)
+		elseif mode == 'Headshot Kill' then
+			testKill(true)
+		elseif mode == 'Mixed' then
+			mixedStep = (mixedStep % 4) + 1
+			if mixedStep == 1 then testHit(false)
+			elseif mixedStep == 2 then testHit(true)
+			elseif mixedStep == 3 then testHit(false)
+			else testKill(mixedStep % 2 == 0) end
+		end
+	end
+
+	local function destroyDummy()
+		generation += 1
+		if fakeEntity then safeFire(entitylib.Events.EntityRemoved, fakeEntity) end
+		fakeEntity = nil
+		dead = false
+		healthFill = nil
+		healthText = nil
+		nameGui = nil
+		if model then model:Destroy(); model = nil end
+		table.clear(bodyParts)
+	end
+
+	FakePlayer = vape.Categories.Render:CreateModule({
+		Name = 'FakePlayer',
+		Function = function(callback)
+			if callback then
+				buildDummy()
+				placeDummy()
+				primeHealth()
+
+				FakePlayer:Clean(inputService.InputBegan:Connect(function(input, processed)
+					if processed or inputService:GetFocusedTextBox() or not FakePlayer.Enabled then return end
+					if input.KeyCode == Enum.KeyCode.H then
+						testHit(false)
+					elseif input.KeyCode == Enum.KeyCode.J then
+						testHit(true)
+					elseif input.KeyCode == Enum.KeyCode.K then
+						testKill(false)
+					elseif input.KeyCode == Enum.KeyCode.L then
+						respawnDummy(true)
+					end
+				end))
+
+				task.spawn(function()
+					while FakePlayer.Enabled do
+						local mode = LoopMode.Value
+						if mode ~= 'Off' then runLoopAction(mode) end
+						task.wait(math.max(LoopDelay.Value, 0.12))
+					end
+				end)
+			else
+				destroyDummy()
+			end
+		end,
+		Tooltip = 'Local VFX test dummy. H = hit, J = headshot, K = kill, L = respawn/reposition.'
+	})
+
+	Distance = FakePlayer:CreateSlider({
+		Name = 'Distance', Min = 4, Max = 35, Default = 10, Decimal = 10,
+		Function = function() if FakePlayer.Enabled and model then placeDummy() end end
+	})
+	SideOffset = FakePlayer:CreateSlider({
+		Name = 'Side Offset', Min = -15, Max = 15, Default = 0, Decimal = 10,
+		Function = function() if FakePlayer.Enabled and model then placeDummy() end end
+	})
+	HitDamage = FakePlayer:CreateSlider({Name = 'Hit Damage', Min = 1, Max = 95, Default = 24})
+	LoopMode = FakePlayer:CreateDropdown({Name = 'Auto Test', List = {'Off', 'Hit', 'Headshot', 'Kill', 'Headshot Kill', 'Mixed'}, Default = 'Off'})
+	LoopDelay = FakePlayer:CreateSlider({Name = 'Auto Delay', Min = 0.15, Max = 5, Default = 1.25, Decimal = 100, Suffix = 's'})
+	AutoRespawn = FakePlayer:CreateToggle({Name = 'Auto Respawn', Default = true})
+	RespawnDelay = FakePlayer:CreateSlider({Name = 'Respawn Delay', Min = 0.25, Max = 5, Default = 1.15, Decimal = 100, Suffix = 's'})
+	FacePlayer = FakePlayer:CreateToggle({
+		Name = 'Face Player', Default = true,
+		Function = function() if FakePlayer.Enabled and model then placeDummy() end end
+	})
+	ShowHealth = FakePlayer:CreateToggle({
+		Name = 'Show Health', Default = true,
+		Function = function(callback) if nameGui then nameGui.Enabled = callback and not dead end end
+	})
+
+	vape:Clean(destroyDummy)
+end)
+-- ILLUSIONHD_FAKEPLAYER_END
+
+
 run(function()
 	local HeadshotSound
 	local SoundFile
