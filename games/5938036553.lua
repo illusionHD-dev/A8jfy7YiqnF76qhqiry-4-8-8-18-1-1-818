@@ -1808,7 +1808,7 @@ end)
 
 
 
--- ILLUSIONHD_GUNCHANGER_V4
+-- ILLUSIONHD_GUNCHANGER_V5
 run(function()
 	local GunChanger
 	local RainbowSpeed
@@ -1840,6 +1840,13 @@ run(function()
 	local function getFPVModel()
 		local model = workspace:FindFirstChild('Model')
 		return model and model:IsA('Model') and model or nil
+	end
+
+	local function currentEquipment()
+		local equipment = frontlines.Main
+			and frontlines.Main.globals
+			and frontlines.Main.globals.fpv_sol_equipment
+		return equipment and equipment.curr_equipment or nil
 	end
 
 	local function looksLikeBody(name)
@@ -2222,7 +2229,14 @@ run(function()
 						if not optionsReady then return end
 
 						local now = tick()
+						local gun = currentEquipment()
 						local model = getFPVModel()
+
+						-- Frontlines type 2 is melee. Never recolor the knife.
+						if not gun or gun.type == 2 then
+							if currentModel then restoreAll() end
+							return
+						end
 
 						if not model then
 							if currentModel then
@@ -2296,7 +2310,7 @@ run(function()
 end)
 -- ILLUSIONHD_GUNCHANGER_END
 
--- ILLUSIONHD_CUSTOMKNIFE_V5
+-- ILLUSIONHD_CUSTOMKNIFE_V6
 run(function()
     local CustomKnife
     local AssetID
@@ -2336,6 +2350,24 @@ run(function()
         return fallback
     end
 
+    local function currentEquipment()
+        local equipment = frontlines.Main
+            and frontlines.Main.globals
+            and frontlines.Main.globals.fpv_sol_equipment
+        return equipment and equipment.curr_equipment or nil
+    end
+
+    local function isBodyPartName(name)
+        name = string.lower(tostring(name))
+        return name:find('arm', 1, true)
+            or name:find('hand', 1, true)
+            or name:find('glove', 1, true)
+            or name:find('sleeve', 1, true)
+            or name:find('body', 1, true)
+            or name:find('torso', 1, true)
+            or name:find('head', 1, true)
+    end
+
     local function clearHidden()
         for part, oldValue in pairs(hiddenParts) do
             if part ~= nil and part.Parent ~= nil then
@@ -2349,25 +2381,27 @@ run(function()
 
     local function hideObject(obj)
         clearHidden()
-        if not enabled(HideOriginal, true) then
+        if not enabled(HideOriginal, true) or obj == nil then
             return
         end
-        if obj == nil then
-            return
+
+        local function hidePart(part)
+            if not part:IsA('BasePart') then return end
+            local current = part
+            while current ~= nil and current ~= obj do
+                if isBodyPartName(current.Name) then return end
+                current = current.Parent
+            end
+            hiddenParts[part] = part.LocalTransparencyModifier
+            part.LocalTransparencyModifier = 1
         end
 
         if obj:IsA('BasePart') then
-            hiddenParts[obj] = obj.LocalTransparencyModifier
-            obj.LocalTransparencyModifier = 1
-            return
-        end
-
-        local descendants = obj:GetDescendants()
-        for i = 1, #descendants do
-            local part = descendants[i]
-            if part:IsA('BasePart') then
-                hiddenParts[part] = part.LocalTransparencyModifier
-                part.LocalTransparencyModifier = 1
+            hidePart(obj)
+        else
+            local descendants = obj:GetDescendants()
+            for i = 1, #descendants do
+                hidePart(descendants[i])
             end
         end
     end
@@ -2618,51 +2652,16 @@ run(function()
     end
 
     local function findKnifeTarget()
-        local wanted = {
-            combat_knife = true,
-            Knife1 = true,
-            Knife2 = true
-        }
-        local roots = {}
-        roots[#roots + 1] = gameCamera
-        if lplr.Character ~= nil then
-            roots[#roots + 1] = lplr.Character
+        local gun = currentEquipment()
+        if gun == nil or gun.type ~= 2 then
+            return nil
         end
 
-        if frontlines.Main ~= nil and frontlines.Main.globals ~= nil then
-            local instances = frontlines.Main.globals.fpv_sol_instances
-            if type(instances) == 'table' then
-                for _, obj in pairs(instances) do
-                    if typeof(obj) == 'Instance' then
-                        roots[#roots + 1] = obj
-                    end
-                end
-            end
+        local model = workspace:FindFirstChild('Model')
+        if model ~= nil and model:IsA('Model') then
+            return model
         end
-
-        local fallback = nil
-        for i = 1, #roots do
-            local root = roots[i]
-            if root ~= nil and root.Parent ~= nil then
-                if wanted[root.Name] then
-                    if root.Name == 'combat_knife' then
-                        return root
-                    end
-                    fallback = fallback or root
-                end
-                local descendants = root:GetDescendants()
-                for j = 1, #descendants do
-                    local obj = descendants[j]
-                    if wanted[obj.Name] then
-                        if obj.Name == 'combat_knife' then
-                            return obj
-                        end
-                        fallback = fallback or obj
-                    end
-                end
-            end
-        end
-        return fallback
+        return nil
     end
 
     local function updateKnife()
@@ -2671,7 +2670,20 @@ run(function()
         end
 
         local now = tick()
-        if target == nil or target.Parent == nil or now - lastTargetScan > 0.25 then
+        local gun = currentEquipment()
+
+        if gun == nil or gun.type ~= 2 then
+            target = nil
+            clearHidden()
+            visual.Parent = nil
+            return
+        end
+
+        if visual.Parent == nil then
+            visual.Parent = folder
+        end
+
+        if target == nil or target.Parent == nil or now - lastTargetScan > 0.10 then
             lastTargetScan = now
             target = findKnifeTarget()
             hideObject(target)
