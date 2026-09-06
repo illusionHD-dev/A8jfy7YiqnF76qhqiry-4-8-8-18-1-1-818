@@ -4855,10 +4855,11 @@ run(function()
 	local maxHealth = 100
 	local mixedStep = 0
 
-	local function safeFire(signal, ...)
-		if signal then
-			pcall(function() signal:Fire(...) end)
-		end
+	local function safeFire(signal, a, b, c, d)
+		if not signal then return end
+		pcall(function()
+			signal:Fire(a, b, c, d)
+		end)
 	end
 
 	local function setPartVisible(part, visible)
@@ -5246,7 +5247,6 @@ run(function()
 	vape:Clean(destroyDummy)
 end)
 -- ILLUSIONHD_FAKEPLAYER_END
-
 
 
 run(function()
