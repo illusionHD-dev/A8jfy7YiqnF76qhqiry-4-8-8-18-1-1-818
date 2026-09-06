@@ -64,7 +64,6 @@ local files = {
 	{'guis/loading.lua',            'newvape/guis/loading.lua'},
 	{'guis/themes.lua',             'newvape/guis/themes.lua'},
 	{'guis/new.lua',                'newvape/guis/new.lua'},
-	{'guis/rise-v7.lua',            'newvape/guis/rise-v7.lua'},
 
 	{'libraries/drawing.lua',       'newvape/libraries/drawing.lua'},
 	{'libraries/entity.lua',        'newvape/libraries/entity.lua'},
