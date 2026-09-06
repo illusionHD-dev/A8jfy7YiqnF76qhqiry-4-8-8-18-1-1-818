@@ -328,6 +328,122 @@ local function addCorner(parent, radius)
 	return corner
 end
 
+-- Shared motion curves for the ClickGUI. Kept short enough to feel responsive,
+-- but eased so dropdowns/windows no longer snap between states.
+local uiMotionFast = TweenInfo.new(0.14, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+local uiMotion = TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+local uiMotionPop = TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+
+-- Procedural topography: no texture asset. Every contour is a closed polyline made
+-- from thin Frames, then continuously warped with math.noise + sine motion.
+vape.TopographyPatterns = {}
+local topologyAccumulator = 0
+local topologyConnection
+local updateTopography
+
+local function setTopologySegment(segment, a, b, thickness)
+	local delta = b - a
+	local length = delta.Magnitude
+	segment.Position = UDim2.fromOffset(a.X, a.Y)
+	segment.Size = UDim2.fromOffset(math.max(length, 0.5), thickness)
+	segment.Rotation = math.deg(math.atan2(delta.Y, delta.X))
+end
+
+local function addTopography(parent, transparency, rich)
+	local holder = Instance.new('Frame')
+	holder.Name = 'ProceduralTopography'
+	holder.BackgroundTransparency = 1
+	holder.ClipsDescendants = true
+	holder.Size = UDim2.fromScale(1, 1)
+	holder.Parent = parent
+	addCorner(holder)
+
+	local topology = {
+		Holder = holder,
+		Color = color.Light(uipallet.Main, 0.16),
+		Transparency = transparency or 0.9,
+		Seed = math.random() * 100,
+		Contours = {},
+		Rich = rich == true
+	}
+
+	local contourCount = rich and 8 or 4
+	local pointCount = rich and 20 or 12
+	for ring = 1, contourCount do
+		local contour = {Segments = {}, Ring = ring, Points = pointCount}
+		for point = 1, pointCount do
+			local segment = Instance.new('Frame')
+			segment.Name = 'ContourSegment'
+			segment.AnchorPoint = Vector2.new(0, 0.5)
+			segment.BackgroundColor3 = topology.Color
+			segment.BackgroundTransparency = math.clamp(topology.Transparency + (ring / contourCount) * 0.035, 0, 1)
+			segment.BorderSizePixel = 0
+			segment.Size = UDim2.fromOffset(1, rich and 1 or 0.8)
+			segment.Parent = holder
+			contour.Segments[point] = segment
+		end
+		topology.Contours[ring] = contour
+	end
+
+	table.insert(vape.TopographyPatterns, topology)
+	if not topologyConnection then
+		topologyConnection = runService.RenderStepped:Connect(function(dt)
+			topologyAccumulator += dt
+			if topologyAccumulator < (1 / 30) then return end
+			topologyAccumulator = 0
+			local now = os.clock()
+			for _, activeTopology in vape.TopographyPatterns do
+				updateTopography(activeTopology, now)
+			end
+		end)
+		vape:Clean(topologyConnection)
+	end
+	return holder
+end
+
+updateTopography = function(topology, now)
+	local holder = topology.Holder
+	if not holder or not holder.Parent then return end
+	local size = holder.AbsoluteSize
+	if size.X < 4 or size.Y < 4 then return end
+
+	local minAxis = math.min(size.X, size.Y)
+	local centerDriftX = math.sin(now * 0.13 + topology.Seed) * size.X * 0.025
+	local centerDriftY = math.cos(now * 0.11 + topology.Seed * 0.7) * size.Y * 0.035
+
+	for _, contour in topology.Contours do
+		local ring = contour.Ring
+		local points = contour.Points
+		local cluster = (ring % 2 == 0) and 1 or -1
+		local center = Vector2.new(
+			size.X * (0.5 + cluster * (topology.Rich and 0.11 or 0.06)) + centerDriftX,
+			size.Y * (0.5 - cluster * (topology.Rich and 0.05 or 0.025)) + centerDriftY
+		)
+		local baseRadius = minAxis * ((topology.Rich and 0.11 or 0.13) + ring * (topology.Rich and 0.045 or 0.055))
+		local squash = 0.62 + 0.08 * math.sin(now * 0.16 + ring)
+		local generated = table.create(points)
+
+		for point = 1, points do
+			local angle = ((point - 1) / points) * math.pi * 2
+			local nx = math.cos(angle)
+			local ny = math.sin(angle)
+			local n1 = math.noise(nx * 0.9 + topology.Seed, ny * 0.9 + ring * 0.31, now * 0.075)
+			local n2 = math.noise(nx * 1.7 - topology.Seed * 0.3, ny * 1.7 + ring, now * 0.045 + 8)
+			local breathe = math.sin(now * 0.28 + ring * 0.72 + angle * 3) * 0.035
+			local radius = baseRadius * (1 + n1 * 0.17 + n2 * 0.07 + breathe)
+			local warpX = math.noise(ring * 0.4, angle * 0.8 + topology.Seed, now * 0.09) * minAxis * 0.035
+			local warpY = math.noise(angle * 0.8 - topology.Seed, ring * 0.5, now * 0.085) * minAxis * 0.045
+			generated[point] = center + Vector2.new(nx * radius + warpX, ny * radius * squash + warpY)
+		end
+
+		for point, segment in contour.Segments do
+			local nextPoint = point == points and 1 or point + 1
+			setTopologySegment(segment, generated[point], generated[nextPoint], topology.Rich and 1 or 0.8)
+		end
+	end
+end
+
+
 local function addCloseButton(parent, mini, offset)
 	local close = Instance.new('ImageButton')
 	close.AutoButtonColor = false
@@ -824,6 +940,7 @@ function vape:LoadGUI()
 	clickgui.Size = UDim2.fromScale(1, 1)
 	clickgui.Visible = false
 	clickgui.Parent = scaledgui
+	addTopography(clickgui, 0.955, true)
 	local scarcitybanner = Instance.new('TextLabel')
 	scarcitybanner.BackgroundTransparency = 1
 	scarcitybanner.FontFace = uipallet.Font
@@ -2215,6 +2332,10 @@ function vape:LoadGUI()
 		end
 	
 		clickgui.Visible = not clickgui.Visible
+		if clickgui.Visible then
+			guiTopology.ImageTransparency = 1
+			tween:Tween(guiTopology, uiMotion, {ImageTransparency = 0.94})
+		end
 		vape:BlurCheck()
 	end))
 	
@@ -2429,6 +2550,17 @@ function vape:UpdateGUIQueue(hue, sat, val)
 
 	if not clickgui.Visible and not vape.Legit.Window.Visible then return end
 	local isRainbow = vape.GUIColor.Rainbow and vape.RainbowMode.Value ~= 'Retro'
+	local topologyColor = Color3.fromHSV(hue, math.min(sat * 0.55, 0.7), math.max(val, 0.55))
+	for _, topology in vape.TopographyPatterns do
+		if topology.Holder and topology.Holder.Parent then
+			topology.Color = topologyColor
+			for _, contour in topology.Contours do
+				for _, segment in contour.Segments do
+					segment.BackgroundColor3 = topologyColor
+				end
+			end
+		end
+	end
 
 	for name, component in vape.Categories do
 		component:Color(hue, sat, val, isRainbow)
@@ -2829,6 +2961,7 @@ components = {
 		addBlur(window)
 		addCorner(window)
 		addDragHandler(window)
+		addTopography(window, 0.88)
 		local icon = Instance.new('ImageLabel')
 		icon.BackgroundTransparency = 1
 		icon.Image = props.Icon
@@ -2917,12 +3050,27 @@ components = {
 		
 		function component:Color(hue, sat, val, isRainbow) end
 		
+		local categoryAnimation = 0
 		function component:Expand()
 			self.Expanded = not self.Expanded
-			children.Visible = self.Expanded
-			arrow.Rotation = self.Expanded and 0 or 180
-			window.Size = UDim2.fromOffset(220, self.Expanded and math.min(41 + windowlist.AbsoluteContentSize.Y / scale.Scale, 601) or 41)
-			divider.Visible = children.CanvasPosition.Y > 10 and children.Visible
+			categoryAnimation += 1
+			local animation = categoryAnimation
+			local targetHeight = self.Expanded and math.min(41 + windowlist.AbsoluteContentSize.Y / scale.Scale, 601) or 41
+
+			if self.Expanded then
+				children.Visible = true
+			end
+			tween:Tween(arrow, uiMotionPop, {Rotation = self.Expanded and 0 or 180})
+			tween:Tween(window, uiMotion, {Size = UDim2.fromOffset(220, targetHeight)})
+			divider.Visible = children.CanvasPosition.Y > 10 and self.Expanded
+
+			if not self.Expanded then
+				task.delay(0.22, function()
+					if animation == categoryAnimation and not component.Expanded then
+						children.Visible = false
+					end
+				end)
+			end
 		end
 		
 		function component:Load(data)
@@ -3055,7 +3203,7 @@ components = {
 		
 			children.CanvasSize = UDim2.fromOffset(0, windowlist.AbsoluteContentSize.Y / scale.Scale)
 			if component.Expanded then
-				window.Size = UDim2.fromOffset(220, math.min(41 + windowlist.AbsoluteContentSize.Y / scale.Scale, 601))
+				tween:Tween(window, uiMotion, {Size = UDim2.fromOffset(220, math.min(41 + windowlist.AbsoluteContentSize.Y / scale.Scale, 601))})
 			end
 		end)
 		
@@ -3094,6 +3242,7 @@ components = {
 		addBlur(window)
 		addCorner(window)
 		addDragHandler(window)
+		addTopography(window, 0.88)
 		local icon = Instance.new('ImageLabel')
 		icon.BackgroundTransparency = 1
 		icon.Image = props.Icon
@@ -3490,12 +3639,27 @@ components = {
 			end
 		end
 		
+		local categoryAnimation = 0
 		function component:Expand()
 			self.Expanded = not self.Expanded
-			children.Visible = self.Expanded
-			arrow.Rotation = self.Expanded and 0 or 180
-			window.Size = UDim2.fromOffset(220, self.Expanded and math.min(51 + windowlist.AbsoluteContentSize.Y / scale.Scale, 611) or 45)
-			divider.Visible = children.CanvasPosition.Y > 10 and children.Visible
+			categoryAnimation += 1
+			local animation = categoryAnimation
+			local targetHeight = self.Expanded and math.min(51 + windowlist.AbsoluteContentSize.Y / scale.Scale, 611) or 45
+
+			if self.Expanded then
+				children.Visible = true
+			end
+			tween:Tween(arrow, uiMotionPop, {Rotation = self.Expanded and 0 or 180})
+			tween:Tween(window, uiMotion, {Size = UDim2.fromOffset(220, targetHeight)})
+			divider.Visible = children.CanvasPosition.Y > 10 and self.Expanded
+
+			if not self.Expanded then
+				task.delay(0.22, function()
+					if animation == categoryAnimation and not component.Expanded then
+						children.Visible = false
+					end
+				end)
+			end
 		end
 		
 		function component:GetValue(name)
@@ -3650,7 +3814,7 @@ components = {
 		
 			children.CanvasSize = UDim2.fromOffset(0, windowlist.AbsoluteContentSize.Y / scale.Scale)
 			if component.Expanded then
-				window.Size = UDim2.fromOffset(220, math.min(51 + windowlist.AbsoluteContentSize.Y / scale.Scale, 611))
+				tween:Tween(window, uiMotion, {Size = UDim2.fromOffset(220, math.min(51 + windowlist.AbsoluteContentSize.Y / scale.Scale, 611))})
 			end
 		end)
 		
@@ -4130,6 +4294,7 @@ components = {
 		dropdown.AutoButtonColor = false
 		dropdown.BackgroundColor3 = color.Dark(children.BackgroundColor3, props.Darker and 0.02 or 0)
 		dropdown.BorderSizePixel = 0
+		dropdown.ClipsDescendants = true
 		dropdown.Size = UDim2.new(1, 0, 0, 40)
 		dropdown.Text = ''
 		dropdown.Visible = props.Visible == nil or props.Visible
@@ -4170,6 +4335,30 @@ components = {
 		arrow.Parent = button
 		props.Function = props.Function or function() end
 		local dropdownchildren
+		local dropdownOpen = false
+		local dropdownAnimation = 0
+
+		local function closeDropdown()
+			if not dropdownchildren then return end
+			dropdownOpen = false
+			dropdownAnimation += 1
+			local animation = dropdownAnimation
+
+			tween:Tween(arrow, uiMotionFast, {Rotation = 90})
+			tween:Tween(dropdown, uiMotion, {Size = UDim2.new(1, 0, 0, 40)})
+			for _, entry in dropdownchildren:GetChildren() do
+				if entry:IsA('TextButton') then
+					tween:Tween(entry, uiMotionFast, {TextTransparency = 1, BackgroundTransparency = 1})
+				end
+			end
+
+			task.delay(0.22, function()
+				if animation == dropdownAnimation and not dropdownOpen and dropdownchildren then
+					dropdownchildren:Destroy()
+					dropdownchildren = nil
+				end
+			end)
+		end
 		
 		function component:Change(list)
 			props.List = list or {}
@@ -4195,10 +4384,7 @@ components = {
 			title.Text = '         '..props.Name..' - '..self.Value
 		
 			if dropdownchildren then
-				arrow.Rotation = 90
-				dropdownchildren:Destroy()
-				dropdownchildren = nil
-				dropdown.Size = UDim2.new(1, 0, 0, 40)
+				closeDropdown()
 			end
 		
 			props.Function(self.Value, isClick)
@@ -4206,13 +4392,15 @@ components = {
 		
 		button.MouseButton1Click:Connect(function()
 			if not dropdownchildren then
-				arrow.Rotation = 270
-				dropdown.Size = UDim2.new(1, 0, 0, 43 + (#props.List - 1) * 26)
+				dropdownOpen = true
+				dropdownAnimation += 1
+				tween:Tween(arrow, uiMotionPop, {Rotation = 270})
 				dropdownchildren = Instance.new('Frame')
 				dropdownchildren.BackgroundTransparency = 1
 				dropdownchildren.Position = UDim2.fromOffset(0, 27)
 				dropdownchildren.Size = UDim2.new(1, 0, 0, (#props.List - 1) * 26)
 				dropdownchildren.Parent = button
+				tween:Tween(dropdown, uiMotion, {Size = UDim2.new(1, 0, 0, 43 + (#props.List - 1) * 26)})
 		
 				local index = 0
 				for _, v in props.List do
@@ -4220,25 +4408,42 @@ components = {
 					local entry = Instance.new('TextButton')
 					entry.AutoButtonColor = false
 					entry.BackgroundColor3 = uipallet.Main
+					entry.BackgroundTransparency = 1
 					entry.BorderSizePixel = 0
 					entry.FontFace = uipallet.Font
-					entry.Position = UDim2.fromOffset(0, index * 26)
+					entry.Position = UDim2.fromOffset(0, index * 26 + 4)
 					entry.Size = UDim2.new(1, 0, 0, 26)
 					entry.Text = '         '..v
 					entry.TextColor3 = color.Dark(uipallet.Text, 0.16)
+					entry.TextTransparency = 1
 					entry.TextSize = 13
 					entry.TextTruncate = Enum.TextTruncate.AtEnd
 					entry.TextXAlignment = Enum.TextXAlignment.Left
 					entry.Parent = dropdownchildren
+
+					local finalPosition = UDim2.fromOffset(0, index * 26)
+					task.delay(index * 0.018, function()
+						if entry.Parent and dropdownOpen then
+							tween:Tween(entry, uiMotion, {
+								Position = finalPosition,
+								TextTransparency = 0,
+								BackgroundTransparency = 0
+							})
+						end
+					end)
 		
 					entry.MouseEnter:Connect(function()
-						entry.BackgroundColor3 = color.Light(uipallet.Main, 0.02)
-						entry.TextColor3 = uipallet.Text
+						tween:Tween(entry, uiMotionFast, {
+							BackgroundColor3 = color.Light(uipallet.Main, 0.02),
+							TextColor3 = uipallet.Text
+						})
 					end)
 		
 					entry.MouseLeave:Connect(function()
-						entry.BackgroundColor3 = uipallet.Main
-						entry.TextColor3 = color.Dark(uipallet.Text, 0.16)
+						tween:Tween(entry, uiMotionFast, {
+							BackgroundColor3 = uipallet.Main,
+							TextColor3 = color.Dark(uipallet.Text, 0.16)
+						})
 					end)
 		
 					entry.MouseButton1Click:Connect(function()
@@ -4248,7 +4453,7 @@ components = {
 					index += 1
 				end
 			else
-				component:SetValue(component.Value, true)
+				closeDropdown()
 			end
 		end)
 		
@@ -4347,6 +4552,7 @@ components = {
 		addBlur(window)
 		addCorner(window)
 		addDragHandler(window)
+		addTopography(window, 0.89)
 		local logo = Instance.new('ImageLabel')
 		logo.BackgroundTransparency = 1
 		logo.Image = getvapeasset('newvape/assets/new/vapelogomini.png')
@@ -4362,6 +4568,48 @@ components = {
 		v4logo.Position = UDim2.new(1, -1, 0, 0)
 		v4logo.Size = UDim2.fromOffset(23, 16)
 		v4logo.Parent = logo
+
+		-- Tiny loader-inspired status feature carried into the actual ClickGUI.
+		local statuspill = Instance.new('Frame')
+		statuspill.BackgroundColor3 = color.Light(uipallet.Main, 0.025)
+		statuspill.BackgroundTransparency = 0.12
+		statuspill.Position = UDim2.new(1, -111, 0, 10)
+		statuspill.Size = UDim2.fromOffset(52, 18)
+		statuspill.Parent = window
+		addCorner(statuspill, UDim.new(0, 4))
+		local statusstroke = Instance.new('UIStroke')
+		statusstroke.Color = color.Light(uipallet.Main, 0.08)
+		statusstroke.Transparency = 0.45
+		statusstroke.Parent = statuspill
+		local statusdot = Instance.new('Frame')
+		statusdot.AnchorPoint = Vector2.new(0.5, 0.5)
+		statusdot.BackgroundColor3 = Color3.fromHSV(vape.GUIColor.Hue, vape.GUIColor.Sat, vape.GUIColor.Value)
+		statusdot.BorderSizePixel = 0
+		statusdot.Position = UDim2.fromOffset(9, 9)
+		statusdot.Size = UDim2.fromOffset(4, 4)
+		statusdot.Parent = statuspill
+		addCorner(statusdot, UDim.new(1, 0))
+		local statusscale = Instance.new('UIScale')
+		statusscale.Parent = statusdot
+		local statustext = Instance.new('TextLabel')
+		statustext.BackgroundTransparency = 1
+		statustext.FontFace = uipallet.FontSemiBold
+		statustext.Position = UDim2.fromOffset(16, 0)
+		statustext.Size = UDim2.new(1, -18, 1, 0)
+		statustext.Text = 'READY'
+		statustext.TextColor3 = color.Dark(uipallet.Text, 0.08)
+		statustext.TextSize = 8
+		statustext.TextXAlignment = Enum.TextXAlignment.Left
+		statustext.Parent = statuspill
+		addTooltip(statuspill, 'Interface ready • procedural terrain active')
+		local pulseA = tweenService:Create(statusscale, TweenInfo.new(1.45, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {Scale = 1.55})
+		local pulseB = tweenService:Create(statusdot, TweenInfo.new(1.45, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {BackgroundTransparency = 0.58})
+		pulseA:Play()
+		pulseB:Play()
+		statuspill.Destroying:Once(function()
+			pulseA:Cancel()
+			pulseB:Cancel()
+		end)
 		local children = Instance.new('Frame')
 		children.BackgroundTransparency = 1
 		children.Position = UDim2.fromOffset(0, 37)
@@ -4404,7 +4652,9 @@ components = {
 		component.Settings = settingspane
 		
 		function component:Color(hue, sat, val, isRainbow)
-			v4logo.ImageColor3 = Color3.fromHSV(hue, sat, val)
+			local accentColor = Color3.fromHSV(hue, sat, val)
+			v4logo.ImageColor3 = accentColor
+			statusdot.BackgroundColor3 = accentColor
 		
 			for _, button in self.Buttons do
 				if button.Enabled then
@@ -4493,7 +4743,7 @@ components = {
 		end)
 		
 		settingsbutton.MouseButton1Click:Connect(function()
-			settingspane.Object.Visible = true
+			settingspane:SetVisible(true)
 		end)
 		
 		windowlist:GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function()
@@ -4569,6 +4819,14 @@ components = {
 		arrow.Position = UDim2.new(1, -20, 0, 16)
 		arrow.Size = UDim2.fromOffset(4, 8)
 		arrow.Parent = button
+		local windowScale
+		local windowTransition = 0
+		if props.Window then
+			windowScale = Instance.new('UIScale')
+			windowScale.Name = 'MotionScale'
+			windowScale.Scale = 1
+			windowScale.Parent = props.Window
+		end
 		
 		function component:Destroy()
 			button:Destroy()
@@ -4578,17 +4836,34 @@ components = {
 		function component:Toggle()
 			if props.Window then
 				self.Enabled = not self.Enabled
-				tween:Tween(arrow, uipallet.Tween, {
+				windowTransition += 1
+				local transition = windowTransition
+				tween:Tween(arrow, uiMotionPop, {
 					Position = UDim2.new(1, self.Enabled and -14 or -20, 0, 16)
 				})
-		
-				button.TextColor3 = self.Enabled and Color3.fromHSV(vape.GUIColor.Hue, vape.GUIColor.Sat, vape.GUIColor.Value) or uipallet.Text
+
+				local activeColor = Color3.fromHSV(vape.GUIColor.Hue, vape.GUIColor.Sat, vape.GUIColor.Value)
+				tween:Tween(button, uiMotionFast, {
+					TextColor3 = self.Enabled and activeColor or uipallet.Text,
+					BackgroundColor3 = color.Light(uipallet.Main, 0.02)
+				})
 				if icon then
-					icon.ImageColor3 = button.TextColor3
+					tween:Tween(icon, uiMotionFast, {ImageColor3 = self.Enabled and activeColor or uipallet.Text})
 				end
-		
-				button.BackgroundColor3 = color.Light(uipallet.Main, 0.02)
-				props.Window.Visible = self.Enabled
+
+				if self.Enabled then
+					props.Window.Visible = true
+					windowScale.Scale = 0.965
+					tweenService:Create(windowScale, uiMotionPop, {Scale = 1}):Play()
+				else
+					tweenService:Create(windowScale, uiMotionFast, {Scale = 0.97}):Play()
+					task.delay(0.14, function()
+						if transition == windowTransition and not component.Enabled then
+							props.Window.Visible = false
+							windowScale.Scale = 1
+						end
+					end)
+				end
 			else
 				props.Function()
 			end
@@ -4597,8 +4872,8 @@ components = {
 		button.MouseEnter:Connect(function()
 			if not component.Enabled then
 				button.TextColor3 = uipallet.Text
-				if buttonicon then
-					buttonicon.ImageColor3 = uipallet.Text
+				if icon then
+					icon.ImageColor3 = uipallet.Text
 				end
 		
 				button.BackgroundColor3 = color.Light(uipallet.Main, 0.02)
@@ -4608,8 +4883,8 @@ components = {
 		button.MouseLeave:Connect(function()
 			if not component.Enabled then
 				button.TextColor3 = color.Dark(uipallet.Text, 0.16)
-				if buttonicon then
-					buttonicon.ImageColor3 = color.Dark(uipallet.Text, 0.16)
+				if icon then
+					icon.ImageColor3 = color.Dark(uipallet.Text, 0.16)
 				end
 		
 				button.BackgroundColor3 = uipallet.Main
@@ -5157,7 +5432,7 @@ components = {
 				BackgroundColor3 = self.Enabled and (isRainbow and Color3.fromHSV(vape:Color((vape.GUIColor.Hue - (self.Index * 0.075)) % 1)) or Color3.fromHSV(vape.GUIColor.Hue, vape.GUIColor.Sat, vape.GUIColor.Value)) or (isHover and color.Light(uipallet.Main, 0.37) or color.Light(uipallet.Main, 0.14))
 			})
 		
-			tween:Tween(knob, uipallet.Tween, {
+			tween:Tween(knob, uiMotionPop, {
 				Position = UDim2.fromOffset(self.Enabled and 12 or 2, 2)
 			})
 		
@@ -5369,10 +5644,14 @@ components = {
 				self.Children.Visible = self.Enabled
 			end
 		
-			title.TextColor3 = self.Enabled and color.Light(uipallet.Text, 0.2) or color.Dark(uipallet.Text, 0.31)
-			button.BackgroundColor3 = self.Enabled and color.Light(uipallet.Main, 0.05) or button.BackgroundColor3
+			tween:Tween(title, uiMotionFast, {
+				TextColor3 = self.Enabled and color.Light(uipallet.Text, 0.2) or color.Dark(uipallet.Text, 0.31)
+			})
+			tween:Tween(button, uiMotionFast, {
+				BackgroundColor3 = self.Enabled and color.Light(uipallet.Main, 0.05) or color.Light(uipallet.Main, 0.02)
+			})
 		
-			tween:Tween(holder, uipallet.Tween, {
+			tween:Tween(holder, uiMotionFast, {
 				BackgroundColor3 = self.Enabled and Color3.fromHSV(vape.GUIColor.Hue, vape.GUIColor.Sat, vape.GUIColor.Value) or color.Light(uipallet.Main, 0.14)
 			})
 		
@@ -5420,13 +5699,13 @@ components = {
 		
 		button.MouseEnter:Connect(function()
 			if not component.Enabled then
-				button.BackgroundColor3 = color.Light(uipallet.Main, 0.05)
+				tween:Tween(button, uiMotionFast, {BackgroundColor3 = color.Light(uipallet.Main, 0.05)})
 			end
 		end)
 		
 		button.MouseLeave:Connect(function()
 			if not component.Enabled then
-				button.BackgroundColor3 = color.Light(uipallet.Main, 0.02)
+				tween:Tween(button, uiMotionFast, {BackgroundColor3 = color.Light(uipallet.Main, 0.02)})
 			end
 		end)
 		
@@ -5524,6 +5803,7 @@ components = {
 		addBlur(window)
 		addCorner(window)
 		addDragHandler(window)
+		addTopography(window, 0.90)
 		local modal = Instance.new('TextButton')
 		modal.BackgroundTransparency = 1
 		modal.Modal = true
@@ -5587,6 +5867,41 @@ components = {
 		windowlist.FillDirectionMaxCells = 4
 		windowlist.SortOrder = Enum.SortOrder.LayoutOrder
 		windowlist.Parent = children
+		local windowScale = Instance.new('UIScale')
+		windowScale.Name = 'MotionScale'
+		windowScale.Scale = 1
+		windowScale.Parent = window
+		local legitTransition = 0
+
+		function component:Show()
+			legitTransition += 1
+			clickgui.Visible = false
+			local target = UDim2.new(0.5, -350, 0.5, -194)
+			window.Position = target + UDim2.fromOffset(0, 12)
+			windowScale.Scale = 0.96
+			window.Visible = true
+			tween:Tween(window, uiMotion, {Position = target})
+			tweenService:Create(windowScale, uiMotionPop, {Scale = 1}):Play()
+		end
+
+		function component:Hide(returnToClickGui)
+			legitTransition += 1
+			local transition = legitTransition
+			local target = window.Position
+			tween:Tween(window, uiMotionFast, {Position = target + UDim2.fromOffset(0, 10)})
+			tweenService:Create(windowScale, uiMotionFast, {Scale = 0.97}):Play()
+
+			task.delay(0.14, function()
+				if transition == legitTransition then
+					window.Visible = false
+					window.Position = target
+					windowScale.Scale = 1
+					if returnToClickGui then
+						clickgui.Visible = true
+					end
+				end
+			end)
+		end
 		
 		for index, comp in components do
 			component['Create'..index] = function(_, props)
@@ -5618,8 +5933,7 @@ components = {
 		end)
 		
 		close.MouseButton1Click:Connect(function()
-			window.Visible = false
-			clickgui.Visible = true
+			component:Hide(true)
 		end)
 		
 		close.MouseEnter:Connect(function()
@@ -5695,6 +6009,7 @@ components = {
 		local modulechildren = Instance.new('Frame')
 		modulechildren.BackgroundColor3 = color.Dark(uipallet.Main, 0.02)
 		modulechildren.BorderSizePixel = 0
+		modulechildren.ClipsDescendants = true
 		modulechildren.Name = props.Name..'Children'
 		modulechildren.Size = UDim2.new(1, 0, 0, 0)
 		modulechildren.Visible = false
@@ -5747,7 +6062,31 @@ components = {
 		props.Function = props.Function or function() end
 		component.Edit = edit
 		component.Children = modulechildren
+		local moduleExpanded = false
+		local moduleExpandAnimation = 0
 		addMaid(component)
+
+		local function setModuleExpanded(state)
+			moduleExpanded = state
+			moduleExpandAnimation += 1
+			local animation = moduleExpandAnimation
+			local targetHeight = state and (windowlist.AbsoluteContentSize.Y / scale.Scale) or 0
+
+			if state then
+				modulechildren.Visible = true
+			end
+			tween:Tween(modulechildren, uiMotion, {Size = UDim2.new(1, 0, 0, targetHeight)})
+			tween:Tween(dots, uiMotionFast, {Rotation = state and 90 or 0})
+			component.Bind:SetVisible(isHover or state)
+
+			if not state then
+				task.delay(0.22, function()
+					if animation == moduleExpandAnimation and not moduleExpanded then
+						modulechildren.Visible = false
+					end
+				end)
+			end
+		end
 		
 		function component:Color(hue, sat, val, isRainbow)
 			if self.Enabled then
@@ -5834,9 +6173,13 @@ components = {
 			self.Enabled = not self.Enabled
 			divider.Visible = self.Enabled
 			gradient.Enabled = self.Enabled
-			button.TextColor3 = (isHover or modulechildren.Visible) and uipallet.Text or color.Dark(uipallet.Text, 0.16)
-			button.BackgroundColor3 = (isHover or modulechildren.Visible) and color.Light(uipallet.Main, 0.02) or uipallet.Main
-			dots.ImageColor3 = self.Enabled and Color3.fromRGB(50, 50, 50) or color.Light(uipallet.Main, 0.37)
+			tween:Tween(button, uiMotionFast, {
+				TextColor3 = (isHover or moduleExpanded) and uipallet.Text or color.Dark(uipallet.Text, 0.16),
+				BackgroundColor3 = (isHover or moduleExpanded) and color.Light(uipallet.Main, 0.02) or uipallet.Main
+			})
+			tween:Tween(dots, uiMotionFast, {
+				ImageColor3 = self.Enabled and Color3.fromRGB(50, 50, 50) or color.Light(uipallet.Main, 0.37)
+			})
 			component.Bind:SetColor(color.Dark(uipallet.Text, 0.43))
 		
 			if not self.Enabled then
@@ -5871,22 +6214,26 @@ components = {
 		
 		button.MouseEnter:Connect(function()
 			isHover = true
-			if not component.Enabled and not modulechildren.Visible then
-				button.TextColor3 = uipallet.Text
-				button.BackgroundColor3 = color.Light(uipallet.Main, 0.02)
+			if not component.Enabled and not moduleExpanded then
+				tween:Tween(button, uiMotionFast, {
+					TextColor3 = uipallet.Text,
+					BackgroundColor3 = color.Light(uipallet.Main, 0.02)
+				})
 			end
 		
-			component.Bind:SetVisible(isHover or modulechildren.Visible)
+			component.Bind:SetVisible(isHover or moduleExpanded)
 		end)
 		
 		button.MouseLeave:Connect(function()
 			isHover = false
-			if not component.Enabled and not modulechildren.Visible then
-				button.TextColor3 = color.Dark(uipallet.Text, 0.16)
-				button.BackgroundColor3 = uipallet.Main
+			if not component.Enabled and not moduleExpanded then
+				tween:Tween(button, uiMotionFast, {
+					TextColor3 = color.Dark(uipallet.Text, 0.16),
+					BackgroundColor3 = uipallet.Main
+				})
 			end
 		
-			component.Bind:SetVisible(isHover or modulechildren.Visible)
+			component.Bind:SetVisible(isHover or moduleExpanded)
 		end)
 		
 		button.MouseButton1Click:Connect(function()
@@ -5898,15 +6245,15 @@ components = {
 		end)
 		
 		button.MouseButton2Click:Connect(function()
-			modulechildren.Visible = not modulechildren.Visible
+			setModuleExpanded(not moduleExpanded)
 		end)
 		
 		dotsbutton.MouseButton1Click:Connect(function()
-			modulechildren.Visible = not modulechildren.Visible
+			setModuleExpanded(not moduleExpanded)
 		end)
 		
 		dotsbutton.MouseButton2Click:Connect(function()
-			modulechildren.Visible = not modulechildren.Visible
+			setModuleExpanded(not moduleExpanded)
 		end)
 		
 		dotsbutton.MouseEnter:Connect(function()
@@ -5930,7 +6277,11 @@ components = {
 				setthreadidentity(8)
 			end
 		
-			modulechildren.Size = UDim2.new(1, 0, 0, windowlist.AbsoluteContentSize.Y / scale.Scale)
+			if moduleExpanded then
+				tween:Tween(modulechildren, uiMotion, {Size = UDim2.new(1, 0, 0, windowlist.AbsoluteContentSize.Y / scale.Scale)})
+			else
+				modulechildren.Size = UDim2.new(1, 0, 0, 0)
+			end
 		end)
 		
 		local bind = component:CreateBind({
@@ -6546,9 +6897,7 @@ components = {
 		end)
 		
 		legiticon.MouseButton1Click:Connect(function()
-			clickgui.Visible = false
-			vape.Legit.Window.Visible = true
-			vape.Legit.Window.Position = UDim2.new(0.5, -350, 0.5, -194)
+			vape.Legit:Show()
 		end)
 		
 		windowlist:GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function()
@@ -6577,6 +6926,25 @@ components = {
 		pane.Text = ''
 		pane.Visible = false
 		pane.Parent = component.Parent
+		local paneTransition = 0
+
+		function component:SetVisible(state)
+			paneTransition += 1
+			local transition = paneTransition
+			if state then
+				pane.Position = UDim2.fromOffset(10, 0)
+				pane.Visible = true
+				tween:Tween(pane, uiMotion, {Position = UDim2.fromOffset(0, 0)})
+			else
+				tween:Tween(pane, uiMotionFast, {Position = UDim2.fromOffset(10, 0)})
+				task.delay(0.14, function()
+					if transition == paneTransition then
+						pane.Visible = false
+						pane.Position = UDim2.fromOffset(0, 0)
+					end
+				end)
+			end
+		end
 		local title = Instance.new('TextLabel')
 		title.BackgroundTransparency = 1
 		title.FontFace = uipallet.Font
@@ -6633,7 +7001,7 @@ components = {
 			api:CreateGUIButton({
 				Name = props.Name,
 				Function = function()
-					pane.Visible = true
+					component:SetVisible(true)
 				end
 			})
 		end
@@ -6661,11 +7029,11 @@ components = {
 		end)
 		
 		back.MouseButton1Click:Connect(function()
-			pane.Visible = false
+			component:SetVisible(false)
 		end)
 		
 		close.MouseButton1Click:Connect(function()
-			pane.Visible = false
+			component:SetVisible(false)
 		end)
 		
 		listlayout:GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function()
