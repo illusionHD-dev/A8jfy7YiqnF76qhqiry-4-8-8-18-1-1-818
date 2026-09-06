@@ -2480,7 +2480,7 @@ run(function()
 		end
 	end
 
-\tlocal function getAssetCandidates(objects)
+	local function getAssetCandidates(objects)
 		local candidates = {}
 		local labels = {'Auto'}
 		local usedLabels = {}
@@ -2648,7 +2648,7 @@ run(function()
 		visual.Parent = Folder
 	end
 
-\tlocal function loadAsset(showError)
+	local function loadAsset(showError)
 		if not optionsReady then return end
 
 		if template then
