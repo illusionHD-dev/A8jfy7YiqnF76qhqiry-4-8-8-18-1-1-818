@@ -1,9 +1,6 @@
 -- Local customization: dismiss the full-screen loader after initialization.
 repeat task.wait() until game:IsLoaded()
-local launchEnvironment = (getgenv and getgenv()) or _G
-local riseRequested = launchEnvironment.Rise
-if riseRequested == nil then riseRequested = shared.Rise end
-shared.Rise = riseRequested == true
+
 if shared.vape then shared.vape:Uninject() end
 
 local vape
@@ -119,7 +116,6 @@ local function finishLoading()
 			if shared.VapeDeveloper then
 				teleportScript = 'shared.VapeDeveloper = true\n'..teleportScript
 			end
-			teleportScript = 'shared.Rise = '..tostring(shared.Rise == true)..'\n'..teleportScript
 			if shared.VapeCustomProfile then
 				teleportScript = 'shared.VapeCustomProfile = "'..shared.VapeCustomProfile..'"\n'..teleportScript
 			end
@@ -136,7 +132,6 @@ local function finishLoading()
 	end
 end
 
-
 if not isfolder('newvape/assets/'..gui) then
 	makefolder('newvape/assets/'..gui)
 end
@@ -149,6 +144,7 @@ if type(baseVapeLoad) ~= 'function' then
 	error('[illusionHD] GUI file is missing vape:Load(). Re-upload guis/new.lua.', 0)
 end
 shared.vape = vape
+
 -- ILLUSIONHD_LEAVE_SOUND_V1
 do
 	local leaveSoundService = cloneref(game:GetService('SoundService'))
