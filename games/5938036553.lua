@@ -1454,86 +1454,219 @@ run(function()
 		Tooltip = 'Lets you Phase/Clip through walls.'
 	})
 end)
+-- RTXSHADERS_BEGIN
 run(function()
-    local Lighting = game:GetService("Lighting")
-
-    -- Store effects to remove later
-    local shaderEffects = {}
-
-    -- Helper to create & apply an effect
-    local function addEffect(className, props)
-        local effect = Instance.new(className)
-        for prop, val in pairs(props) do
-            effect[prop] = val
-        end
-        effect.Name = "Plus_" .. className
-        effect.Parent = Lighting
-        table.insert(shaderEffects, effect)
-    end
-
-    vape.Categories.Utility:CreateModule({
-        Name = "Realistic Shader",
-        Tooltip = "Simulates RTX-style visuals using lighting and post effects.",
-        Function = function(enabled)
-            if enabled then
-                -- Darker, richer world lighting
-                Lighting.Brightness = 1.2
-                Lighting.OutdoorAmbient = Color3.fromRGB(45, 45, 55)
-                Lighting.Ambient = Color3.fromRGB(22, 22, 30)
-                Lighting.EnvironmentDiffuseScale = 0.4
-                Lighting.EnvironmentSpecularScale = 0.6
-                Lighting.GlobalShadows = true
-                Lighting.ClockTime = 17  -- dusk
-
-                -- Simulated RTX-style post-processing
-                addEffect("BloomEffect", {
-                    Intensity = 0.6,
-                    Threshold = 0.8,
-                    Size = 56
-                })
-
-                addEffect("ColorCorrectionEffect", {
-                    Brightness = 0.3,
-                    Contrast = 0.35,
-                    Saturation = 0.15,
-                    TintColor = Color3.fromRGB(200, 200, 230)
-                })
-
-                addEffect("SunRaysEffect", {
-                    Intensity = 0.12,
-                    Spread = 0.25
-                })
-
-                addEffect("DepthOfFieldEffect", {
-                    FarIntensity = 0.3,
-                    FocusDistance = 25,
-                    InFocusRadius = 15,
-                    NearIntensity = 0.2
-                })
-
-                addEffect("BlurEffect", {
-                    Size = 1
-                })
-            else
-                -- Restore lighting defaults (optional, tweak as needed)
-                Lighting.Brightness = 2
-                Lighting.OutdoorAmbient = Color3.fromRGB(127, 127, 127)
-                Lighting.Ambient = Color3.fromRGB(127, 127, 127)
-                Lighting.EnvironmentDiffuseScale = 1
-                Lighting.EnvironmentSpecularScale = 1
-                Lighting.ClockTime = 14
-
-                -- Remove shader effects
-                for _, effect in pairs(shaderEffects) do
-                    if effect and effect.Parent then
-                        effect:Destroy()
-                    end
-                end
-                shaderEffects = {}
-            end
-        end
-    })
+	-- Minecraft shader-inspired Roblox lighting; this does not add ray tracing.
+	local lighting = game:GetService('Lighting')
+	local tweens = game:GetService('TweenService')
+	local rgb = Color3.fromRGB
+	local RTXShaders, Preset, Strength, Exposure, Bloom, Rays, Haze, DOF, Smooth, CustomTime, Time
+	local active, ready = false, false
+	local original, effects, owned, suppressed, atmospheres, connections, animations = {}, {}, {}, {}, {}, {}, {}
+	local cameraConnection
+	local holding = Instance.new('Folder') -- Unparented: stored atmospheres do not render.
+	holding.Name = 'RTXShaders_OriginalAtmospheres'
+	local names = {'SEUS Inspired', 'BSL Inspired', 'Complementary Inspired', 'Golden Hour', 'Midnight', 'Cinematic'}
+	local presets = {
+		['SEUS Inspired'] = {
+			Time = 15.3, Sun = 3.1, Exposure = -0.12, Ambient = rgb(48, 53, 67), Outdoor = rgb(107, 119, 138),
+			Top = rgb(255, 229, 189), Bottom = rgb(0, 0, 0), Softness = 0.28, Diffuse = 0.72,
+			Contrast = 0.18, Saturation = 0.12, Tint = rgb(255, 247, 230), Grade = 0,
+			Bloom = 0.32, Threshold = 1.45, Size = 36, Rays = 0.075, Spread = 0.82,
+			Density = 0.25, Offset = 0.16, Air = rgb(203, 219, 237), Decay = rgb(114, 124, 149), Glare = 0.22, Haze = 1.3
+		},
+		['BSL Inspired'] = {
+			Time = 16.1, Sun = 2.65, Exposure = 0.02, Ambient = rgb(70, 65, 79), Outdoor = rgb(139, 128, 132),
+			Top = rgb(255, 218, 177), Bottom = rgb(0, 0, 0), Softness = 0.65, Diffuse = 0.8,
+			Contrast = 0.1, Saturation = 0.08, Tint = rgb(255, 238, 220), Grade = 0.01,
+			Bloom = 0.48, Threshold = 1.2, Size = 48, Rays = 0.055, Spread = 0.9,
+			Density = 0.29, Offset = 0.12, Air = rgb(237, 215, 198), Decay = rgb(151, 125, 142), Glare = 0.35, Haze = 1.7
+		},
+		['Complementary Inspired'] = {
+			Time = 13.8, Sun = 3.3, Exposure = -0.08, Ambient = rgb(46, 59, 75), Outdoor = rgb(113, 139, 157),
+			Top = rgb(255, 245, 225), Bottom = rgb(0, 0, 0), Softness = 0.35, Diffuse = 0.85,
+			Contrast = 0.16, Saturation = 0.24, Tint = rgb(243, 251, 255), Grade = 0,
+			Bloom = 0.22, Threshold = 1.65, Size = 28, Rays = 0.045, Spread = 0.8,
+			Density = 0.21, Offset = 0.2, Air = rgb(183, 217, 245), Decay = rgb(99, 133, 162), Glare = 0.15, Haze = 0.9
+		},
+		['Golden Hour'] = {
+			Time = 17.55, Sun = 3.2, Exposure = -0.05, Ambient = rgb(69, 48, 72), Outdoor = rgb(149, 108, 102),
+			Top = rgb(255, 181, 101), Bottom = rgb(0, 0, 0), Softness = 0.5, Diffuse = 0.7,
+			Contrast = 0.2, Saturation = 0.18, Tint = rgb(255, 223, 186), Grade = 0.01,
+			Bloom = 0.5, Threshold = 1.15, Size = 48, Rays = 0.12, Spread = 0.88,
+			Density = 0.32, Offset = 0.08, Air = rgb(255, 205, 151), Decay = rgb(156, 98, 114), Glare = 0.65, Haze = 2
+		},
+		['Midnight'] = {
+			Time = 0.3, Sun = 1.5, Exposure = 0.18, Ambient = rgb(38, 43, 72), Outdoor = rgb(76, 91, 130),
+			Top = rgb(148, 179, 255), Bottom = rgb(0, 0, 0), Softness = 0.6, Diffuse = 0.7,
+			Contrast = 0.15, Saturation = -0.08, Tint = rgb(201, 219, 255), Grade = 0.015,
+			Bloom = 0.55, Threshold = 1.05, Size = 40, Rays = 0.015, Spread = 0.95,
+			Density = 0.3, Offset = 0.12, Air = rgb(118, 142, 204), Decay = rgb(46, 53, 98), Glare = 0, Haze = 1.8
+		},
+		['Cinematic'] = {
+			Time = 16.65, Sun = 2.8, Exposure = -0.18, Ambient = rgb(37, 59, 65), Outdoor = rgb(103, 128, 132),
+			Top = rgb(255, 209, 159), Bottom = rgb(0, 0, 0), Softness = 0.45, Diffuse = 0.65,
+			Contrast = 0.26, Saturation = -0.14, Tint = rgb(240, 247, 241), Grade = -0.015,
+			Bloom = 0.28, Threshold = 1.4, Size = 36, Rays = 0.065, Spread = 0.85,
+			Density = 0.29, Offset = 0.1, Air = rgb(187, 209, 212), Decay = rgb(88, 116, 122), Glare = 0.25, Haze = 1.6
+		}
+	}
+	local properties = {
+		'Ambient', 'OutdoorAmbient', 'Brightness', 'ExposureCompensation', 'ClockTime',
+		'ColorShift_Top', 'ColorShift_Bottom', 'GlobalShadows', 'ShadowSoftness',
+		'EnvironmentDiffuseScale', 'EnvironmentSpecularScale', 'GeographicLatitude', 'FogStart', 'FogEnd'
+	}
+	local replaceClasses = {BloomEffect = true, ColorCorrectionEffect = true, SunRaysEffect = true, DepthOfFieldEffect = true}
+	local function safeSet(object, key, value)
+		return pcall(function() object[key] = value end)
+	end
+	local function cancelTweens()
+		for _, animation in ipairs(animations) do animation:Cancel() end
+		animations = {}
+	end
+	local function setProperties(object, values, animate)
+		if animate then
+			local animation = tweens:Create(object, TweenInfo.new(0.65, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), values)
+			animations[#animations + 1] = animation
+			animation:Play()
+		else
+			for key, value in pairs(values) do object[key] = value end
+		end
+	end
+	local function capture(object)
+		if not active or owned[object] then return end
+		if object:IsA('Atmosphere') and object.Parent == lighting then
+			atmospheres[object] = true
+			object.Parent = holding
+		elseif replaceClasses[object.ClassName] then
+			if suppressed[object] == nil then suppressed[object] = object.Enabled end
+			object.Enabled = false
+		end
+	end
+	local function watchCamera()
+		if cameraConnection then cameraConnection:Disconnect(); cameraConnection = nil end
+		local camera = workspace.CurrentCamera
+		if camera then
+			for _, object in ipairs(camera:GetChildren()) do capture(object) end
+			cameraConnection = camera.ChildAdded:Connect(capture)
+		end
+	end
+	local function make(class, values)
+		local object = Instance.new(class)
+		object.Name = 'RTXShaders_'..class
+		owned[object] = true
+		for key, value in pairs(values) do object[key] = value end
+		object.Parent = lighting
+		effects[class] = object
+		return object
+	end
+	local function restore()
+		active = false
+		cancelTweens()
+		for _, connection in ipairs(connections) do connection:Disconnect() end
+		connections = {}
+		if cameraConnection then cameraConnection:Disconnect(); cameraConnection = nil end
+		for object in pairs(owned) do object:Destroy() end
+		owned, effects = {}, {}
+		for key, value in pairs(original) do safeSet(lighting, key, value) end
+		original = {}
+		for object, enabled in pairs(suppressed) do
+			pcall(function() object.Enabled = enabled end)
+		end
+		suppressed = {}
+		for object in pairs(atmospheres) do
+			if object.Parent == holding then safeSet(object, 'Parent', lighting) end
+		end
+		atmospheres = {}
+	end
+	local function apply()
+		if not active or not ready then return end
+		cancelTweens()
+		local p = presets[Preset.Value] or presets[names[1]]
+		local amount = Strength.Value / 100
+		local animate = Smooth.Enabled
+		local values = {
+			Brightness = p.Sun, ExposureCompensation = p.Exposure + Exposure.Value / 100,
+			Ambient = p.Ambient, OutdoorAmbient = p.Outdoor, ColorShift_Top = p.Top, ColorShift_Bottom = p.Bottom,
+			ShadowSoftness = p.Softness, EnvironmentDiffuseScale = p.Diffuse, EnvironmentSpecularScale = 1,
+			GeographicLatitude = 35, FogStart = 0, FogEnd = 100000
+		}
+		setProperties(lighting, values, animate)
+		lighting.GlobalShadows = true
+		-- Set time directly: tweening through 12 hours causes a daylight flash at midnight.
+		lighting.ClockTime = CustomTime.Enabled and Time.Value or p.Time
+		setProperties(effects.ColorCorrectionEffect, {
+			Brightness = p.Grade * amount, Contrast = math.clamp(p.Contrast * amount, -1, 1),
+			Saturation = math.clamp(p.Saturation * amount, -1, 1), TintColor = rgb(255, 255, 255):Lerp(p.Tint, math.min(amount, 1))
+		}, animate)
+		setProperties(effects.BloomEffect, {
+			Intensity = p.Bloom * Bloom.Value / 100 * amount, Threshold = p.Threshold, Size = p.Size
+		}, animate)
+		setProperties(effects.SunRaysEffect, {
+			Intensity = p.Rays * Rays.Value / 100 * amount, Spread = p.Spread
+		}, animate)
+		setProperties(effects.Atmosphere, {
+			Density = math.clamp(p.Density * Haze.Value / 100, 0, 0.6), Offset = p.Offset,
+			Color = p.Air, Decay = p.Decay, Glare = p.Glare * Haze.Value / 100, Haze = p.Haze * Haze.Value / 100
+		}, animate)
+		effects.DepthOfFieldEffect.Enabled = DOF.Enabled
+	end
+	local function start()
+		if active or not ready then return end
+		active = true
+		local ok, message = pcall(function()
+			for _, key in ipairs(properties) do original[key] = lighting[key] end
+			for _, object in ipairs(lighting:GetChildren()) do capture(object) end
+			connections[#connections + 1] = lighting.ChildAdded:Connect(capture)
+			connections[#connections + 1] = workspace:GetPropertyChangedSignal('CurrentCamera'):Connect(watchCamera)
+			watchCamera()
+			make('ColorCorrectionEffect', {Brightness = 0, Contrast = 0, Saturation = 0})
+			make('BloomEffect', {Intensity = 0})
+			make('SunRaysEffect', {Intensity = 0})
+			make('Atmosphere', {Density = 0, Haze = 0, Glare = 0})
+			make('DepthOfFieldEffect', {Enabled = false, NearIntensity = 0, FarIntensity = 0.12, FocusDistance = 80, InFocusRadius = 65})
+			apply()
+		end)
+		if not ok then
+			restore()
+			warn('[RTXShaders] '..tostring(message))
+			task.defer(function()
+				if RTXShaders and RTXShaders.Enabled then RTXShaders:Toggle() end
+			end)
+		end
+	end
+	local function changed()
+		-- UI callbacks can run before CreateSlider/CreateToggle returns its option object.
+		task.defer(function() if active and ready then apply() end end)
+	end
+	RTXShaders = vape.Categories.Render:CreateModule({
+		Name = 'RTXShaders',
+		Tooltip = 'Minecraft-inspired sunlight, soft shadows, bloom and atmosphere. Visual presets, not hardware ray tracing.',
+		Function = function(enabled)
+			if enabled then
+				task.defer(function() if RTXShaders and RTXShaders.Enabled then start() end end)
+			else
+				restore()
+			end
+		end
+	})
+	Preset = RTXShaders:CreateDropdown({Name = 'Preset', List = names, Default = names[1], Function = changed})
+	Strength = RTXShaders:CreateSlider({Name = 'Grade Strength', Min = 0, Max = 150, Default = 100, Suffix = '%', Function = changed})
+	Exposure = RTXShaders:CreateSlider({Name = 'Exposure', Min = -100, Max = 100, Default = 0, Function = changed})
+	Bloom = RTXShaders:CreateSlider({Name = 'Bloom', Min = 0, Max = 200, Default = 100, Suffix = '%', Function = changed})
+	Rays = RTXShaders:CreateSlider({Name = 'Sun Rays', Min = 0, Max = 200, Default = 100, Suffix = '%', Function = changed})
+	Haze = RTXShaders:CreateSlider({Name = 'Atmosphere', Min = 0, Max = 150, Default = 100, Suffix = '%', Function = changed})
+	DOF = RTXShaders:CreateToggle({Name = 'Depth of Field', Default = false, Function = changed})
+	Smooth = RTXShaders:CreateToggle({Name = 'Smooth Transitions', Default = true, Function = changed})
+	CustomTime = RTXShaders:CreateToggle({Name = 'Custom Time', Default = false, Function = changed})
+	Time = RTXShaders:CreateSlider({Name = 'Time', Min = 0, Max = 24, Default = 15, Decimal = 10, Function = changed})
+	ready = true
+	vape:Clean(function()
+		restore()
+		holding:Destroy()
+	end)
 end)
+-- RTXSHADERS_END
 run(function()
 	local SpinBot
 	local Speed
