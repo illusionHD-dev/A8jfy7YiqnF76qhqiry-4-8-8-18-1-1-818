@@ -29,11 +29,11 @@ local cloneref = cloneref or function(obj)
 end
 local tweenService = cloneref(game:GetService('TweenService'))
 local inputService = cloneref(game:GetService('UserInputService'))
-local contextService = cloneref(game:GetService('ContextActionService'))
 local textService = cloneref(game:GetService('TextService'))
 local guiService = cloneref(game:GetService('GuiService'))
 local runService = cloneref(game:GetService('RunService'))
 local httpService = cloneref(game:GetService('HttpService'))
+local lightingService = cloneref(game:GetService('Lighting'))
 
 local fontsize = Instance.new('GetTextBoundsParams')
 fontsize.Width = math.huge
@@ -441,11 +441,10 @@ local uiMotion = TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirectio
 local uiMotionPop = TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
 -- Image-based animated topography.
--- Uses the real topography asset instead of procedurally drawing contour lines.
+-- Single clean asset layer per surface: no doubled/rotated copies.
 vape.TopographyPatterns = {}
 local topologyAccumulator = 0
 local topologyConnection
-
 local TOPOGRAPHY_IMAGE = 'rbxassetid://2151741365'
 
 local function addTopography(parent, transparency, rich)
@@ -457,51 +456,31 @@ local function addTopography(parent, transparency, rich)
 	holder.Parent = parent
 	addCorner(holder)
 
-	-- The old values were tuned for thin procedural lines and made the image
-	-- almost invisible. Pull transparency down so the actual texture reads.
-	local visibleTransparency = math.clamp((transparency or 0.88) - 0.22, 0.48, 0.76)
-
-	local back = Instance.new('ImageLabel')
-	back.Name = 'TopographyBack'
-	back.AnchorPoint = Vector2.new(0.5, 0.5)
-	back.BackgroundTransparency = 1
-	back.Image = TOPOGRAPHY_IMAGE
-	back.ImageColor3 = color.Light(uipallet.Main, 0.22)
-	back.ImageTransparency = visibleTransparency
-	back.Position = UDim2.fromScale(0.5, 0.5)
-	back.Rotation = rich and -3 or -1.5
-	back.ScaleType = Enum.ScaleType.Tile
-	back.Size = UDim2.new(1, 360, 1, 360)
-	back.TileSize = UDim2.fromOffset(rich and 290 or 245, rich and 290 or 245)
-	back.Parent = holder
-
-	local front
-	if rich then
-		front = Instance.new('ImageLabel')
-		front.Name = 'TopographyFront'
-		front.AnchorPoint = Vector2.new(0.5, 0.5)
-		front.BackgroundTransparency = 1
-		front.Image = TOPOGRAPHY_IMAGE
-		front.ImageColor3 = back.ImageColor3
-		front.ImageTransparency = math.clamp(visibleTransparency + 0.14, 0, 0.88)
-		front.Position = UDim2.fromScale(0.58, 0.46)
-		front.Rotation = 5
-		front.ScaleType = Enum.ScaleType.Tile
-		front.Size = UDim2.new(1, 420, 1, 420)
-		front.TileSize = UDim2.fromOffset(335, 335)
-		front.Parent = holder
-	end
+	local image = Instance.new('ImageLabel')
+	image.Name = 'Topography'
+	image.AnchorPoint = Vector2.new(0.5, 0.5)
+	image.BackgroundTransparency = 1
+	image.Image = TOPOGRAPHY_IMAGE
+	image.ImageColor3 = Color3.fromHSV(
+		vape.GUIColor.Hue,
+		math.min(vape.GUIColor.Sat * 0.58, 0.72),
+		math.max(vape.GUIColor.Value, 0.74)
+	)
+	image.ImageTransparency = transparency or (rich and 0.82 or 0.72)
+	image.Position = UDim2.fromScale(0.5, 0.5)
+	image.Rotation = 0
+	image.ScaleType = Enum.ScaleType.Tile
+	image.Size = UDim2.new(1, rich and 420 or 240, 1, rich and 420 or 240)
+	image.TileSize = UDim2.fromOffset(rich and 330 or 235, rich and 330 or 235)
+	image.Parent = holder
 
 	local topology = {
 		Holder = holder,
-		Back = back,
-		Front = front,
+		Image = image,
 		Rich = rich == true,
-		Seed = math.random() * 10,
-		Color = back.ImageColor3,
-		Transparency = visibleTransparency
+		Seed = math.random() * 20,
+		BaseTransparency = image.ImageTransparency
 	}
-
 	table.insert(vape.TopographyPatterns, topology)
 
 	if not topologyConnection then
@@ -514,30 +493,21 @@ local function addTopography(parent, transparency, rich)
 			for index = #vape.TopographyPatterns, 1, -1 do
 				local active = vape.TopographyPatterns[index]
 				local activeHolder = active.Holder
+				local activeImage = active.Image
 
-				if not activeHolder or not activeHolder.Parent then
+				if not activeHolder or not activeHolder.Parent or not activeImage or not activeImage.Parent then
 					table.remove(vape.TopographyPatterns, index)
 					continue
 				end
 
 				local phase = now + active.Seed
-				local backImage = active.Back
-				if backImage and backImage.Parent then
-					backImage.Position = UDim2.fromScale(
-						0.5 + math.sin(phase * 0.19) * (active.Rich and 0.045 or 0.027),
-						0.5 + math.cos(phase * 0.16) * (active.Rich and 0.038 or 0.022)
-					)
-					backImage.Rotation = (active.Rich and -3 or -1.5) + math.sin(phase * 0.11) * (active.Rich and 2.6 or 1.3)
-				end
+				local amplitude = active.Rich and 18 or 9
 
-				local frontImage = active.Front
-				if frontImage and frontImage.Parent then
-					frontImage.Position = UDim2.fromScale(
-						0.58 + math.cos(phase * 0.23) * 0.052,
-						0.46 + math.sin(phase * 0.20) * 0.042
-					)
-					frontImage.Rotation = 5 + math.cos(phase * 0.13) * 3.4
-				end
+				-- Tiny parallax only. No rotation or stacked ghost layer.
+				activeImage.Position = UDim2.new(
+					0.5, math.sin(phase * 0.16) * amplitude,
+					0.5, math.cos(phase * 0.13) * amplitude
+				)
 			end
 		end)
 		vape:Clean(topologyConnection)
@@ -768,10 +738,71 @@ local function removeTags(text)
 	return text:gsub('<[^<>]->', '')
 end
 
+local guiBlurEffect
+local guiBlurTween
+
 function vape:BlurCheck()
-	if self.ThreadFix then
-		setthreadidentity(8)
-		runService:SetRobloxGuiFocused((clickgui.Visible or guiService:GetErrorType() ~= Enum.ConnectionError.OK) and self.Blur.Enabled)
+	-- During uninject, never recreate the effect after cleanup has already run.
+	if self.Loaded == nil then
+		if guiBlurTween then
+			guiBlurTween:Cancel()
+			guiBlurTween = nil
+		end
+		if guiBlurEffect then
+			pcall(function()
+				guiBlurEffect.Enabled = false
+				guiBlurEffect.Size = 0
+				guiBlurEffect:Destroy()
+			end)
+			guiBlurEffect = nil
+		end
+		return
+	end
+
+	local legitVisible = self.Legit and self.Legit.Window and self.Legit.Window.Visible
+	local clickVisible = clickgui and clickgui.Visible
+	local blurEnabled = self.Blur and self.Blur.Enabled
+	local shouldBlur = (clickVisible or legitVisible) and blurEnabled
+
+	if not guiBlurEffect or not guiBlurEffect.Parent then
+		guiBlurEffect = Instance.new('BlurEffect')
+		guiBlurEffect.Name = 'VapeGUIBlur'
+		guiBlurEffect.Enabled = false
+		guiBlurEffect.Size = 0
+		guiBlurEffect.Parent = lightingService
+		self:Clean(guiBlurEffect)
+	end
+
+	if guiBlurTween then
+		guiBlurTween:Cancel()
+		guiBlurTween = nil
+	end
+
+	if shouldBlur then
+		guiBlurEffect.Enabled = true
+		guiBlurTween = tweenService:Create(
+			guiBlurEffect,
+			TweenInfo.new(0.16, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+			{Size = 18}
+		)
+		guiBlurTween:Play()
+	else
+		if guiBlurEffect.Enabled then
+			guiBlurTween = tweenService:Create(
+				guiBlurEffect,
+				TweenInfo.new(0.13, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+				{Size = 0}
+			)
+			guiBlurTween:Play()
+
+			task.delay(0.14, function()
+				if guiBlurEffect and guiBlurEffect.Parent and guiBlurEffect.Size <= 0.05 then
+					guiBlurEffect.Enabled = false
+				end
+			end)
+		else
+			guiBlurEffect.Size = 0
+		end
 	end
 end
 
@@ -1042,7 +1073,7 @@ function vape:LoadGUI()
 	clickgui.Size = UDim2.fromScale(1, 1)
 	clickgui.Visible = false
 	clickgui.Parent = scaledgui
-	addTopography(clickgui, 0.955, true)
+	local guiTopology = addTopography(clickgui, 0.86, true)
 	local scarcitybanner = Instance.new('TextLabel')
 	scarcitybanner.BackgroundTransparency = 1
 	scarcitybanner.FontFace = uipallet.Font
@@ -1053,41 +1084,10 @@ function vape:LoadGUI()
 	scarcitybanner.TextScaled = true
 	scarcitybanner.TextStrokeTransparency = 0.5
 	scarcitybanner.Parent = clickgui
-	local modal = Instance.new('TextButton')
-	modal.Name = 'InputBlocker'
-	modal.Active = true
-	modal.AutoButtonColor = false
-	modal.BackgroundTransparency = 1
-	modal.Modal = true
-	modal.Position = UDim2.fromScale(0, 0)
-	modal.Size = UDim2.fromScale(1, 1)
-	modal.Text = ''
-	modal.ZIndex = 0
-	modal.Parent = clickgui
-
-	-- Stop ClickGUI interactions from falling through into equipped tools/guns.
-	-- The full-screen Modal button handles Roblox's normal Tool activation path,
-	-- while this high-priority action also sinks game actions bound through CAS.
-	local guiInputAction = 'VapeGuiInputSink_'..randomString()
-	contextService:BindActionAtPriority(guiInputAction, function(_, inputState)
-		local legitVisible = vape.Legit and vape.Legit.Window and vape.Legit.Window.Visible
-		if clickgui.Visible or legitVisible then
-			if inputState == Enum.UserInputState.Begin
-				or inputState == Enum.UserInputState.Change
-				or inputState == Enum.UserInputState.End then
-				return Enum.ContextActionResult.Sink
-			end
-		end
-		return Enum.ContextActionResult.Pass
-	end, false, Enum.ContextActionPriority.High.Value + 1000,
-		Enum.UserInputType.MouseButton1,
-		Enum.UserInputType.MouseButton2
-	)
-	vape:Clean(function()
-		pcall(function()
-			contextService:UnbindAction(guiInputAction)
-		end)
-	end)
+	-- Mark mouse clicks over the open GUI as GUI input without stealing keyboard/game focus.
+	-- No Modal button and no ContextActionService sink: those break Frontlines input.
+	clickgui.Active = true
+	clickgui.Selectable = false
 	local cursor = Instance.new('ImageLabel')
 	cursor.BackgroundTransparency = 1
 	cursor.Image = 'rbxasset://textures/Cursors/KeyboardMouse/ArrowFarCursor.png'
@@ -2464,9 +2464,13 @@ function vape:LoadGUI()
 		end
 	
 		clickgui.Visible = not clickgui.Visible
-		if clickgui.Visible then
-			guiTopology.ImageTransparency = 1
-			tween:Tween(guiTopology, uiMotion, {ImageTransparency = 0.94})
+		if clickgui.Visible and guiTopology then
+			local image = guiTopology:FindFirstChild('Topography')
+			if image then
+				local targetTransparency = 0.86
+				image.ImageTransparency = 1
+				tween:Tween(image, uiMotion, {ImageTransparency = targetTransparency})
+			end
 		end
 		vape:BlurCheck()
 	end))
@@ -2693,17 +2697,10 @@ function vape:UpdateGUIQueue(hue, sat, val)
 
 	if not clickgui.Visible and not vape.Legit.Window.Visible then return end
 	local isRainbow = vape.GUIColor.Rainbow and vape.RainbowMode.Value ~= 'Retro'
-	-- Keep the texture noticeably brighter/more saturated than the old dim version.
-	local topologyColor = Color3.fromHSV(hue, math.min(sat * 0.78, 0.9), math.max(val, 0.72))
+	local topologyColor = Color3.fromHSV(hue, math.min(sat * 0.58, 0.72), math.max(val, 0.74))
 	for _, topology in vape.TopographyPatterns do
-		if topology.Holder and topology.Holder.Parent then
-			topology.Color = topologyColor
-			if topology.Back and topology.Back.Parent then
-				topology.Back.ImageColor3 = topologyColor
-			end
-			if topology.Front and topology.Front.Parent then
-				topology.Front.ImageColor3 = topologyColor
-			end
+		if topology.Holder and topology.Holder.Parent and topology.Image and topology.Image.Parent then
+			topology.Image.ImageColor3 = topologyColor
 		end
 	end
 
@@ -3106,7 +3103,7 @@ components = {
 		addBlur(window)
 		addCorner(window)
 		addDragHandler(window)
-		addTopography(window, 0.88)
+		addTopography(window, 0.70)
 		local icon = Instance.new('ImageLabel')
 		icon.BackgroundTransparency = 1
 		icon.Image = props.Icon
@@ -3387,7 +3384,7 @@ components = {
 		addBlur(window)
 		addCorner(window)
 		addDragHandler(window)
-		addTopography(window, 0.88)
+		addTopography(window, 0.70)
 		local icon = Instance.new('ImageLabel')
 		icon.BackgroundTransparency = 1
 		icon.Image = props.Icon
@@ -4697,7 +4694,7 @@ components = {
 		addBlur(window)
 		addCorner(window)
 		addDragHandler(window)
-		addTopography(window, 0.89)
+		addTopography(window, 0.72)
 		local logo = Instance.new('ImageLabel')
 		logo.BackgroundTransparency = 1
 		logo.Image = getvapeasset('newvape/assets/new/vapelogomini.png')
@@ -5945,15 +5942,12 @@ components = {
 		window.Parent = scaledgui
 		table.insert(vape.Windows, window)
 		component.Window = window
+		window.Active = true
+		window.Selectable = false
 		addBlur(window)
 		addCorner(window)
 		addDragHandler(window)
-		addTopography(window, 0.90)
-		local modal = Instance.new('TextButton')
-		modal.BackgroundTransparency = 1
-		modal.Modal = true
-		modal.Text = ''
-		modal.Parent = window
+		addTopography(window, 0.72)
 		local icon = Instance.new('ImageLabel')
 		icon.BackgroundTransparency = 1
 		icon.Image = getvapeasset('newvape/assets/new/legit_mode_icon.png')
@@ -6025,6 +6019,7 @@ components = {
 			window.Position = target + UDim2.fromOffset(0, 12)
 			windowScale.Scale = 0.96
 			window.Visible = true
+			vape:BlurCheck()
 			tween:Tween(window, uiMotion, {Position = target})
 			tweenService:Create(windowScale, uiMotionPop, {Scale = 1}):Play()
 		end
@@ -6044,6 +6039,7 @@ components = {
 					if returnToClickGui then
 						clickgui.Visible = true
 					end
+					vape:BlurCheck()
 				end
 			end)
 		end
