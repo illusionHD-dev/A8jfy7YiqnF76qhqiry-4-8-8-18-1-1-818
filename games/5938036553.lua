@@ -1808,7 +1808,7 @@ end)
 
 
 
--- ILLUSIONHD_GUNCHANGER_V1
+-- ILLUSIONHD_GUNCHANGER_V2
 run(function()
 	local GunChanger
 	local RainbowSpeed
@@ -1818,7 +1818,10 @@ run(function()
 	local optionsReady = false
 
 	local originals = {}
+	local textureOriginals = {}
 	local gunParts = {}
+	local gunTextures = {}
+	local currentModel
 	local lastScan = 0
 
 	local function optionValue(option, fallback)
@@ -1832,46 +1835,44 @@ run(function()
 		return fallback
 	end
 
-	local function nameLooksLikeBody(name)
-		name = name:lower()
-		return name:find('arm', 1, true)
-			or name:find('hand', 1, true)
-			or name:find('glove', 1, true)
-			or name:find('sleeve', 1, true)
-			or name:find('body', 1, true)
-			or name:find('torso', 1, true)
-			or name:find('head', 1, true)
-			or name:find('root', 1, true)
-	end
-
-	local function isIgnored(part)
-		local obj = part
-		while obj and obj ~= gameCamera do
-			if nameLooksLikeBody(obj.Name) then
-				return true
-			end
-
-			if obj.Name == 'IllusionHDCustomKnife'
-				or obj.Name == 'IllusionHDFireflies'
-				or obj.Name == 'IllusionHDHitEffects'
-				or obj.Name == 'IllusionHDKillEffects' then
-				return true
-			end
-
-			obj = obj.Parent
-		end
-
-		return false
+	-- Frontlines' first-person firearm model is a direct child of workspace
+	-- and is literally named "Model".
+	local function getGunModel()
+		local model = workspace:FindFirstChild('Model')
+		return model and model:IsA('Model') and model or nil
 	end
 
 	local function savePart(part)
 		if originals[part] then return end
-		originals[part] = {
+
+		local old = {
 			Material = part.Material,
 			Color = part.Color,
 			Reflectance = part.Reflectance,
 			Transparency = part.Transparency
 		}
+
+		if part:IsA('MeshPart') then
+			old.TextureID = part.TextureID
+		end
+
+		originals[part] = old
+	end
+
+	local function saveTexture(obj)
+		if textureOriginals[obj] then return end
+
+		if obj:IsA('Decal') or obj:IsA('Texture') then
+			textureOriginals[obj] = {
+				Type = 'TextureObject',
+				Transparency = obj.Transparency
+			}
+		elseif obj:IsA('SpecialMesh') then
+			textureOriginals[obj] = {
+				Type = 'SpecialMesh',
+				TextureId = obj.TextureId
+			}
+		end
 	end
 
 	local function restorePart(part)
@@ -1884,62 +1885,133 @@ run(function()
 				part.Color = old.Color
 				part.Reflectance = old.Reflectance
 				part.Transparency = old.Transparency
+
+				if old.TextureID ~= nil and part:IsA('MeshPart') then
+					part.TextureID = old.TextureID
+				end
 			end)
 		end
 
 		originals[part] = nil
 	end
 
+	local function restoreTexture(obj)
+		local old = textureOriginals[obj]
+		if not old then return end
+
+		if obj and obj.Parent then
+			pcall(function()
+				if old.Type == 'TextureObject' then
+					obj.Transparency = old.Transparency
+				elseif old.Type == 'SpecialMesh' then
+					obj.TextureId = old.TextureId
+				end
+			end)
+		end
+
+		textureOriginals[obj] = nil
+	end
+
 	local function restoreAll()
 		for part in originals do
 			restorePart(part)
 		end
-		table.clear(gunParts)
-	end
 
-	local function currentGun()
-		local equipment = frontlines.Main
-			and frontlines.Main.globals
-			and frontlines.Main.globals.fpv_sol_equipment
-		return equipment and equipment.curr_equipment
+		for obj in textureOriginals do
+			restoreTexture(obj)
+		end
+
+		table.clear(gunParts)
+		table.clear(gunTextures)
+		currentModel = nil
 	end
 
 	local function scanGun()
-		local gun = currentGun()
+		local model = getGunModel()
 
-		-- Frontlines uses type 2 for melee/knife.
-		if not gun or gun.type == 2 then
+		if not model then
 			restoreAll()
 			return
 		end
 
-		local newParts = {}
-		local seen = {}
+		-- If Frontlines replaced workspace.Model during a gun swap/reload,
+		-- restore the old model first and start tracking the new one.
+		if currentModel ~= model then
+			restoreAll()
+			currentModel = model
+		end
 
-		-- FPV weapon geometry is rendered under CurrentCamera.
-		for _, obj in gameCamera:GetDescendants() do
-			if obj:IsA('BasePart')
-				and not seen[obj]
-				and not isIgnored(obj) then
-				seen[obj] = true
+		local newParts = {}
+		local newTextures = {}
+		local activeParts = {}
+		local activeTextures = {}
+
+		for _, obj in model:GetDescendants() do
+			if obj:IsA('BasePart') then
 				savePart(obj)
 				table.insert(newParts, obj)
+				activeParts[obj] = true
+			elseif obj:IsA('Decal') or obj:IsA('Texture') or obj:IsA('SpecialMesh') then
+				saveTexture(obj)
+				table.insert(newTextures, obj)
+				activeTextures[obj] = true
 			end
 		end
 
-		-- Restore anything that disappeared from the current firearm/viewmodel.
-		local active = {}
-		for _, part in newParts do
-			active[part] = true
-		end
-
 		for part in originals do
-			if not active[part] then
+			if not activeParts[part] then
 				restorePart(part)
 			end
 		end
 
+		for obj in textureOriginals do
+			if not activeTextures[obj] then
+				restoreTexture(obj)
+			end
+		end
+
 		gunParts = newParts
+		gunTextures = newTextures
+	end
+
+	local function applyGun(now)
+		local hue = (now * (optionValue(RainbowSpeed, 8) / 10)) % 1
+		local rainbow = Color3.fromHSV(
+			hue,
+			optionValue(Saturation, 1),
+			optionValue(Brightness, 1)
+		)
+
+		for _, part in gunParts do
+			if part and part.Parent and part:IsDescendantOf(currentModel) then
+				pcall(function()
+					part.Material = Enum.Material.ForceField
+					part.Color = rainbow
+					part.Reflectance = 0
+
+					if part:IsA('MeshPart') then
+						part.TextureID = ''
+					end
+
+					if optionEnabled(BrightForceField, true) then
+						part.Transparency = math.min(part.Transparency, 0.06)
+					end
+				end)
+			end
+		end
+
+		-- Hide texture overlays that would otherwise cover the ForceField color.
+		for _, obj in gunTextures do
+			if obj and obj.Parent and obj:IsDescendantOf(currentModel) then
+				pcall(function()
+					if obj:IsA('Decal') or obj:IsA('Texture') then
+						obj.Transparency = 1
+					elseif obj:IsA('SpecialMesh') then
+						obj.TextureId = ''
+					end
+				end)
+			end
+		end
 	end
 
 	GunChanger = vape.Categories.Render:CreateModule({
@@ -1958,47 +2030,45 @@ run(function()
 						if not optionsReady then return end
 
 						local now = tick()
-						local gun = currentGun()
+						local model = getGunModel()
 
-						if not gun or gun.type == 2 then
-							restoreAll()
+						if not model then
+							if currentModel then
+								restoreAll()
+							end
 							return
 						end
 
-						if now - lastScan > 0.2 then
+						if model ~= currentModel or now - lastScan > 0.12 then
 							lastScan = now
 							scanGun()
 						end
 
-						local hue = (now * (optionValue(RainbowSpeed, 8) / 10)) % 1
-						local color = Color3.fromHSV(
-							hue,
-							optionValue(Saturation, 1),
-							optionValue(Brightness, 1)
-						)
-
-						for _, part in gunParts do
-							if part and part.Parent then
-								part.Material = Enum.Material.ForceField
-								part.Color = color
-								part.Reflectance = 0
-
-								if optionEnabled(BrightForceField, true) then
-									part.Transparency = math.min(part.Transparency, 0.08)
-								end
-							end
+						if currentModel and currentModel.Parent then
+							applyGun(now)
 						end
 					end))
 
-					GunChanger:Clean(entitylib.Events.LocalAdded:Connect(function()
-						lastScan = 0
+					-- Frontlines commonly destroys/recreates workspace.Model
+					-- when switching weapons, so force an immediate rescan.
+					GunChanger:Clean(workspace.ChildAdded:Connect(function(obj)
+						if obj.Name == 'Model' and obj:IsA('Model') then
+							lastScan = 0
+						end
+					end))
+
+					GunChanger:Clean(workspace.ChildRemoved:Connect(function(obj)
+						if obj == currentModel then
+							restoreAll()
+							lastScan = 0
+						end
 					end))
 				end)
 			else
 				restoreAll()
 			end
 		end,
-		Tooltip = 'Changes your first-person firearm into an animated rainbow ForceField.'
+		Tooltip = 'Changes workspace.Model (Frontlines firearm) into an animated rainbow ForceField.'
 	})
 
 	RainbowSpeed = GunChanger:CreateSlider({
