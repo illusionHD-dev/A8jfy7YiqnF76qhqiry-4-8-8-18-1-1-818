@@ -65,6 +65,144 @@ local targetinfo = vape.Libraries.targetinfo
 local getfontbounds = vape.Libraries.getfontbounds
 local getvapeasset = vape.Libraries.getvapeasset
 
+
+-- GUI compatibility bridge -------------------------------------------------
+-- Some customized GUI builds do not expose the newer HUD styling helpers
+-- expected by universal.lua. Keep universal compatible with those builds
+-- while retaining live GUI-accent updates.
+do
+	vape.HUDAccentObjects = vape.HUDAccentObjects or setmetatable({}, {__mode = 'k'})
+
+	if type(vape.GetGUIColorRGB) ~= 'function' then
+		function vape:GetGUIColorRGB()
+			local guiColor = self.GUIColor
+			if type(guiColor) == 'table'
+				and type(guiColor.Hue) == 'number'
+				and type(guiColor.Sat) == 'number'
+				and type(guiColor.Value) == 'number' then
+				return Color3.fromHSV(guiColor.Hue, guiColor.Sat, guiColor.Value)
+			end
+
+			return Color3.fromRGB(103, 235, 193)
+		end
+	end
+
+	if type(vape.RegisterHUDAccent) ~= 'function' then
+		function vape:RegisterHUDAccent(object, property)
+			if typeof(object) ~= 'Instance' then return object end
+
+			property = property or (
+				object:IsA('UIStroke') and 'Color'
+				or (object:IsA('ImageLabel') or object:IsA('ImageButton')) and 'ImageColor3'
+				or (object:IsA('TextLabel') or object:IsA('TextButton')) and 'TextColor3'
+				or 'BackgroundColor3'
+			)
+
+			self.HUDAccentObjects[object] = property
+
+			pcall(function()
+				object[property] = self:GetGUIColorRGB()
+			end)
+
+			object.Destroying:Once(function()
+				if self.HUDAccentObjects then
+					self.HUDAccentObjects[object] = nil
+				end
+			end)
+
+			return object
+		end
+	end
+
+	if type(vape.StyleHUDCard) ~= 'function' then
+		function vape:StyleHUDCard(object)
+			if typeof(object) ~= 'Instance' or not object:IsA('GuiObject') then
+				return object
+			end
+
+			local palette = self.Libraries and self.Libraries.uipallet
+			local main = palette and palette.Main or Color3.fromRGB(26, 25, 26)
+
+			-- Keep caller-controlled opacity, sizing and text while making the
+			-- surface visually match the main GUI.
+			object.BorderSizePixel = 0
+			object.BackgroundColor3 = main
+
+			local cardCorner = object:FindFirstChild('HUDCardCorner')
+				or object:FindFirstChildWhichIsA('UICorner')
+			if not cardCorner then
+				cardCorner = Instance.new('UICorner')
+				cardCorner.Name = 'HUDCardCorner'
+				cardCorner.CornerRadius = UDim.new(0, 6)
+				cardCorner.Parent = object
+			end
+
+			local cardStroke = object:FindFirstChild('HUDCardStroke')
+			if not cardStroke then
+				cardStroke = Instance.new('UIStroke')
+				cardStroke.Name = 'HUDCardStroke'
+				cardStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+				cardStroke.Color = Color3.fromRGB(255, 255, 255)
+				cardStroke.Transparency = 0.92
+				cardStroke.Thickness = 1
+				cardStroke.Parent = object
+			end
+
+			-- A very subtle accent edge makes standalone HUD widgets inherit
+			-- the same visual language as the ClickGUI without being loud.
+			local accent = object:FindFirstChild('HUDAccentEdge')
+			if not accent then
+				accent = Instance.new('Frame')
+				accent.Name = 'HUDAccentEdge'
+				accent.AnchorPoint = Vector2.new(0, 0.5)
+				accent.BackgroundColor3 = self:GetGUIColorRGB()
+				accent.BorderSizePixel = 0
+				accent.Position = UDim2.new(0, 0, 0.5, 0)
+				accent.Size = UDim2.new(0, 2, 1, -12)
+				accent.ZIndex = math.max(object.ZIndex + 1, 2)
+				accent.Parent = object
+
+				local accentCorner = Instance.new('UICorner')
+				accentCorner.CornerRadius = UDim.new(1, 0)
+				accentCorner.Parent = accent
+
+				self:RegisterHUDAccent(accent, 'BackgroundColor3')
+			end
+
+			return object
+		end
+	end
+
+	-- Keep registered HUD accents updated even if the underlying GUI's own
+	-- UpdateGUIQueue exits early while the ClickGUI itself is closed.
+	if not vape._HUDAccentUpdateHooked then
+		vape._HUDAccentUpdateHooked = true
+
+		local oldUpdateGUIQueue = vape.UpdateGUIQueue
+		if type(oldUpdateGUIQueue) == 'function' then
+			vape.UpdateGUIQueue = function(self, hue, sat, val, ...)
+				local results = table.pack(oldUpdateGUIQueue(self, hue, sat, val, ...))
+				local accentColor = Color3.fromHSV(hue, sat, val)
+
+				if self.HUDAccentObjects then
+					for object, property in self.HUDAccentObjects do
+						if object and object.Parent then
+							pcall(function()
+								object[property] = accentColor
+							end)
+						else
+							self.HUDAccentObjects[object] = nil
+						end
+					end
+				end
+
+				return table.unpack(results, 1, results.n)
+			end
+		end
+	end
+end
+-- GUI compatibility bridge end --------------------------------------------
+
 local TargetStrafeVector, SpiderShift, WaypointFolder
 local Spider = {Enabled = false}
 local Phase = {Enabled = false}
