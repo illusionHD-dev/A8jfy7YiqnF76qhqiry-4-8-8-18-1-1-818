@@ -1,4 +1,5 @@
 -- illusionHD / Vape loading screen
+-- ILLUSIONHD_LOADING_TOPO_IMAGE_V2
 -- Rewritten loader using the real topography image asset (2151741365).
 local Players = game:GetService('Players')
 local RunService = game:GetService('RunService')
@@ -732,21 +733,37 @@ function vape:HideLoadingScreen(immediate)
 		m:Cancel()
 	end
 
-	state.Tweens = {
-		tween(state.WindowScale, 0.22, {
-			Scale = 0.975
-		}, Enum.EasingStyle.Quart, Enum.EasingDirection.In),
+	local closeScale = 0.975
+	if state.WindowScale then
+		local ok, currentScale = pcall(function()
+			return state.WindowScale.Scale
+		end)
+		if ok and type(currentScale) == 'number' then
+			closeScale = math.max(currentScale * 0.975, 0.01)
+		end
+	end
 
-		tween(state.Window, 0.24, {
+	state.Tweens = {}
+
+	if state.WindowScale then
+		table.insert(state.Tweens, tween(state.WindowScale, 0.22, {
+			Scale = closeScale
+		}, Enum.EasingStyle.Quart, Enum.EasingDirection.In))
+	end
+
+	if state.Window then
+		table.insert(state.Tweens, tween(state.Window, 0.24, {
 			GroupTransparency = 1,
 			Position = UDim2.new(0.5, 0, 0.5, -9)
-		}, Enum.EasingStyle.Quart, Enum.EasingDirection.In),
+		}, Enum.EasingStyle.Quart, Enum.EasingDirection.In))
+	end
 
-		tween(state.Root, 0.3, {
+	if state.Root then
+		table.insert(state.Tweens, tween(state.Root, 0.3, {
 			GroupTransparency = 1,
 			BackgroundTransparency = 1
-		}, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
-	}
+		}, Enum.EasingStyle.Quart, Enum.EasingDirection.In))
+	end
 
 	task.delay(0.31, function()
 		if state.Screen and state.Screen.Parent then
