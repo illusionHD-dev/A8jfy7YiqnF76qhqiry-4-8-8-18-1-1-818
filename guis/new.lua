@@ -439,115 +439,111 @@ local uiMotionFast = TweenInfo.new(0.14, Enum.EasingStyle.Quart, Enum.EasingDire
 local uiMotion = TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 local uiMotionPop = TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
--- Procedural topography: no texture asset. Every contour is a closed polyline made
--- from thin Frames, then continuously warped with math.noise + sine motion.
+-- Image-based animated topography.
+-- Uses the real topography asset instead of procedurally drawing contour lines.
 vape.TopographyPatterns = {}
 local topologyAccumulator = 0
 local topologyConnection
-local updateTopography
 
-local function setTopologySegment(segment, a, b, thickness)
-	local delta = b - a
-	local length = delta.Magnitude
-	segment.Position = UDim2.fromOffset(a.X, a.Y)
-	segment.Size = UDim2.fromOffset(math.max(length, 0.5), thickness)
-	segment.Rotation = math.deg(math.atan2(delta.Y, delta.X))
-end
+local TOPOGRAPHY_IMAGE = 'rbxassetid://2151741365'
 
 local function addTopography(parent, transparency, rich)
 	local holder = Instance.new('Frame')
-	holder.Name = 'ProceduralTopography'
+	holder.Name = 'AnimatedTopography'
 	holder.BackgroundTransparency = 1
 	holder.ClipsDescendants = true
 	holder.Size = UDim2.fromScale(1, 1)
 	holder.Parent = parent
 	addCorner(holder)
 
-	local topology = {
-		Holder = holder,
-		Color = color.Light(uipallet.Main, 0.16),
-		Transparency = transparency or 0.9,
-		Seed = math.random() * 100,
-		Contours = {},
-		Rich = rich == true
-	}
+	-- The old values were tuned for thin procedural lines and made the image
+	-- almost invisible. Pull transparency down so the actual texture reads.
+	local visibleTransparency = math.clamp((transparency or 0.88) - 0.22, 0.48, 0.76)
 
-	local contourCount = rich and 8 or 4
-	local pointCount = rich and 20 or 12
-	for ring = 1, contourCount do
-		local contour = {Segments = {}, Ring = ring, Points = pointCount}
-		for point = 1, pointCount do
-			local segment = Instance.new('Frame')
-			segment.Name = 'ContourSegment'
-			segment.AnchorPoint = Vector2.new(0, 0.5)
-			segment.BackgroundColor3 = topology.Color
-			segment.BackgroundTransparency = math.clamp(topology.Transparency + (ring / contourCount) * 0.035, 0, 1)
-			segment.BorderSizePixel = 0
-			segment.Size = UDim2.fromOffset(1, rich and 1 or 0.8)
-			segment.Parent = holder
-			contour.Segments[point] = segment
-		end
-		topology.Contours[ring] = contour
+	local back = Instance.new('ImageLabel')
+	back.Name = 'TopographyBack'
+	back.AnchorPoint = Vector2.new(0.5, 0.5)
+	back.BackgroundTransparency = 1
+	back.Image = TOPOGRAPHY_IMAGE
+	back.ImageColor3 = color.Light(uipallet.Main, 0.22)
+	back.ImageTransparency = visibleTransparency
+	back.Position = UDim2.fromScale(0.5, 0.5)
+	back.Rotation = rich and -3 or -1.5
+	back.ScaleType = Enum.ScaleType.Tile
+	back.Size = UDim2.new(1, 360, 1, 360)
+	back.TileSize = UDim2.fromOffset(rich and 290 or 245, rich and 290 or 245)
+	back.Parent = holder
+
+	local front
+	if rich then
+		front = Instance.new('ImageLabel')
+		front.Name = 'TopographyFront'
+		front.AnchorPoint = Vector2.new(0.5, 0.5)
+		front.BackgroundTransparency = 1
+		front.Image = TOPOGRAPHY_IMAGE
+		front.ImageColor3 = back.ImageColor3
+		front.ImageTransparency = math.clamp(visibleTransparency + 0.14, 0, 0.88)
+		front.Position = UDim2.fromScale(0.58, 0.46)
+		front.Rotation = 5
+		front.ScaleType = Enum.ScaleType.Tile
+		front.Size = UDim2.new(1, 420, 1, 420)
+		front.TileSize = UDim2.fromOffset(335, 335)
+		front.Parent = holder
 	end
 
+	local topology = {
+		Holder = holder,
+		Back = back,
+		Front = front,
+		Rich = rich == true,
+		Seed = math.random() * 10,
+		Color = back.ImageColor3,
+		Transparency = visibleTransparency
+	}
+
 	table.insert(vape.TopographyPatterns, topology)
+
 	if not topologyConnection then
 		topologyConnection = runService.RenderStepped:Connect(function(dt)
 			topologyAccumulator += dt
 			if topologyAccumulator < (1 / 30) then return end
 			topologyAccumulator = 0
+
 			local now = os.clock()
-			for _, activeTopology in vape.TopographyPatterns do
-				updateTopography(activeTopology, now)
+			for index = #vape.TopographyPatterns, 1, -1 do
+				local active = vape.TopographyPatterns[index]
+				local activeHolder = active.Holder
+
+				if not activeHolder or not activeHolder.Parent then
+					table.remove(vape.TopographyPatterns, index)
+					continue
+				end
+
+				local phase = now + active.Seed
+				local backImage = active.Back
+				if backImage and backImage.Parent then
+					backImage.Position = UDim2.fromScale(
+						0.5 + math.sin(phase * 0.19) * (active.Rich and 0.045 or 0.027),
+						0.5 + math.cos(phase * 0.16) * (active.Rich and 0.038 or 0.022)
+					)
+					backImage.Rotation = (active.Rich and -3 or -1.5) + math.sin(phase * 0.11) * (active.Rich and 2.6 or 1.3)
+				end
+
+				local frontImage = active.Front
+				if frontImage and frontImage.Parent then
+					frontImage.Position = UDim2.fromScale(
+						0.58 + math.cos(phase * 0.23) * 0.052,
+						0.46 + math.sin(phase * 0.20) * 0.042
+					)
+					frontImage.Rotation = 5 + math.cos(phase * 0.13) * 3.4
+				end
 			end
 		end)
 		vape:Clean(topologyConnection)
 	end
+
 	return holder
 end
-
-updateTopography = function(topology, now)
-	local holder = topology.Holder
-	if not holder or not holder.Parent then return end
-	local size = holder.AbsoluteSize
-	if size.X < 4 or size.Y < 4 then return end
-
-	local minAxis = math.min(size.X, size.Y)
-	local centerDriftX = math.sin(now * 0.13 + topology.Seed) * size.X * 0.025
-	local centerDriftY = math.cos(now * 0.11 + topology.Seed * 0.7) * size.Y * 0.035
-
-	for _, contour in topology.Contours do
-		local ring = contour.Ring
-		local points = contour.Points
-		local cluster = (ring % 2 == 0) and 1 or -1
-		local center = Vector2.new(
-			size.X * (0.5 + cluster * (topology.Rich and 0.11 or 0.06)) + centerDriftX,
-			size.Y * (0.5 - cluster * (topology.Rich and 0.05 or 0.025)) + centerDriftY
-		)
-		local baseRadius = minAxis * ((topology.Rich and 0.11 or 0.13) + ring * (topology.Rich and 0.045 or 0.055))
-		local squash = 0.62 + 0.08 * math.sin(now * 0.16 + ring)
-		local generated = table.create(points)
-
-		for point = 1, points do
-			local angle = ((point - 1) / points) * math.pi * 2
-			local nx = math.cos(angle)
-			local ny = math.sin(angle)
-			local n1 = math.noise(nx * 0.9 + topology.Seed, ny * 0.9 + ring * 0.31, now * 0.075)
-			local n2 = math.noise(nx * 1.7 - topology.Seed * 0.3, ny * 1.7 + ring, now * 0.045 + 8)
-			local breathe = math.sin(now * 0.28 + ring * 0.72 + angle * 3) * 0.035
-			local radius = baseRadius * (1 + n1 * 0.17 + n2 * 0.07 + breathe)
-			local warpX = math.noise(ring * 0.4, angle * 0.8 + topology.Seed, now * 0.09) * minAxis * 0.035
-			local warpY = math.noise(angle * 0.8 - topology.Seed, ring * 0.5, now * 0.085) * minAxis * 0.045
-			generated[point] = center + Vector2.new(nx * radius + warpX, ny * radius * squash + warpY)
-		end
-
-		for point, segment in contour.Segments do
-			local nextPoint = point == points and 1 or point + 1
-			setTopologySegment(segment, generated[point], generated[nextPoint], topology.Rich and 1 or 0.8)
-		end
-	end
-end
-
 
 local function addCloseButton(parent, mini, offset)
 	local close = Instance.new('ImageButton')
@@ -2666,14 +2662,16 @@ function vape:UpdateGUIQueue(hue, sat, val)
 
 	if not clickgui.Visible and not vape.Legit.Window.Visible then return end
 	local isRainbow = vape.GUIColor.Rainbow and vape.RainbowMode.Value ~= 'Retro'
-	local topologyColor = Color3.fromHSV(hue, math.min(sat * 0.55, 0.7), math.max(val, 0.55))
+	-- Keep the texture noticeably brighter/more saturated than the old dim version.
+	local topologyColor = Color3.fromHSV(hue, math.min(sat * 0.78, 0.9), math.max(val, 0.72))
 	for _, topology in vape.TopographyPatterns do
 		if topology.Holder and topology.Holder.Parent then
 			topology.Color = topologyColor
-			for _, contour in topology.Contours do
-				for _, segment in contour.Segments do
-					segment.BackgroundColor3 = topologyColor
-				end
+			if topology.Back and topology.Back.Parent then
+				topology.Back.ImageColor3 = topologyColor
+			end
+			if topology.Front and topology.Front.Parent then
+				topology.Front.ImageColor3 = topologyColor
 			end
 		end
 	end
