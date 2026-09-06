@@ -3,6 +3,7 @@
 -- ShowLoadingScreen(), WaitForMinimumDisplay(), HideLoadingScreen(immediate).
 -- Optional: SetLoadingProgress(0..1, status). Without updates, shows an indeterminate sweep.
 -- Shader-style UI lighting + an isolated BlurEffect; no camera/input hooks.
+-- Curve API: https://create.roblox.com/docs/reference/engine/classes/Path2D
 -- Font API: https://create.roblox.com/docs/reference/engine/datatypes/Font
 -- API references: https://create.roblox.com/docs/reference/engine/classes/BlurEffect
 -- https://create.roblox.com/docs/reference/engine/classes/UIGradient
@@ -31,7 +32,6 @@ local palette = {
 local accent = Color3.fromRGB(103, 235, 193)
 local theme
 
-local TOPOGRAPHY_IMAGE = 'rbxassetid://2151741365'
 
 local function new(class, parent, props)
 	local object = Instance.new(class)
@@ -160,7 +160,7 @@ local function buildLoadingScreen(self)
 	if self.LoadingScreen then self.LoadingScreen:Destroy() end
 	local screen = new('ScreenGui', playerGui, {
 		Name = 'VapeLoadingScreen', DisplayOrder = 10000001, IgnoreGuiInset = true,
-		ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Global
+		ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	})
 	self.LoadingScreen = screen
 	local root = new('CanvasGroup', screen, {
@@ -226,24 +226,69 @@ local function buildLoadingScreen(self)
 		Transparency = sequence({{0, 0.12}, {0.45, 0.65}, {1, 0.25}})
 	})
 
-	local artwork = frame(panel, 'Artwork', 288, 0, 272, 250, WHITE, 1, 7)
+	-- Keep every curve and light field physically within the card, even without clipping.
+	local artwork = frame(panel, 'Artwork', 330, 18, 214, 200, WHITE, 1, 7)
 	artwork.ClipsDescendants = true
-	local lightField = frame(artwork, 'LightField', 34, -60, 295, 320, accent, 0.93, 7)
+	local lightField = frame(artwork, 'LightField', 0, 0, 210, 196, accent, 0.95, 7)
 	corner(lightField, UDim.new(1, 0))
 	new('UIGradient', lightField, {
-		Rotation = -24, Transparency = sequence({{0, 1}, {0.48, 0.5}, {0.7, 0.06}, {1, 1}})
+		Rotation = 0, Transparency = sequence({{0, 1}, {0.6, 0.25}, {1, 1}})
 	})
-	local texture = new('ImageLabel', artwork, {
-		Name = 'FineTopography', BackgroundTransparency = 1, Image = TOPOGRAPHY_IMAGE,
-		ImageColor3 = accent, ImageTransparency = 0.57,
-		Position = UDim2.fromOffset(-60, -105), Size = UDim2.fromOffset(395, 395),
-		ScaleType = Enum.ScaleType.Fit, Rotation = -8, ZIndex = 8
-	})
-	-- The fade belongs to the ImageLabel, rather than its container.
-	local topoFade = new('UIGradient', texture, {
-		Rotation = 8, Transparency = sequence({{0, 1}, {0.26, 1}, {0.6, 0.26}, {1, 0.06}})
-	})
-	local bottomShade = frame(artwork, 'ArtworkFade', 0, 116, 272, 134, Color3.fromRGB(17, 19, 23), 0, 9)
+	local contourHolder = frame(artwork, 'ContourField', 0, 0, 214, 200, WHITE, 1, 8)
+	local contourStrokes = {}
+	local cardColor = Color3.fromRGB(17, 19, 23)
+	for level = 1, 12 do
+		local radius = 13 + level * 5.6
+		local function point(angle)
+			local ripple = 1 + 0.07 * math.sin(angle * 3 + level * 0.065)
+				+ 0.045 * math.cos(angle * 5 - level * 0.04)
+			return Vector2.new(108 + math.cos(angle) * radius * ripple,
+				98 + math.sin(angle) * radius * ripple * 0.89)
+		end
+		local emphasis = level % 4 == 0 and 0.52 or 0.32
+		local color = cardColor:Lerp(accent, emphasis)
+		local path
+		-- Native cubic curves are smooth at any UI scale. No raster image or texture rotation.
+		local ok = pcall(function()
+			path = new('Path2D', contourHolder, {
+				Name = 'Contour', Closed = true, Color3 = color,
+				Thickness = 1, Visible = true, ZIndex = 8
+			})
+			local controls = {}
+			local count = 24
+			local step = math.pi * 2 / count
+			for index = 0, count - 1 do
+				local angle = index * step
+				local p = point(angle)
+				local tangent = (point(angle + 0.001) - point(angle - 0.001)) * (step / 0.006)
+				controls[#controls + 1] = Path2DControlPoint.new(
+					UDim2.fromOffset(p.X, p.Y),
+					UDim2.fromOffset(-tangent.X, -tangent.Y),
+					UDim2.fromOffset(tangent.X, tangent.Y))
+			end
+			path:SetControlPoints(controls)
+		end)
+		if ok then
+			contourStrokes[#contourStrokes + 1] = {Object = path, Path = true, Emphasis = emphasis}
+		else
+			if path then path:Destroy() end
+			-- Compatibility fallback: short segments, all bounded well inside Artwork.
+			for index = 1, 72 do
+				local a = point((index - 1) / 72 * math.pi * 2)
+				local b = point(index / 72 * math.pi * 2)
+				local delta, center = b - a, (a + b) * 0.5
+				local segment = frame(contourHolder, 'ContourSegment', center.X, center.Y,
+					delta.Magnitude + 0.3, 1, color, 0, 8)
+				segment.AnchorPoint = Vector2.new(0.5, 0.5)
+				segment.Rotation = math.deg(math.atan2(delta.Y, delta.X))
+				contourStrokes[#contourStrokes + 1] = {Object = segment, Emphasis = emphasis}
+			end
+		end
+	end
+	-- Fade toward the text and progress area; these overlays stay within Artwork too.
+	local leftShade = frame(artwork, 'TextFade', 0, 0, 90, 200, cardColor, 0, 9)
+	new('UIGradient', leftShade, {Transparency = sequence({{0, 0}, {0.35, 0.2}, {1, 1}})})
+	local bottomShade = frame(artwork, 'ArtworkFade', 0, 146, 214, 54, cardColor, 0, 9)
 	new('UIGradient', bottomShade, {Rotation = 90, Transparency = sequence({{0, 1}, {1, 0}})})
 
 	local wordmark = label(panel, 'VAPE', 30, 24, 127, 42, 36, WHITE, Enum.FontWeight.Bold)
@@ -314,15 +359,19 @@ local function buildLoadingScreen(self)
 		colorClock = colorClock + dt
 		if colorClock >= 0.12 then
 			colorClock = 0
-			texture.ImageColor3, lightField.BackgroundColor3 = accent, accent
+			lightField.BackgroundColor3 = accent
+			for _, stroke in ipairs(contourStrokes) do
+				local color = cardColor:Lerp(accent, stroke.Emphasis)
+				if stroke.Path then stroke.Object.Color3 = color
+				else stroke.Object.BackgroundColor3 = color end
+			end
 			badge.BackgroundColor3, version.TextColor3 = accent, accent
 			liveDot.BackgroundColor3, progress.BackgroundColor3 = accent, accent
 			sweep.BackgroundColor3 = accent
 			edgeGradient.Color = ColorSequence.new(WHITE, accent)
 		end
-		texture.Position = UDim2.fromOffset(-60 + math.sin(elapsed * 0.23) * 5, -105 + math.sin(elapsed * 0.18) * 7)
-		topoFade.Offset = Vector2.new(math.sin(elapsed * 0.35) * 0.065, 0)
-		lightField.BackgroundTransparency = 0.935 + math.sin(elapsed * 0.7) * 0.014
+		contourHolder.Position = UDim2.fromOffset(math.sin(elapsed * 0.23) * 2, math.sin(elapsed * 0.18) * 2)
+		lightField.BackgroundTransparency = 0.95 + math.sin(elapsed * 0.7) * 0.008
 		edgeGradient.Offset = Vector2.new(math.sin(elapsed * 0.32) * 0.22, 0)
 		liveDot.BackgroundTransparency = state.Ready and 0 or 0.2 + (math.sin(elapsed * 4) + 1) * 0.2
 		if state.Target ~= nil then
