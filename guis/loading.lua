@@ -1,5 +1,5 @@
--- illusionHD / Vape startup overlay
--- Compact GUI-matched boot window with fully procedural animated contour topography.
+-- illusionHD / Vape loading screen
+-- Rewritten loader using the real topography image asset (2151741365).
 local Players = game:GetService('Players')
 local RunService = game:GetService('RunService')
 local TweenService = game:GetService('TweenService')
@@ -10,7 +10,7 @@ local previous = playerGui:FindFirstChild('VapeLoadingScreen')
 if previous then previous:Destroy() end
 
 local vape = {
-	MinimumDisplayTime = 2.2
+	MinimumDisplayTime = 2.25
 }
 
 local palette = {
@@ -23,6 +23,8 @@ local palette = {
 local accent = Color3.fromRGB(103, 235, 193)
 local theme
 
+local TOPOGRAPHY_IMAGE = 'rbxassetid://2151741365'
+
 local function new(class, parent, props)
 	local object = Instance.new(class)
 	for key, value in pairs(props or {}) do
@@ -34,22 +36,22 @@ end
 
 local function corner(parent, radius)
 	return new('UICorner', parent, {
-		CornerRadius = radius or UDim.new(0, 5)
+		CornerRadius = radius or UDim.new(0, 6)
 	})
 end
 
-local function motion(object, duration, props, style, direction)
-	local tween = TweenService:Create(
+local function tween(object, duration, props, style, direction)
+	local motion = TweenService:Create(
 		object,
 		TweenInfo.new(
 			duration,
-			style or Enum.EasingStyle.Quint,
+			style or Enum.EasingStyle.Quart,
 			direction or Enum.EasingDirection.Out
 		),
 		props
 	)
-	tween:Play()
-	return tween
+	motion:Play()
+	return motion
 end
 
 local function asset(path, fallback)
@@ -63,12 +65,11 @@ local function asset(path, fallback)
 	return 'rbxassetid://'..fallback
 end
 
-local function shade(col, amount)
+local function light(col, amount)
 	local h, s, v = col:ToHSV()
 	return Color3.fromHSV(h, s, math.clamp(v + amount, 0, 1))
 end
 
--- Load the same saved palette/font the main GUI uses.
 pcall(function()
 	local data = HttpService:JSONDecode(readfile('newvape/profiles/color.txt'))
 	if data.Main then
@@ -87,7 +88,6 @@ pcall(function()
 	end
 end)
 
--- Match the saved GUI accent/theme before the GUI itself loads.
 pcall(function()
 	local data = HttpService:JSONDecode(
 		readfile('newvape/profiles/'..game.GameId..'.gui.txt')
@@ -117,164 +117,6 @@ pcall(function()
 	)(context, {Main = palette.Main}, RunService)
 end)
 
-local function setLine(frame, a, b, thickness)
-	local delta = b - a
-	local length = math.max(delta.Magnitude, 0.5)
-	frame.Position = UDim2.fromOffset(a.X, a.Y)
-	frame.Size = UDim2.fromOffset(length, thickness)
-	frame.Rotation = math.deg(math.atan2(delta.Y, delta.X))
-end
-
--- Real procedural contour map: each line is geometry, not an image.
-local function createTopology(parent, config)
-	config = config or {}
-
-	local holder = new('Frame', parent, {
-		Name = 'LiveTopology',
-		BackgroundTransparency = 1,
-		ClipsDescendants = true,
-		Size = UDim2.fromScale(1, 1),
-		ZIndex = config.ZIndex or 1
-	})
-
-	if config.Round then
-		corner(holder, config.Round)
-	end
-
-	local topology = {
-		Holder = holder,
-		Seed = math.random() * 256,
-		Contours = {},
-		Color = accent,
-		Transparency = config.Transparency or 0.9,
-		Speed = config.Speed or 1,
-		Strength = config.Strength or 1,
-		Offset = config.Offset or Vector2.new(0.66, 0.52),
-		Thickness = config.Thickness or 1
-	}
-
-	local contourCount = config.Contours or 7
-	local points = config.Points or 24
-
-	for ring = 1, contourCount do
-		local contour = {
-			Ring = ring,
-			Segments = {},
-			Points = points
-		}
-
-		for point = 1, points do
-			local segment = new('Frame', holder, {
-				AnchorPoint = Vector2.new(0, 0.5),
-				BackgroundColor3 = accent,
-				BackgroundTransparency = topology.Transparency,
-				BorderSizePixel = 0,
-				Size = UDim2.fromOffset(1, topology.Thickness),
-				ZIndex = holder.ZIndex
-			})
-			contour.Segments[point] = segment
-		end
-
-		topology.Contours[ring] = contour
-	end
-
-	return topology
-end
-
-local function updateTopology(topology, now)
-	local holder = topology.Holder
-	if not holder or not holder.Parent then return end
-
-	local size = holder.AbsoluteSize
-	if size.X < 10 or size.Y < 10 then return end
-
-	local short = math.min(size.X, size.Y)
-	local t = now * topology.Speed
-	local driftX = math.noise(topology.Seed, t * 0.055, 2) * size.X * 0.11
-	local driftY = math.noise(4, topology.Seed, t * 0.05) * size.Y * 0.12
-
-	for _, contour in ipairs(topology.Contours) do
-		local ring = contour.Ring
-		local count = contour.Points
-		local phase = ring * 0.73
-
-		-- Two nearby moving terrain "peaks" pull the rings asymmetrically.
-		local center = Vector2.new(
-			size.X * topology.Offset.X + driftX + math.sin(t * 0.12 + phase) * size.X * 0.018,
-			size.Y * topology.Offset.Y + driftY + math.cos(t * 0.10 + phase) * size.Y * 0.024
-		)
-
-		local radius = short * (0.10 + ring * 0.062)
-		local generated = table.create(count)
-
-		for point = 1, count do
-			local angle = ((point - 1) / count) * math.pi * 2
-			local nx = math.cos(angle)
-			local ny = math.sin(angle)
-
-			local broad = math.noise(
-				nx * 0.72 + topology.Seed,
-				ny * 0.72 + ring * 0.22,
-				t * 0.055
-			)
-
-			local detail = math.noise(
-				nx * 2.1 - topology.Seed * 0.14,
-				ny * 2.1 + ring * 0.41,
-				t * 0.095 + 8
-			)
-
-			local pinch = math.sin(angle * 3 + t * 0.22 + phase) * 0.035
-			local breathe = math.sin(t * 0.42 + phase) * 0.032
-			local warpedRadius = radius * (
-				1
-				+ broad * 0.24 * topology.Strength
-				+ detail * 0.09 * topology.Strength
-				+ pinch
-				+ breathe
-			)
-
-			local shearX = math.noise(
-				ring * 0.31,
-				angle + topology.Seed,
-				t * 0.082
-			) * short * 0.055 * topology.Strength
-
-			local shearY = math.noise(
-				angle - topology.Seed,
-				ring * 0.36,
-				t * 0.074
-			) * short * 0.065 * topology.Strength
-
-			local squash = 0.56 + math.sin(t * 0.17 + ring * 0.4) * 0.05
-
-			generated[point] = center + Vector2.new(
-				nx * warpedRadius + shearX,
-				ny * warpedRadius * squash + shearY
-			)
-		end
-
-		for point, segment in ipairs(contour.Segments) do
-			local nextPoint = point == count and 1 or point + 1
-			local wave = (math.sin(t * 0.9 + ring * 0.65 + point * 0.15) + 1) * 0.5
-
-			segment.BackgroundColor3 = topology.Color
-			segment.BackgroundTransparency = math.clamp(
-				topology.Transparency + ring * 0.006 + wave * 0.025,
-				0,
-				1
-			)
-
-			setLine(
-				segment,
-				generated[point],
-				generated[nextPoint],
-				topology.Thickness
-			)
-		end
-	end
-end
-
 function vape:ShowLoadingScreen()
 	if self.LoadingScreen then
 		self.LoadingScreen:Destroy()
@@ -294,24 +136,12 @@ function vape:ShowLoadingScreen()
 	local root = new('CanvasGroup', screen, {
 		Size = UDim2.fromScale(1, 1),
 		BackgroundColor3 = Color3.new(),
-		BackgroundTransparency = 0.42,
+		BackgroundTransparency = 0.44,
 		GroupTransparency = 0,
 		ClipsDescendants = true
 	})
 
-	-- Very faint full-screen contours give depth without taking over the screen.
-	local backgroundTopology = createTopology(root, {
-		Contours = 6,
-		Points = 22,
-		Transparency = 0.985,
-		Speed = 0.72,
-		Strength = 1.25,
-		Offset = Vector2.new(0.72, 0.48),
-		Thickness = 1,
-		ZIndex = 0
-	})
-
-	local blocker = new('TextButton', root, {
+	new('TextButton', root, {
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 		Text = '',
@@ -320,36 +150,100 @@ function vape:ShowLoadingScreen()
 		ZIndex = 0
 	})
 
-	local window = new('CanvasGroup', root, {
-		Name = 'BootWindow',
+	-- Fullscreen atmospheric topography layer.
+	local ambient = new('ImageLabel', root, {
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.new(0.5, 0, 0.5, 18),
-		Size = UDim2.fromOffset(548, 248),
+		BackgroundTransparency = 1,
+		Image = TOPOGRAPHY_IMAGE,
+		ImageColor3 = accent,
+		ImageTransparency = 0.975,
+		Position = UDim2.fromScale(0.72, 0.53),
+		Rotation = -6,
+		ScaleType = Enum.ScaleType.Fit,
+		Size = UDim2.fromScale(1.15, 1.15),
+		ZIndex = 0
+	})
+
+	local window = new('CanvasGroup', root, {
+		AnchorPoint = Vector2.new(0.5, 0.5),
 		BackgroundColor3 = palette.Main,
 		BorderSizePixel = 0,
-		GroupTransparency = 1,
 		ClipsDescendants = true,
+		GroupTransparency = 1,
+		Position = UDim2.new(0.5, 0, 0.5, 18),
+		Size = UDim2.fromOffset(540, 246),
 		ZIndex = 2
 	})
-	corner(window, UDim.new(0, 6))
+	corner(window, UDim.new(0, 7))
 
-	local windowScale = new('UIScale', window, {
-		Scale = 1
-	})
-
+	local windowScale = new('UIScale', window, {Scale = 0.965})
 	new('UIStroke', window, {
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		Color = shade(palette.Main, 0.11),
-		Transparency = 0.35,
+		Color = light(palette.Main, 0.09),
+		Transparency = 0.42,
 		Thickness = 1
 	})
 
-	-- Header ---------------------------------------------------------------
+	-- Topography artwork lives inside the window.
+	local topoHolder = new('Frame', window, {
+		BackgroundTransparency = 1,
+		ClipsDescendants = true,
+		Position = UDim2.fromOffset(132, 42),
+		Size = UDim2.new(1, -132, 1, -42),
+		ZIndex = 2
+	})
+
+	local topoBack = new('ImageLabel', topoHolder, {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundTransparency = 1,
+		Image = TOPOGRAPHY_IMAGE,
+		ImageColor3 = accent,
+		ImageTransparency = 0.91,
+		Position = UDim2.fromScale(0.68, 0.50),
+		Rotation = -4,
+		ScaleType = Enum.ScaleType.Fit,
+		Size = UDim2.fromScale(1.28, 1.28),
+		ZIndex = 2
+	})
+
+	local topoFront = new('ImageLabel', topoHolder, {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundTransparency = 1,
+		Image = TOPOGRAPHY_IMAGE,
+		ImageColor3 = accent,
+		ImageTransparency = 0.965,
+		Position = UDim2.fromScale(0.76, 0.48),
+		Rotation = 5,
+		ScaleType = Enum.ScaleType.Fit,
+		Size = UDim2.fromScale(0.88, 0.88),
+		ZIndex = 3
+	})
+
+	local fade = new('UIGradient', topoHolder, {
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.18),
+			NumberSequenceKeypoint.new(0.35, 0.35),
+			NumberSequenceKeypoint.new(1, 0.82)
+		})
+	})
+	fade.Rotation = 0
+
+	-- Header
 	local header = new('Frame', window, {
-		BackgroundColor3 = shade(palette.Main, 0.012),
+		BackgroundColor3 = light(palette.Main, 0.012),
 		BorderSizePixel = 0,
 		Size = UDim2.new(1, 0, 0, 42),
-		ZIndex = 5
+		ZIndex = 6
+	})
+
+	new('Frame', header, {
+		AnchorPoint = Vector2.new(0, 1),
+		BackgroundColor3 = light(palette.Main, 0.08),
+		BackgroundTransparency = 0.55,
+		BorderSizePixel = 0,
+		Position = UDim2.fromScale(0, 1),
+		Size = UDim2.new(1, 0, 0, 1),
+		ZIndex = 7
 	})
 
 	local logo = new('ImageLabel', header, {
@@ -358,7 +252,7 @@ function vape:ShowLoadingScreen()
 		ImageColor3 = palette.Text,
 		Position = UDim2.fromOffset(15, 13),
 		Size = UDim2.fromOffset(52, 15),
-		ZIndex = 6
+		ZIndex = 7
 	})
 
 	local version = new('ImageLabel', header, {
@@ -367,133 +261,113 @@ function vape:ShowLoadingScreen()
 		ImageColor3 = accent,
 		Position = UDim2.fromOffset(71, 13),
 		Size = UDim2.fromOffset(21, 15),
-		ZIndex = 6
-	})
-
-	local headerDivider = new('Frame', header, {
-		AnchorPoint = Vector2.new(0, 0.5),
-		BackgroundColor3 = shade(palette.Main, 0.11),
-		BackgroundTransparency = 0.45,
-		BorderSizePixel = 0,
-		Position = UDim2.fromOffset(109, 21),
-		Size = UDim2.fromOffset(1, 16),
-		ZIndex = 6
+		ZIndex = 7
 	})
 
 	new('TextLabel', header, {
 		BackgroundTransparency = 1,
 		FontFace = palette.Font,
-		Position = UDim2.fromOffset(121, 0),
-		Size = UDim2.fromOffset(175, 42),
-		Text = 'Starting interface',
-		TextColor3 = shade(palette.Text, -0.1),
+		Position = UDim2.fromOffset(116, 0),
+		Size = UDim2.fromOffset(185, 42),
+		Text = 'Preparing interface',
+		TextColor3 = light(palette.Text, -0.1),
 		TextSize = 12,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 6
+		ZIndex = 7
 	})
 
-	local bootChip = new('Frame', header, {
+	local chip = new('Frame', header, {
 		AnchorPoint = Vector2.new(1, 0.5),
-		BackgroundColor3 = shade(palette.Main, 0.035),
-		Position = UDim2.new(1, -47, 0.5, 0),
-		Size = UDim2.fromOffset(67, 22),
-		ZIndex = 6
+		BackgroundColor3 = light(palette.Main, 0.032),
+		Position = UDim2.new(1, -45, 0.5, 0),
+		Size = UDim2.fromOffset(72, 22),
+		ZIndex = 7
 	})
-	corner(bootChip, UDim.new(0, 4))
+	corner(chip, UDim.new(0, 4))
 
-	local bootDot = new('Frame', bootChip, {
+	local chipDot = new('Frame', chip, {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		BackgroundColor3 = accent,
 		BorderSizePixel = 0,
 		Position = UDim2.fromOffset(10, 11),
 		Size = UDim2.fromOffset(5, 5),
-		ZIndex = 7
+		ZIndex = 8
 	})
-	corner(bootDot, UDim.new(1, 0))
-	local bootDotScale = new('UIScale', bootDot, {Scale = 1})
+	corner(chipDot, UDim.new(1, 0))
 
-	local bootText = new('TextLabel', bootChip, {
+	local chipText = new('TextLabel', chip, {
 		BackgroundTransparency = 1,
 		FontFace = palette.FontSemiBold,
-		Position = UDim2.fromOffset(18, 0),
-		Size = UDim2.new(1, -19, 1, 0),
-		Text = 'BOOT',
-		TextColor3 = shade(palette.Text, -0.08),
-		TextSize = 9,
+		Position = UDim2.fromOffset(19, 0),
+		Size = UDim2.new(1, -21, 1, 0),
+		Text = 'LOADING',
+		TextColor3 = light(palette.Text, -0.08),
+		TextSize = 8,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 7
+		ZIndex = 8
 	})
 
 	local close = new('TextButton', header, {
 		AnchorPoint = Vector2.new(1, 0.5),
 		BackgroundTransparency = 1,
-		Position = UDim2.new(1, -12, 0.5, 0),
+		Position = UDim2.new(1, -10, 0.5, 0),
 		Size = UDim2.fromOffset(22, 22),
 		Text = '×',
 		FontFace = palette.Font,
-		TextColor3 = shade(palette.Text, -0.22),
+		TextColor3 = light(palette.Text, -0.22),
 		TextSize = 18,
 		AutoButtonColor = false,
-		ZIndex = 7
+		ZIndex = 8
 	})
 
-	new('Frame', header, {
-		AnchorPoint = Vector2.new(0, 1),
-		BackgroundColor3 = shade(palette.Main, 0.09),
-		BackgroundTransparency = 0.62,
-		BorderSizePixel = 0,
-		Position = UDim2.fromScale(0, 1),
-		Size = UDim2.new(1, 0, 0, 1),
-		ZIndex = 6
-	})
-
-	-- Tiny category rail ---------------------------------------------------
+	-- Sidebar
 	local rail = new('Frame', window, {
-		BackgroundColor3 = shade(palette.Main, -0.014),
+		BackgroundColor3 = light(palette.Main, -0.01),
 		BorderSizePixel = 0,
 		Position = UDim2.fromOffset(0, 42),
-		Size = UDim2.new(0, 126, 1, -42),
-		ZIndex = 3
+		Size = UDim2.new(0, 132, 1, -42),
+		ZIndex = 4
 	})
 
 	new('Frame', rail, {
 		AnchorPoint = Vector2.new(1, 0),
-		BackgroundColor3 = shade(palette.Main, 0.09),
+		BackgroundColor3 = light(palette.Main, 0.08),
 		BackgroundTransparency = 0.58,
 		BorderSizePixel = 0,
 		Position = UDim2.fromScale(1, 0),
 		Size = UDim2.new(0, 1, 1, 0),
-		ZIndex = 4
+		ZIndex = 5
 	})
 
 	new('TextLabel', rail, {
 		BackgroundTransparency = 1,
 		FontFace = palette.FontSemiBold,
 		Position = UDim2.fromOffset(14, 12),
-		Size = UDim2.fromOffset(90, 18),
-		Text = 'CLIENT',
-		TextColor3 = shade(palette.Text, -0.27),
+		Size = UDim2.fromOffset(95, 18),
+		Text = 'STARTUP',
+		TextColor3 = light(palette.Text, -0.27),
 		TextSize = 9,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 5
+		ZIndex = 6
 	})
 
-	local railEntries = {
-		{'Combat', 'rbxassetid://94762732349053'},
-		{'Blatant', 'rbxassetid://126929923309265'},
-		{'Render', 'rbxassetid://125472576898654'},
-		{'Utility', 'rbxassetid://108303206513893'}
+	local stages = {
+		{'Interface', 'GUI'},
+		{'Universal', 'CORE'},
+		{'Game', 'PLACE'},
+		{'Profile', 'CONFIG'}
 	}
 
-	local railRows = {}
-	for index, entry in ipairs(railEntries) do
+	local stageRows = {}
+
+	for index, data in ipairs(stages) do
 		local row = new('Frame', rail, {
 			BackgroundColor3 = palette.Main,
-			BackgroundTransparency = index == 1 and 0.72 or 1,
+			BackgroundTransparency = index == 1 and 0.73 or 1,
 			BorderSizePixel = 0,
-			Position = UDim2.fromOffset(8, 36 + (index - 1) * 35),
-			Size = UDim2.fromOffset(110, 29),
-			ZIndex = 5
+			Position = UDim2.fromOffset(8, 37 + (index - 1) * 35),
+			Size = UDim2.fromOffset(116, 29),
+			ZIndex = 6
 		})
 		corner(row, UDim.new(0, 4))
 
@@ -504,77 +378,43 @@ function vape:ShowLoadingScreen()
 			BorderSizePixel = 0,
 			Position = UDim2.fromOffset(0, 14.5),
 			Size = UDim2.fromOffset(2, 13),
-			ZIndex = 6
+			ZIndex = 7
 		})
 		corner(indicator, UDim.new(1, 0))
-
-		local icon = new('ImageLabel', row, {
-			BackgroundTransparency = 1,
-			Image = entry[2],
-			ImageColor3 = index == 1 and palette.Text or shade(palette.Text, -0.22),
-			ImageTransparency = index == 1 and 0 or 0.18,
-			Position = UDim2.fromOffset(10, 8),
-			Size = UDim2.fromOffset(13, 13),
-			ZIndex = 6
-		})
 
 		local label = new('TextLabel', row, {
 			BackgroundTransparency = 1,
 			FontFace = palette.Font,
-			Position = UDim2.fromOffset(31, 0),
-			Size = UDim2.new(1, -34, 1, 0),
-			Text = entry[1],
-			TextColor3 = index == 1 and palette.Text or shade(palette.Text, -0.2),
+			Position = UDim2.fromOffset(12, 0),
+			Size = UDim2.new(1, -16, 1, 0),
+			Text = data[1],
+			TextColor3 = index == 1 and palette.Text or light(palette.Text, -0.2),
 			TextSize = 11,
 			TextXAlignment = Enum.TextXAlignment.Left,
-			ZIndex = 6
+			ZIndex = 7
 		})
 
-		railRows[index] = {
+		stageRows[index] = {
 			Row = row,
 			Indicator = indicator,
-			Icon = icon,
 			Label = label
 		}
 	end
 
-	-- Main boot area -------------------------------------------------------
+	-- Content
 	local content = new('Frame', window, {
 		BackgroundTransparency = 1,
-		ClipsDescendants = true,
-		Position = UDim2.fromOffset(126, 42),
-		Size = UDim2.new(1, -126, 1, -42),
-		ZIndex = 3
+		Position = UDim2.fromOffset(132, 42),
+		Size = UDim2.new(1, -132, 1, -42),
+		ZIndex = 5
 	})
-
-	local contentTopology = createTopology(content, {
-		Contours = 8,
-		Points = 28,
-		Transparency = 0.955,
-		Speed = 1,
-		Strength = 1.4,
-		Offset = Vector2.new(0.80, 0.47),
-		Thickness = 1,
-		ZIndex = 3
-	})
-
-	local glow = new('Frame', content, {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		BackgroundColor3 = accent,
-		BackgroundTransparency = 0.965,
-		BorderSizePixel = 0,
-		Position = UDim2.fromScale(0.82, 0.48),
-		Size = UDim2.fromOffset(230, 230),
-		ZIndex = 3
-	})
-	corner(glow, UDim.new(1, 0))
 
 	local accentBar = new('Frame', content, {
 		BackgroundColor3 = accent,
 		BorderSizePixel = 0,
-		Position = UDim2.fromOffset(18, 22),
-		Size = UDim2.fromOffset(2, 50),
-		ZIndex = 5
+		Position = UDim2.fromOffset(18, 23),
+		Size = UDim2.fromOffset(2, 48),
+		ZIndex = 7
 	})
 	corner(accentBar, UDim.new(1, 0))
 
@@ -582,104 +422,48 @@ function vape:ShowLoadingScreen()
 		BackgroundTransparency = 1,
 		FontFace = palette.FontSemiBold,
 		Position = UDim2.fromOffset(31, 18),
-		Size = UDim2.fromOffset(260, 24),
+		Size = UDim2.fromOffset(290, 25),
 		Text = 'Loading Vape',
 		TextColor3 = palette.Text,
 		TextSize = 17,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 5
+		ZIndex = 7
 	})
 
 	local status = new('TextLabel', content, {
 		BackgroundTransparency = 1,
 		FontFace = palette.Font,
-		Position = UDim2.fromOffset(31, 43),
-		Size = UDim2.fromOffset(310, 36),
+		Position = UDim2.fromOffset(31, 44),
+		Size = UDim2.fromOffset(320, 36),
 		Text = 'Preparing game modules',
-		TextColor3 = shade(palette.Text, -0.18),
+		TextColor3 = light(palette.Text, -0.18),
 		TextSize = 11,
 		TextWrapped = true,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextYAlignment = Enum.TextYAlignment.Top,
-		ZIndex = 5
+		ZIndex = 7
 	})
 
-	local moduleHolder = new('Frame', content, {
+	local detail = new('TextLabel', content, {
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(18, 92),
-		Size = UDim2.fromOffset(374, 78),
-		ZIndex = 5
+		FontFace = palette.Font,
+		Position = UDim2.fromOffset(18, 112),
+		Size = UDim2.fromOffset(305, 18),
+		Text = 'Initializing interface...',
+		TextColor3 = light(palette.Text, -0.26),
+		TextSize = 10,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 7
 	})
-
-	local fakeModules = {
-		{'Interface', 'GUI'},
-		{'Universal', 'CORE'},
-		{'Game modules', 'PLACE'}
-	}
-
-	local moduleRows = {}
-	for index, data in ipairs(fakeModules) do
-		local row = new('CanvasGroup', moduleHolder, {
-			BackgroundColor3 = shade(palette.Main, 0.018),
-			BackgroundTransparency = 0.12,
-			BorderSizePixel = 0,
-			GroupTransparency = 1,
-			Position = UDim2.fromOffset(0, (index - 1) * 25 + 5),
-			Size = UDim2.fromOffset(346, 21),
-			ZIndex = 5
-		})
-		corner(row, UDim.new(0, 4))
-
-		local dot = new('Frame', row, {
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			BackgroundColor3 = shade(palette.Text, -0.33),
-			BorderSizePixel = 0,
-			Position = UDim2.fromOffset(11, 10.5),
-			Size = UDim2.fromOffset(4, 4),
-			ZIndex = 6
-		})
-		corner(dot, UDim.new(1, 0))
-
-		new('TextLabel', row, {
-			BackgroundTransparency = 1,
-			FontFace = palette.Font,
-			Position = UDim2.fromOffset(21, 0),
-			Size = UDim2.fromOffset(190, 21),
-			Text = data[1],
-			TextColor3 = shade(palette.Text, -0.08),
-			TextSize = 10,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			ZIndex = 6
-		})
-
-		local tag = new('TextLabel', row, {
-			AnchorPoint = Vector2.new(1, 0),
-			BackgroundTransparency = 1,
-			FontFace = palette.FontSemiBold,
-			Position = UDim2.new(1, -8, 0, 0),
-			Size = UDim2.fromOffset(54, 21),
-			Text = data[2],
-			TextColor3 = shade(palette.Text, -0.32),
-			TextSize = 8,
-			TextXAlignment = Enum.TextXAlignment.Right,
-			ZIndex = 6
-		})
-
-		moduleRows[index] = {
-			Row = row,
-			Dot = dot,
-			Tag = tag
-		}
-	end
 
 	local progressTrack = new('Frame', content, {
 		AnchorPoint = Vector2.new(0, 1),
-		BackgroundColor3 = shade(palette.Main, 0.09),
-		BackgroundTransparency = 0.35,
+		BackgroundColor3 = light(palette.Main, 0.08),
+		BackgroundTransparency = 0.32,
 		BorderSizePixel = 0,
-		Position = UDim2.new(0, 18, 1, -17),
-		Size = UDim2.fromOffset(374, 2),
-		ZIndex = 5
+		Position = UDim2.new(0, 18, 1, -18),
+		Size = UDim2.fromOffset(350, 3),
+		ZIndex = 7
 	})
 	corner(progressTrack, UDim.new(1, 0))
 
@@ -687,7 +471,7 @@ function vape:ShowLoadingScreen()
 		BackgroundColor3 = accent,
 		BorderSizePixel = 0,
 		Size = UDim2.fromScale(0, 1),
-		ZIndex = 6
+		ZIndex = 8
 	})
 	corner(progress, UDim.new(1, 0))
 
@@ -695,31 +479,23 @@ function vape:ShowLoadingScreen()
 		AnchorPoint = Vector2.new(1, 1),
 		BackgroundTransparency = 1,
 		FontFace = palette.Font,
-		Position = UDim2.new(1, -18, 1, -21),
-		Size = UDim2.fromOffset(40, 16),
+		Position = UDim2.new(1, -18, 1, -24),
+		Size = UDim2.fromOffset(45, 16),
 		Text = '0%',
-		TextColor3 = shade(palette.Text, -0.28),
+		TextColor3 = light(palette.Text, -0.28),
 		TextSize = 9,
 		TextXAlignment = Enum.TextXAlignment.Right,
-		ZIndex = 5
+		ZIndex = 7
 	})
 
-	-- Responsive size for smaller resolutions. The same UIScale is also used
-	-- by the entrance animation so there are no stacked scale modifiers.
-	local fitScale = 1
-	local entered = false
+	local uiScale = new('UIScale', window, {Scale = 1})
 	local function fit()
 		local viewport = root.AbsoluteSize
-		fitScale = math.clamp(
+		uiScale.Scale = math.clamp(
 			math.min(viewport.X / 680, viewport.Y / 380),
 			0.68,
 			1
 		)
-		if entered then
-			windowScale.Scale = fitScale
-		else
-			windowScale.Scale = fitScale * 0.955
-		end
 	end
 	fit()
 
@@ -730,16 +506,19 @@ function vape:ShowLoadingScreen()
 		WindowScale = windowScale,
 		Started = os.clock(),
 		Alive = true,
+		Closing = false,
 		Tweens = {},
-		Topologies = {backgroundTopology, contentTopology},
-		TopologyAccumulator = 0,
-		Close = close,
+		Ambient = ambient,
+		TopoBack = topoBack,
+		TopoFront = topoFront,
+		Version = version,
+		ChipDot = chipDot,
+		ChipText = chipText,
+		AccentBar = accentBar,
 		Progress = progress,
 		Percent = percent,
-		BootDot = bootDot,
-		BootText = bootText,
-		ModuleRows = moduleRows,
-		RailRows = railRows
+		Detail = detail,
+		StageRows = stageRows
 	}
 
 	self._loading = state
@@ -751,67 +530,35 @@ function vape:ShowLoadingScreen()
 
 	state.Resize = root:GetPropertyChangedSignal('AbsoluteSize'):Connect(fit)
 
-	local pulseScale = TweenService:Create(
-		bootDotScale,
-		TweenInfo.new(1.05, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-		{Scale = 1.55}
-	)
-	local pulseFade = TweenService:Create(
-		bootDot,
-		TweenInfo.new(1.05, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-		{BackgroundTransparency = 0.58}
-	)
-	pulseScale:Play()
-	pulseFade:Play()
-	state.PulseScale = pulseScale
-	state.PulseFade = pulseFade
-
 	local function animate(object, duration, props, style, direction)
-		local tween = motion(object, duration, props, style, direction)
-		table.insert(state.Tweens, tween)
-		return tween
+		local m = tween(object, duration, props, style, direction)
+		table.insert(state.Tweens, m)
+		return m
 	end
 
-	-- Entrance feels like the real GUI opening, not a splash screen.
-	animate(window, 0.32, {
+	animate(window, 0.34, {
 		GroupTransparency = 0,
 		Position = UDim2.fromScale(0.5, 0.5)
 	}, Enum.EasingStyle.Quart)
 
 	animate(windowScale, 0.42, {
-		Scale = fitScale
+		Scale = 1
 	}, Enum.EasingStyle.Back)
-	task.delay(0.43, function()
-		if state.Alive and not state.Closing then
-			entered = true
-			windowScale.Scale = fitScale
-		end
-	end)
 
-	for index, module in ipairs(moduleRows) do
-		task.delay(0.10 + index * 0.09, function()
-			if state.Alive and not state.Closing then
-				animate(module.Row, 0.24, {
-					GroupTransparency = 0,
-					Position = UDim2.fromOffset(0, (index - 1) * 25)
-				}, Enum.EasingStyle.Quart)
-			end
-		end)
-	end
+	local pulse = TweenService:Create(
+		chipDot,
+		TweenInfo.new(0.85, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{BackgroundTransparency = 0.62}
+	)
+	pulse:Play()
+	state.Pulse = pulse
 
-	local hoverTween
 	close.MouseEnter:Connect(function()
-		if hoverTween then hoverTween:Cancel() end
-		hoverTween = motion(close, 0.13, {
-			TextColor3 = accent
-		}, Enum.EasingStyle.Quart)
+		tween(close, 0.13, {TextColor3 = accent})
 	end)
 
 	close.MouseLeave:Connect(function()
-		if hoverTween then hoverTween:Cancel() end
-		hoverTween = motion(close, 0.13, {
-			TextColor3 = shade(palette.Text, -0.22)
-		}, Enum.EasingStyle.Quart)
+		tween(close, 0.13, {TextColor3 = light(palette.Text, -0.22)})
 	end)
 
 	close.Activated:Connect(function()
@@ -819,7 +566,7 @@ function vape:ShowLoadingScreen()
 	end)
 
 	state.Connection = RunService.RenderStepped:Connect(function(dt)
-		if not state.Alive or state.Closing then return end
+		if state.Closing then return end
 
 		if theme then
 			local ok = pcall(function()
@@ -835,63 +582,80 @@ function vape:ShowLoadingScreen()
 		local elapsed = now - state.Started
 		local ratio = math.clamp(elapsed / self.MinimumDisplayTime, 0, 1)
 
-		state.TopologyAccumulator += dt
-		if state.TopologyAccumulator >= 1 / 30 then
-			state.TopologyAccumulator = 0
+		-- Image-based topography animation only.
+		ambient.Position = UDim2.fromScale(
+			0.72 + math.sin(elapsed * 0.18) * 0.018,
+			0.53 + math.cos(elapsed * 0.15) * 0.016
+		)
+		ambient.Rotation = -6 + math.sin(elapsed * 0.11) * 2
+		ambient.Size = UDim2.fromScale(
+			1.15 + math.sin(elapsed * 0.13) * 0.025,
+			1.15 + math.sin(elapsed * 0.13) * 0.025
+		)
 
-			for _, topology in ipairs(state.Topologies) do
-				topology.Color = accent
-				updateTopology(topology, now)
-			end
-		end
+		topoBack.Position = UDim2.fromScale(
+			0.68 + math.sin(elapsed * 0.31) * 0.035,
+			0.50 + math.cos(elapsed * 0.27) * 0.03
+		)
+		topoBack.Rotation = -4 + math.sin(elapsed * 0.17) * 3
+		topoBack.Size = UDim2.fromScale(
+			1.28 + math.sin(elapsed * 0.21) * 0.055,
+			1.28 + math.sin(elapsed * 0.21) * 0.055
+		)
 
-		version.ImageColor3 = accent
-		bootDot.BackgroundColor3 = accent
-		accentBar.BackgroundColor3 = accent
-		progress.BackgroundColor3 = accent
-		glow.BackgroundColor3 = accent
+		topoFront.Position = UDim2.fromScale(
+			0.76 + math.cos(elapsed * 0.39) * 0.045,
+			0.48 + math.sin(elapsed * 0.33) * 0.035
+		)
+		topoFront.Rotation = 5 + math.cos(elapsed * 0.16) * 4
+		topoFront.Size = UDim2.fromScale(
+			0.88 + math.cos(elapsed * 0.24) * 0.04,
+			0.88 + math.cos(elapsed * 0.24) * 0.04
+		)
 
-		progress.Size = UDim2.fromScale(ratio, 1)
-		percent.Text = tostring(math.floor(ratio * 100 + 0.5))..'%'
+		ambient.ImageColor3 = accent
+		topoBack.ImageColor3 = accent
+		topoFront.ImageColor3 = accent
+		state.Version.ImageColor3 = accent
+		state.ChipDot.BackgroundColor3 = accent
+		state.AccentBar.BackgroundColor3 = accent
+		state.Progress.BackgroundColor3 = accent
 
-		local phase = math.clamp(math.floor(ratio * #moduleRows) + 1, 1, #moduleRows)
+		state.Progress.Size = UDim2.fromScale(ratio, 1)
+		state.Percent.Text = tostring(math.floor(ratio * 100 + 0.5))..'%'
 
-		for index, module in ipairs(moduleRows) do
-			local complete = index < phase or ratio >= 0.995
-			local active = index == phase and not complete
+		local stageIndex = math.clamp(math.floor(ratio * #state.StageRows) + 1, 1, #state.StageRows)
+		local stageNames = {
+			'Initializing interface...',
+			'Loading universal modules...',
+			'Loading game modules...',
+			'Applying profile...'
+		}
+		state.Detail.Text = ratio >= 0.995 and 'Ready.' or stageNames[stageIndex]
+
+		for index, row in ipairs(state.StageRows) do
+			local complete = index < stageIndex or ratio >= 0.995
+			local active = index == stageIndex and not complete
 
 			if complete then
-				module.Dot.BackgroundColor3 = accent
-				module.Dot.BackgroundTransparency = 0
-				module.Tag.TextColor3 = shade(palette.Text, -0.22)
+				row.Indicator.BackgroundTransparency = 0
+				row.Indicator.BackgroundColor3 = accent
+				row.Row.BackgroundTransparency = 0.84
+				row.Label.TextColor3 = palette.Text
 			elseif active then
-				local blink = (math.sin(elapsed * 6) + 1) * 0.5
-				module.Dot.BackgroundColor3 = accent
-				module.Dot.BackgroundTransparency = 0.18 + blink * 0.52
-				module.Tag.TextColor3 = accent:Lerp(shade(palette.Text, -0.1), blink * 0.42)
+				local wave = (math.sin(elapsed * 6) + 1) * 0.5
+				row.Indicator.BackgroundTransparency = 0.18 + wave * 0.45
+				row.Indicator.BackgroundColor3 = accent
+				row.Row.BackgroundTransparency = 0.76
+				row.Label.TextColor3 = palette.Text
 			else
-				module.Dot.BackgroundColor3 = shade(palette.Text, -0.33)
-				module.Dot.BackgroundTransparency = 0.15
-				module.Tag.TextColor3 = shade(palette.Text, -0.32)
+				row.Indicator.BackgroundTransparency = 1
+				row.Row.BackgroundTransparency = 1
+				row.Label.TextColor3 = light(palette.Text, -0.2)
 			end
 		end
 
-		-- Category rail wakes up sequentially like the GUI is being populated.
-		local railProgress = ratio * #railRows
-		for index, row in ipairs(railRows) do
-			local awake = railProgress >= index - 0.3
-			if awake then
-				row.Icon.ImageColor3 = index == 1 and palette.Text or shade(palette.Text, -0.12)
-				row.Label.TextColor3 = index == 1 and palette.Text or shade(palette.Text, -0.12)
-			end
-			row.Indicator.BackgroundColor3 = accent
-		end
-
-		if ratio >= 0.995 then
-			bootText.Text = 'READY'
-		else
-			bootText.Text = 'BOOT'
-		end
+		state.ChipText.Text = ratio >= 0.995 and 'READY' or 'LOADING'
 	end)
 
 	screen.Destroying:Once(function()
@@ -904,11 +668,12 @@ function vape:ShowLoadingScreen()
 			state.Resize:Disconnect()
 		end
 
-		pulseScale:Cancel()
-		pulseFade:Cancel()
+		if state.Pulse then
+			state.Pulse:Cancel()
+		end
 
-		for _, tween in ipairs(state.Tweens) do
-			tween:Cancel()
+		for _, m in ipairs(state.Tweens) do
+			m:Cancel()
 		end
 
 		if self._loading == state then
@@ -925,7 +690,6 @@ end
 
 function vape:WaitForMinimumDisplay()
 	local state = self._loading
-
 	while state
 		and self._loading == state
 		and not state.Closing
@@ -960,25 +724,25 @@ function vape:HideLoadingScreen(immediate)
 		state.Connection = nil
 	end
 
-	state.PulseScale:Cancel()
-	state.PulseFade:Cancel()
-
-	for _, tween in ipairs(state.Tweens) do
-		tween:Cancel()
+	if state.Pulse then
+		state.Pulse:Cancel()
 	end
 
-	-- Collapse toward the window header instead of generic fade-to-black.
+	for _, m in ipairs(state.Tweens) do
+		m:Cancel()
+	end
+
 	state.Tweens = {
-		motion(state.WindowScale, 0.24, {
-			Scale = fitScale * 0.975
+		tween(state.WindowScale, 0.22, {
+			Scale = 0.975
 		}, Enum.EasingStyle.Quart, Enum.EasingDirection.In),
 
-		motion(state.Window, 0.24, {
+		tween(state.Window, 0.24, {
 			GroupTransparency = 1,
 			Position = UDim2.new(0.5, 0, 0.5, -9)
 		}, Enum.EasingStyle.Quart, Enum.EasingDirection.In),
 
-		motion(state.Root, 0.30, {
+		tween(state.Root, 0.3, {
 			GroupTransparency = 1,
 			BackgroundTransparency = 1
 		}, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
