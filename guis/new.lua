@@ -298,6 +298,111 @@ vape.Libraries = {
 	uipallet = uipallet,
 }
 
+
+-- Universal HUD compatibility ----------------------------------------------
+-- universal.lua expects these helpers to exist on the main Vape table.
+-- Keep them in the GUI itself so every game/universal module sees them.
+vape.HUDAccentObjects = setmetatable({}, {__mode = 'k'})
+
+function vape:GetGUIColorRGB()
+	local guiColor = self.GUIColor
+	if type(guiColor) == 'table'
+		and type(guiColor.Hue) == 'number'
+		and type(guiColor.Sat) == 'number'
+		and type(guiColor.Value) == 'number' then
+		return Color3.fromHSV(guiColor.Hue, guiColor.Sat, guiColor.Value)
+	end
+
+	return Color3.fromRGB(103, 235, 193)
+end
+
+function vape:RegisterHUDAccent(object, property)
+	if typeof(object) ~= 'Instance' then
+		return object
+	end
+
+	if not property then
+		if object:IsA('UIStroke') then
+			property = 'Color'
+		elseif object:IsA('ImageLabel') or object:IsA('ImageButton') then
+			property = 'ImageColor3'
+		elseif object:IsA('TextLabel') or object:IsA('TextButton') then
+			property = 'TextColor3'
+		else
+			property = 'BackgroundColor3'
+		end
+	end
+
+	self.HUDAccentObjects[object] = property
+
+	pcall(function()
+		object[property] = self:GetGUIColorRGB()
+	end)
+
+	object.Destroying:Once(function()
+		if self.HUDAccentObjects then
+			self.HUDAccentObjects[object] = nil
+		end
+	end)
+
+	return object
+end
+
+function vape:StyleHUDCard(object)
+	if typeof(object) ~= 'Instance' or not object:IsA('GuiObject') then
+		return object
+	end
+
+	-- Match the ClickGUI surface without overwriting the caller's opacity.
+	object.BorderSizePixel = 0
+	object.BackgroundColor3 = uipallet.Main
+
+	local cardCorner = object:FindFirstChild('HUDCardCorner')
+		or object:FindFirstChildWhichIsA('UICorner')
+
+	if not cardCorner then
+		cardCorner = Instance.new('UICorner')
+		cardCorner.Name = 'HUDCardCorner'
+		cardCorner.CornerRadius = UDim.new(0, 6)
+		cardCorner.Parent = object
+	end
+
+	local cardStroke = object:FindFirstChild('HUDCardStroke')
+	if not cardStroke then
+		cardStroke = Instance.new('UIStroke')
+		cardStroke.Name = 'HUDCardStroke'
+		cardStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		cardStroke.Color = color.Light(uipallet.Main, 0.08)
+		cardStroke.Transparency = 0.42
+		cardStroke.Thickness = 1
+		cardStroke.Parent = object
+	end
+
+	-- Small accent edge; deliberately subtle so widgets still retain their
+	-- own layout/content while visually belonging to this GUI.
+	local accentEdge = object:FindFirstChild('HUDAccentEdge')
+	if not accentEdge then
+		accentEdge = Instance.new('Frame')
+		accentEdge.Name = 'HUDAccentEdge'
+		accentEdge.AnchorPoint = Vector2.new(0, 0.5)
+		accentEdge.BackgroundColor3 = self:GetGUIColorRGB()
+		accentEdge.BorderSizePixel = 0
+		accentEdge.Position = UDim2.new(0, 0, 0.5, 0)
+		accentEdge.Size = UDim2.new(0, 2, 1, -12)
+		accentEdge.ZIndex = math.max(object.ZIndex + 1, 2)
+		accentEdge.Parent = object
+
+		local edgeCorner = Instance.new('UICorner')
+		edgeCorner.CornerRadius = UDim.new(1, 0)
+		edgeCorner.Parent = accentEdge
+
+		self:RegisterHUDAccent(accentEdge, 'BackgroundColor3')
+	end
+
+	return object
+end
+-- Universal HUD compatibility end ------------------------------------------
+
 local function addBlur(parent, notif, old)
 	local blur
 	if old then
@@ -2546,6 +2651,17 @@ end
 function vape:UpdateGUIQueue(hue, sat, val)
 	if TextGUI.Button.Enabled then
 		TextGUI:UpdateColor(hue, sat, val, default)
+	end
+
+	local hudAccent = Color3.fromHSV(hue, sat, val)
+	for object, property in vape.HUDAccentObjects do
+		if object and object.Parent then
+			pcall(function()
+				object[property] = hudAccent
+			end)
+		else
+			vape.HUDAccentObjects[object] = nil
+		end
 	end
 
 	if not clickgui.Visible and not vape.Legit.Window.Visible then return end
