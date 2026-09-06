@@ -42,6 +42,7 @@ local notifications
 local getvapeasset
 local components
 local clickgui
+local topographyBackground
 local scaledgui
 local toolblur
 local tooltip
@@ -999,6 +1000,37 @@ function vape:LoadGUI()
 	clickgui.Size = UDim2.fromScale(1, 1)
 	clickgui.Visible = false
 	clickgui.Parent = scaledgui
+
+	-- Background-only topography.
+	-- ZIndex 0 keeps it behind every category/tab/module window.
+	topographyBackground = Instance.new('ImageLabel')
+	topographyBackground.Name = 'TopographyBackground'
+	topographyBackground.Active = false
+	topographyBackground.BackgroundTransparency = 1
+	topographyBackground.Image = 'rbxassetid://2151741365'
+	topographyBackground.ImageColor3 = Color3.fromHSV(
+		vape.GUIColor.Hue,
+		math.min(vape.GUIColor.Sat * 0.62, 0.78),
+		math.max(vape.GUIColor.Value, 0.78)
+	)
+	topographyBackground.ImageTransparency = 0.62
+	topographyBackground.Position = UDim2.fromOffset(-180, -180)
+	topographyBackground.ScaleType = Enum.ScaleType.Tile
+	topographyBackground.Size = UDim2.new(1, 360, 1, 360)
+	topographyBackground.TileSize = UDim2.fromOffset(300, 300)
+	topographyBackground.ZIndex = 0
+	topographyBackground.Parent = clickgui
+
+	-- Very subtle background drift; no rotation, no duplicate layers.
+	local topologyDrift = runService.RenderStepped:Connect(function()
+		if not topographyBackground or not topographyBackground.Parent then return end
+		local now = os.clock()
+		topographyBackground.Position = UDim2.fromOffset(
+			-180 + math.sin(now * 0.12) * 24,
+			-180 + math.cos(now * 0.10) * 18
+		)
+	end)
+	vape:Clean(topologyDrift)
 	local scarcitybanner = Instance.new('TextLabel')
 	scarcitybanner.BackgroundTransparency = 1
 	scarcitybanner.FontFace = uipallet.Font
@@ -1009,6 +1041,11 @@ function vape:LoadGUI()
 	scarcitybanner.TextScaled = true
 	scarcitybanner.TextStrokeTransparency = 0.5
 	scarcitybanner.Parent = clickgui
+	local modal = Instance.new('TextButton')
+	modal.BackgroundTransparency = 1
+	modal.Modal = true
+	modal.Text = ''
+	modal.Parent = clickgui
 	local cursor = Instance.new('ImageLabel')
 	cursor.BackgroundTransparency = 1
 	cursor.Image = 'rbxasset://textures/Cursors/KeyboardMouse/ArrowFarCursor.png'
@@ -2611,6 +2648,15 @@ function vape:UpdateGUIQueue(hue, sat, val)
 	end
 
 	local hudAccent = Color3.fromHSV(hue, sat, val)
+
+	if topographyBackground and topographyBackground.Parent then
+		topographyBackground.ImageColor3 = Color3.fromHSV(
+			hue,
+			math.min(sat * 0.62, 0.78),
+			math.max(val, 0.78)
+		)
+	end
+
 	for object, property in vape.HUDAccentObjects do
 		if object and object.Parent then
 			pcall(function()
@@ -5861,6 +5907,11 @@ components = {
 		addBlur(window)
 		addCorner(window)
 		addDragHandler(window)
+		local modal = Instance.new('TextButton')
+		modal.BackgroundTransparency = 1
+		modal.Modal = true
+		modal.Text = ''
+		modal.Parent = window
 		local icon = Instance.new('ImageLabel')
 		icon.BackgroundTransparency = 1
 		icon.Image = getvapeasset('newvape/assets/new/legit_mode_icon.png')
