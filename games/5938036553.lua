@@ -2613,8 +2613,17 @@ run(function()
 	local SkyThemes
 	local Theme
 	local lightingService = cloneref(game:GetService('Lighting'))
+	local boykisserSky = getvapeasset('newvape/assets/new/boykesser.png')
 
 	local skyThemes = {
+			Boykisser = {
+				SkyboxBk = boykisserSky,
+				SkyboxDn = boykisserSky,
+				SkyboxFt = boykisserSky,
+				SkyboxLf = boykisserSky,
+				SkyboxRt = boykisserSky,
+				SkyboxUp = boykisserSky,
+			},
 		        NetherWorld = {
 			            MoonAngularSize = 0,
 			            SunAngularSize = 0,
@@ -2903,7 +2912,7 @@ run(function()
 				    StarCount = 3000,
 		    	}
 	}
-	local themeNames = {'NetherWorld', 'Neptune', 'Velocity', 'Minecraft', 'Purple', '日の出', 'Sakura', 'Hexagonal', 'Reality', 'LunarNight', 'FPSBoost', 'Etheral', 'Pandora', 'Polaris', 'Diaphanous', 'Transcendent', 'Truth', 'RayTracing', 'Nebula', 'Planets', 'Galaxy', 'Blues', 'Milkyway', 'Orange', 'DarkMountains', 'Space', 'Void', 'Stary', 'Violet', 'Cloudy'}
+	local themeNames = {'Boykisser', 'NetherWorld', 'Neptune', 'Velocity', 'Minecraft', 'Purple', '日の出', 'Sakura', 'Hexagonal', 'Reality', 'LunarNight', 'FPSBoost', 'Etheral', 'Pandora', 'Polaris', 'Diaphanous', 'Transcendent', 'Truth', 'RayTracing', 'Nebula', 'Planets', 'Galaxy', 'Blues', 'Milkyway', 'Orange', 'DarkMountains', 'Space', 'Void', 'Stary', 'Violet', 'Cloudy'}
 
 	local skyProperties = {
 		'CelestialBodiesShown',
