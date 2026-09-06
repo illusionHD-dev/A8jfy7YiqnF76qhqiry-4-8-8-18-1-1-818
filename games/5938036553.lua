@@ -2296,7 +2296,7 @@ run(function()
 end)
 -- ILLUSIONHD_GUNCHANGER_END
 
--- ILLUSIONHD_CUSTOMKNIFE_V2
+-- ILLUSIONHD_CUSTOMKNIFE_V3
 run(function()
 	local CustomKnife
 	local AssetID
@@ -2329,6 +2329,7 @@ run(function()
 	local currentTarget
 	local hiddenParts = {}
 	local lastSearch = 0
+	local assetListChanging = false
 
 	local function value(option, fallback)
 		if option and option.Value ~= nil then
@@ -2479,48 +2480,106 @@ run(function()
 		end
 	end
 
-	local function findAssetObject(root)
-		if not root then return nil end
+\tlocal function getAssetCandidates(objects)
+		local candidates = {}
+		local labels = {'Auto'}
+		local usedLabels = {}
 
-		local selected = value(AssetModel, 'Auto')
-		if selected ~= 'Auto' then
-			if root.Name == selected then
-				return root
+		local function usableModel(obj)
+			return obj:IsA('Model') and obj:FindFirstChildWhichIsA('BasePart', true) ~= nil
+		end
+
+		local function makeLabel(obj)
+			local base = tostring(obj.Name)
+			if base == '' then
+				base = obj.ClassName
 			end
 
-			local exact = root:FindFirstChild(selected, true)
-			if exact then
-				return exact
+			local label = base
+			local index = 2
+			while usedLabels[label] do
+				label = base..' #'..index
+				index += 1
+			end
+
+			usedLabels[label] = true
+			return label
+		end
+
+		-- Prefer actual Models from the asset. These are the useful choices
+		-- for most Roblox catalog/model asset IDs.
+		for _, root in objects do
+			if usableModel(root) then
+				local label = makeLabel(root)
+				candidates[label] = root
+				table.insert(labels, label)
+			end
+
+			for _, obj in root:GetDescendants() do
+				if usableModel(obj) then
+					local label = makeLabel(obj)
+					candidates[label] = obj
+					table.insert(labels, label)
+				end
 			end
 		end
 
-		-- Your model layout:
-		-- combat_knife
-		--   Knife1
-		--   Knife2
-		-- so Auto intentionally grabs combat_knife as a whole.
-		if root.Name == 'combat_knife' then
-			return root
-		end
+		-- Some assets are a loose MeshPart/Part with no Model wrapper.
+		if #labels == 1 then
+			for _, root in objects do
+				if root:IsA('BasePart') then
+					local label = makeLabel(root)
+					candidates[label] = root
+					table.insert(labels, label)
+				end
 
-		local combat = root:FindFirstChild('combat_knife', true)
-		if combat then
-			return combat
-		end
-
-		if validNames[root.Name] then
-			return root
-		end
-
-		for _, wantedName in {'Knife1', 'Knife2'} do
-			local exact = root:FindFirstChild(wantedName, true)
-			if exact then
-				return exact
+				for _, obj in root:GetDescendants() do
+					if obj:IsA('BasePart') then
+						local label = makeLabel(obj)
+						candidates[label] = obj
+						table.insert(labels, label)
+					end
+				end
 			end
 		end
 
-		-- Generic wrapper fallback.
-		return root
+		return candidates, labels
+	end
+
+	local function chooseAssetCandidate(candidates, selected)
+		if selected and selected ~= 'Auto' and candidates[selected] then
+			return candidates[selected]
+		end
+
+		local best
+		local bestScore = -1
+
+		for _, obj in candidates do
+			local score = 0
+
+			if obj:IsA('Model') then
+				for _, desc in obj:GetDescendants() do
+					if desc:IsA('BasePart') then
+						score += 1
+						if desc:IsA('MeshPart') then
+							score += 0.2
+						end
+					end
+				end
+
+				-- Prefer a complete model over an individual loose part.
+				score += 5
+			elseif obj:IsA('BasePart') then
+				score = 1
+			end
+
+			if score > bestScore then
+				bestScore = score
+				best = obj
+			end
+		end
+
+		return best
 	end
 
 	local function makeTemplate(obj)
@@ -2589,7 +2648,7 @@ run(function()
 		visual.Parent = Folder
 	end
 
-	local function loadAsset(showError)
+\tlocal function loadAsset(showError)
 		if not optionsReady then return end
 
 		if template then
@@ -2604,6 +2663,13 @@ run(function()
 			if showError then
 				notif('CustomKnife', 'Enter a valid asset ID.', 5, 'alert')
 			end
+
+			if AssetModel then
+				assetListChanging = true
+				AssetModel:Change({'Auto'})
+				AssetModel:SetValue('Auto', false)
+				assetListChanging = false
+			end
 			return
 		end
 
@@ -2616,8 +2682,25 @@ run(function()
 			return
 		end
 
-		local root = objects[1]
-		local chosen = findAssetObject(root)
+		local candidates, labels = getAssetCandidates(objects)
+
+		-- Populate the dropdown with the ACTUAL model names inside this asset ID.
+		if AssetModel then
+			local previous = value(AssetModel, 'Auto')
+			assetListChanging = true
+			AssetModel:Change(labels)
+
+			if previous ~= 'Auto' and candidates[previous] then
+				AssetModel:SetValue(previous, false)
+			else
+				AssetModel:SetValue('Auto', false)
+			end
+
+			assetListChanging = false
+		end
+
+		local selected = value(AssetModel, 'Auto')
+		local chosen = chooseAssetCandidate(candidates, selected)
 
 		if chosen then
 			local ok, result = pcall(makeTemplate, chosen)
@@ -2633,7 +2716,7 @@ run(function()
 		end
 
 		if not template then
-			notif('CustomKnife', 'Asset has no usable combat_knife / Knife1 / Knife2 model.', 5, 'alert')
+			notif('CustomKnife', 'Asset '..id..' has no usable Model or BasePart.', 5, 'alert')
 			return
 		end
 
@@ -2733,14 +2816,14 @@ run(function()
 				stopKnife()
 			end
 		end,
-		Tooltip = 'Replaces the local FPV knife with a model loaded from a Roblox asset ID.'
+		Tooltip = 'Loads a Roblox asset ID, discovers the Models inside it, and uses the selected model as your local FPV knife.'
 	})
 
 	AssetID = CustomKnife:CreateTextBox({
 		Name = 'Asset ID',
 		Default = '',
 		Function = function()
-			if optionsReady and CustomKnife.Enabled then
+			if optionsReady then
 				loadAsset(false)
 			end
 		end
@@ -2748,9 +2831,10 @@ run(function()
 
 	AssetModel = CustomKnife:CreateDropdown({
 		Name = 'Asset Model',
-		List = {'Auto', 'Knife1', 'Knife2', 'combat_knife'},
+		List = {'Auto'},
 		Default = 'Auto',
 		Function = function()
+			if assetListChanging then return end
 			if optionsReady
 				and CustomKnife.Enabled
 				and tostring(value(AssetID, '')):match('%d+') then
