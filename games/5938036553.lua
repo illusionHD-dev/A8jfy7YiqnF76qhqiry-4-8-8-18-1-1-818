@@ -1460,7 +1460,7 @@ run(function()
 	local lighting = game:GetService('Lighting')
 	local tweens = game:GetService('TweenService')
 	local rgb = Color3.fromRGB
-	local RTXShaders, Preset, Strength, Exposure, Bloom, Rays, Haze, DOF, Smooth, CustomTime, Time
+	local RTXShaders, Preset, Strength, Exposure, Bloom, Rays, Haze, DOF, Smooth, CustomTime, Time, ShadowDepth, Sunlight
 	local active, ready = false, false
 	local original, effects, owned, suppressed, atmospheres, connections, animations = {}, {}, {}, {}, {}, {}, {}
 	local cameraConnection
@@ -1469,46 +1469,46 @@ run(function()
 	local names = {'SEUS Inspired', 'BSL Inspired', 'Complementary Inspired', 'Golden Hour', 'Midnight', 'Cinematic'}
 	local presets = {
 		['SEUS Inspired'] = {
-			Time = 15.3, Sun = 3.1, Exposure = -0.12, Ambient = rgb(48, 53, 67), Outdoor = rgb(107, 119, 138),
-			Top = rgb(255, 229, 189), Bottom = rgb(0, 0, 0), Softness = 0.28, Diffuse = 0.72,
-			Contrast = 0.18, Saturation = 0.12, Tint = rgb(255, 247, 230), Grade = 0,
-			Bloom = 0.32, Threshold = 1.45, Size = 36, Rays = 0.075, Spread = 0.82,
-			Density = 0.25, Offset = 0.16, Air = rgb(203, 219, 237), Decay = rgb(114, 124, 149), Glare = 0.22, Haze = 1.3
+			Time = 16.05, Sun = 3.8, Exposure = -0.22, Ambient = rgb(43, 51, 69), Outdoor = rgb(100, 116, 140),
+			Top = rgb(255, 225, 174), Bottom = rgb(0, 0, 0), Softness = 0.32, Diffuse = 0.62,
+			Contrast = 0.24, Saturation = 0.19, Tint = rgb(255, 246, 229), Grade = 0.012,
+			Bloom = 0.44, Threshold = 1.25, Size = 24, Halo = 0.13, HaloThreshold = 1.65, Rays = 0.11, Spread = 0.84,
+			Density = 0.27, Offset = 0.18, Air = rgb(210, 224, 240), Decay = rgb(107, 124, 153), Glare = 0.42, Haze = 1.7
 		},
 		['BSL Inspired'] = {
-			Time = 16.1, Sun = 2.65, Exposure = 0.02, Ambient = rgb(70, 65, 79), Outdoor = rgb(139, 128, 132),
-			Top = rgb(255, 218, 177), Bottom = rgb(0, 0, 0), Softness = 0.65, Diffuse = 0.8,
-			Contrast = 0.1, Saturation = 0.08, Tint = rgb(255, 238, 220), Grade = 0.01,
-			Bloom = 0.48, Threshold = 1.2, Size = 48, Rays = 0.055, Spread = 0.9,
-			Density = 0.29, Offset = 0.12, Air = rgb(237, 215, 198), Decay = rgb(151, 125, 142), Glare = 0.35, Haze = 1.7
+			Time = 16.65, Sun = 3.35, Exposure = -0.13, Ambient = rgb(61, 57, 78), Outdoor = rgb(126, 115, 139),
+			Top = rgb(255, 206, 161), Bottom = rgb(0, 0, 0), Softness = 0.75, Diffuse = 0.72,
+			Contrast = 0.18, Saturation = 0.15, Tint = rgb(255, 239, 223), Grade = 0.02,
+			Bloom = 0.56, Threshold = 1.12, Size = 32, Halo = 0.19, HaloThreshold = 1.4, Rays = 0.095, Spread = 0.92,
+			Density = 0.3, Offset = 0.16, Air = rgb(241, 217, 203), Decay = rgb(138, 116, 150), Glare = 0.52, Haze = 2.1
 		},
 		['Complementary Inspired'] = {
-			Time = 13.8, Sun = 3.3, Exposure = -0.08, Ambient = rgb(46, 59, 75), Outdoor = rgb(113, 139, 157),
-			Top = rgb(255, 245, 225), Bottom = rgb(0, 0, 0), Softness = 0.35, Diffuse = 0.85,
-			Contrast = 0.16, Saturation = 0.24, Tint = rgb(243, 251, 255), Grade = 0,
-			Bloom = 0.22, Threshold = 1.65, Size = 28, Rays = 0.045, Spread = 0.8,
-			Density = 0.21, Offset = 0.2, Air = rgb(183, 217, 245), Decay = rgb(99, 133, 162), Glare = 0.15, Haze = 0.9
+			Time = 14.65, Sun = 4.1, Exposure = -0.2, Ambient = rgb(40, 54, 73), Outdoor = rgb(98, 131, 155),
+			Top = rgb(255, 238, 201), Bottom = rgb(0, 0, 0), Softness = 0.28, Diffuse = 0.72,
+			Contrast = 0.23, Saturation = 0.3, Tint = rgb(247, 252, 255), Grade = 0.008,
+			Bloom = 0.34, Threshold = 1.4, Size = 20, Halo = 0.1, HaloThreshold = 1.8, Rays = 0.075, Spread = 0.82,
+			Density = 0.23, Offset = 0.22, Air = rgb(179, 217, 248), Decay = rgb(87, 125, 165), Glare = 0.27, Haze = 1.25
 		},
 		['Golden Hour'] = {
-			Time = 17.55, Sun = 3.2, Exposure = -0.05, Ambient = rgb(69, 48, 72), Outdoor = rgb(149, 108, 102),
-			Top = rgb(255, 181, 101), Bottom = rgb(0, 0, 0), Softness = 0.5, Diffuse = 0.7,
-			Contrast = 0.2, Saturation = 0.18, Tint = rgb(255, 223, 186), Grade = 0.01,
-			Bloom = 0.5, Threshold = 1.15, Size = 48, Rays = 0.12, Spread = 0.88,
-			Density = 0.32, Offset = 0.08, Air = rgb(255, 205, 151), Decay = rgb(156, 98, 114), Glare = 0.65, Haze = 2
+			Time = 17.35, Sun = 4, Exposure = -0.19, Ambient = rgb(60, 45, 76), Outdoor = rgb(139, 102, 111),
+			Top = rgb(255, 168, 85), Bottom = rgb(0, 0, 0), Softness = 0.55, Diffuse = 0.61,
+			Contrast = 0.25, Saturation = 0.23, Tint = rgb(255, 231, 203), Grade = 0.015,
+			Bloom = 0.64, Threshold = 1.08, Size = 32, Halo = 0.22, HaloThreshold = 1.4, Rays = 0.16, Spread = 0.9,
+			Density = 0.32, Offset = 0.14, Air = rgb(255, 210, 160), Decay = rgb(137, 91, 131), Glare = 0.9, Haze = 2.5
 		},
 		['Midnight'] = {
-			Time = 0.3, Sun = 1.5, Exposure = 0.18, Ambient = rgb(38, 43, 72), Outdoor = rgb(76, 91, 130),
-			Top = rgb(148, 179, 255), Bottom = rgb(0, 0, 0), Softness = 0.6, Diffuse = 0.7,
-			Contrast = 0.15, Saturation = -0.08, Tint = rgb(201, 219, 255), Grade = 0.015,
-			Bloom = 0.55, Threshold = 1.05, Size = 40, Rays = 0.015, Spread = 0.95,
-			Density = 0.3, Offset = 0.12, Air = rgb(118, 142, 204), Decay = rgb(46, 53, 98), Glare = 0, Haze = 1.8
+			Time = 0.3, Sun = 1.9, Exposure = 0.22, Ambient = rgb(37, 44, 73), Outdoor = rgb(71, 90, 138),
+			Top = rgb(152, 188, 255), Bottom = rgb(0, 0, 0), Softness = 0.65, Diffuse = 0.7,
+			Contrast = 0.2, Saturation = 0.02, Tint = rgb(213, 231, 255), Grade = 0.025,
+			Bloom = 0.68, Threshold = 1.03, Size = 26, Halo = 0.2, HaloThreshold = 1.3, Rays = 0.025, Spread = 0.95,
+			Density = 0.29, Offset = 0.18, Air = rgb(115, 146, 217), Decay = rgb(45, 52, 104), Glare = 0, Haze = 2.15
 		},
 		['Cinematic'] = {
-			Time = 16.65, Sun = 2.8, Exposure = -0.18, Ambient = rgb(37, 59, 65), Outdoor = rgb(103, 128, 132),
-			Top = rgb(255, 209, 159), Bottom = rgb(0, 0, 0), Softness = 0.45, Diffuse = 0.65,
-			Contrast = 0.26, Saturation = -0.14, Tint = rgb(240, 247, 241), Grade = -0.015,
-			Bloom = 0.28, Threshold = 1.4, Size = 36, Rays = 0.065, Spread = 0.85,
-			Density = 0.29, Offset = 0.1, Air = rgb(187, 209, 212), Decay = rgb(88, 116, 122), Glare = 0.25, Haze = 1.6
+			Time = 16.85, Sun = 3.55, Exposure = -0.25, Ambient = rgb(34, 54, 65), Outdoor = rgb(91, 119, 131),
+			Top = rgb(255, 196, 142), Bottom = rgb(0, 0, 0), Softness = 0.48, Diffuse = 0.59,
+			Contrast = 0.3, Saturation = -0.06, Tint = rgb(244, 249, 241), Grade = 0.005,
+			Bloom = 0.4, Threshold = 1.25, Size = 22, Halo = 0.15, HaloThreshold = 1.55, Rays = 0.1, Spread = 0.88,
+			Density = 0.29, Offset = 0.17, Air = rgb(189, 212, 214), Decay = rgb(77, 111, 126), Glare = 0.4, Haze = 2
 		}
 	}
 	local properties = {
@@ -1551,13 +1551,13 @@ run(function()
 			cameraConnection = camera.ChildAdded:Connect(capture)
 		end
 	end
-	local function make(class, values)
+	local function make(class, values, key)
 		local object = Instance.new(class)
-		object.Name = 'RTXShaders_'..class
+		object.Name = 'RTXShaders_'..(key or class)
 		owned[object] = true
 		for key, value in pairs(values) do object[key] = value end
 		object.Parent = lighting
-		effects[class] = object
+		effects[key or class] = object
 		return object
 	end
 	local function restore()
@@ -1585,10 +1585,16 @@ run(function()
 		local p = presets[Preset.Value] or presets[names[1]]
 		local amount = Strength.Value / 100
 		local animate = Smooth.Enabled
+		local depth = ShadowDepth.Value / 100
+		-- Cool, darker ambient fill against brighter direct light gives surfaces more shape.
+		-- Midnight keeps more fill so its shadows remain navigable.
+		local night = Preset.Value == 'Midnight'
+		local shadowColor = p.Ambient:Lerp(rgb(20, 29, 46), depth * (night and 0.25 or 0.6))
+		local outdoorColor = p.Outdoor:Lerp(rgb(60, 79, 108), depth * (night and 0.15 or 0.45))
 		local values = {
-			Brightness = p.Sun, ExposureCompensation = p.Exposure + Exposure.Value / 100,
-			Ambient = p.Ambient, OutdoorAmbient = p.Outdoor, ColorShift_Top = p.Top, ColorShift_Bottom = p.Bottom,
-			ShadowSoftness = p.Softness, EnvironmentDiffuseScale = p.Diffuse, EnvironmentSpecularScale = 1,
+			Brightness = p.Sun * Sunlight.Value / 100, ExposureCompensation = p.Exposure + Exposure.Value / 100,
+			Ambient = shadowColor, OutdoorAmbient = outdoorColor, ColorShift_Top = p.Top, ColorShift_Bottom = p.Bottom,
+			ShadowSoftness = p.Softness, EnvironmentDiffuseScale = p.Diffuse * (1 - depth * 0.16), EnvironmentSpecularScale = 1,
 			GeographicLatitude = 35, FogStart = 0, FogEnd = 100000
 		}
 		setProperties(lighting, values, animate)
@@ -1601,6 +1607,10 @@ run(function()
 		}, animate)
 		setProperties(effects.BloomEffect, {
 			Intensity = p.Bloom * Bloom.Value / 100 * amount, Threshold = p.Threshold, Size = p.Size
+		}, animate)
+		-- A restrained wide halo surrounds a tighter highlight bloom.
+		setProperties(effects.HighlightHalo, {
+			Intensity = p.Halo * Bloom.Value / 100 * amount, Threshold = p.HaloThreshold, Size = 56
 		}, animate)
 		setProperties(effects.SunRaysEffect, {
 			Intensity = p.Rays * Rays.Value / 100 * amount, Spread = p.Spread
@@ -1622,6 +1632,7 @@ run(function()
 			watchCamera()
 			make('ColorCorrectionEffect', {Brightness = 0, Contrast = 0, Saturation = 0})
 			make('BloomEffect', {Intensity = 0})
+			make('BloomEffect', {Intensity = 0}, 'HighlightHalo')
 			make('SunRaysEffect', {Intensity = 0})
 			make('Atmosphere', {Density = 0, Haze = 0, Glare = 0})
 			make('DepthOfFieldEffect', {Enabled = false, NearIntensity = 0, FarIntensity = 0.12, FocusDistance = 80, InFocusRadius = 65})
@@ -1652,6 +1663,8 @@ run(function()
 	})
 	Preset = RTXShaders:CreateDropdown({Name = 'Preset', List = names, Default = names[1], Function = changed})
 	Strength = RTXShaders:CreateSlider({Name = 'Grade Strength', Min = 0, Max = 150, Default = 100, Suffix = '%', Function = changed})
+	ShadowDepth = RTXShaders:CreateSlider({Name = 'Shadow Depth', Min = 0, Max = 100, Default = 50, Suffix = '%', Function = changed})
+	Sunlight = RTXShaders:CreateSlider({Name = 'Sunlight', Min = 50, Max = 150, Default = 100, Suffix = '%', Function = changed})
 	Exposure = RTXShaders:CreateSlider({Name = 'Exposure', Min = -100, Max = 100, Default = 0, Function = changed})
 	Bloom = RTXShaders:CreateSlider({Name = 'Bloom', Min = 0, Max = 200, Default = 100, Suffix = '%', Function = changed})
 	Rays = RTXShaders:CreateSlider({Name = 'Sun Rays', Min = 0, Max = 200, Default = 100, Suffix = '%', Function = changed})
