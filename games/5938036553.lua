@@ -1475,7 +1475,7 @@ run(function()
 		'Complementary Reimagined', 'SEUS PTGI', 'BSL Ultra', 'Sildurs Vibrant', 'Continuum',
 		'Photon', 'Rethinking Voxels', 'Insanity', 'AstraLex', 'Super Duper Vanilla',
 		'Golden Hour', 'Dreamy Sunset', 'Blue Hour', 'Crystal Day', 'Overcast',
-		'Rainy Film', 'Midnight', 'Moonlit', 'Cyberpunk', 'Blood Moon',
+		'Rainy Film', 'Midnight', 'Night time', 'Moonlit', 'Cyberpunk', 'Blood Moon',
 		'Emerald Night', 'Arctic', 'Desert Heat', 'Cotton Candy', 'Cinematic',
 		'Noir', 'Vintage Film', 'Dark Fantasy', 'Heaven', 'Void'
 	}
@@ -1500,6 +1500,10 @@ run(function()
 		['Overcast'] = {Time=12.9,Sun=1.9,Exposure=-.01,Ambient=rgb(71,74,79),Outdoor=rgb(137,141,145),Top=rgb(183,190,198),Bottom=rgb(36,38,41),Softness=1,Diffuse=.92,Specular=.55,Contrast=.08,Saturation=-.28,Tint=rgb(227,232,236),Grade=-.01,Bloom=.12,Threshold=1.75,Size=22,Halo=.03,HaloThreshold=2,Rays=0,Spread=1,Density=.36,Offset=.08,Air=rgb(168,176,184),Decay=rgb(99,104,111),Glare=0,Haze=3.2,Fog=rgb(159,166,172),FogStart=180,FogEnd=1800,DOFFar=.1,Focus=90,Radius=75},
 		['Rainy Film'] = {Time=14.2,Sun=1.55,Exposure=-.18,Ambient=rgb(49,58,62),Outdoor=rgb(101,119,124),Top=rgb(178,195,197),Bottom=rgb(20,29,31),Softness=.95,Diffuse=.8,Specular=.72,Contrast=.27,Saturation=-.35,Tint=rgb(209,225,221),Grade=-.025,Bloom=.27,Threshold=1.2,Size=31,Halo=.11,HaloThreshold=1.48,Rays=0,Spread=1,Density=.42,Offset=.04,Air=rgb(130,155,159),Decay=rgb(61,80,82),Glare=0,Haze=4,Fog=rgb(112,133,136),FogStart=95,FogEnd=1150,DOFFar=.18,Focus=65,Radius=50},
 		['Midnight'] = {Time=.25,Sun=1.75,Exposure=.16,Ambient=rgb(23,30,57),Outdoor=rgb(60,81,129),Top=rgb(142,179,255),Bottom=rgb(0,1,9),Softness=.68,Diffuse=.68,Specular=.88,Contrast=.27,Saturation=.05,Tint=rgb(207,225,255),Grade=.018,Bloom=.66,Threshold=1.0,Size=31,Halo=.21,HaloThreshold=1.25,Rays=.018,Spread=.98,Density=.29,Offset=.18,Air=rgb(103,135,205),Decay=rgb(37,45,94),Glare=0,Haze=2.1,Fog=rgb(74,97,149),FogStart=300,FogEnd=3200,DOFFar=.12,Focus=82,Radius=65},
+		-- Night time is intentionally natural rather than fantasy-blue: deep navy blacks, silver moonlight,
+		-- readable shadow fill, restrained bloom and a long atmospheric falloff. It is meant to look like
+		-- an expensive realistic night shader while still keeping players and geometry visible.
+		['Night time'] = {Time=23.72,Sun=2.18,Exposure=.09,Ambient=rgb(17,24,43),Outdoor=rgb(48,67,103),Top=rgb(126,158,216),Bottom=rgb(1,3,10),Softness=.82,Diffuse=.61,Specular=.96,Contrast=.34,Saturation=.02,Tint=rgb(214,229,255),Grade=.008,Bloom=.47,Threshold=1.18,Size=29,Halo=.16,HaloThreshold=1.42,Rays=.012,Spread=.96,Density=.255,Offset=.205,Air=rgb(108,137,187),Decay=rgb(27,38,67),Glare=.03,Haze=1.72,Fog=rgb(54,73,108),FogStart=430,FogEnd=4300,DOFFar=.085,DOFNear=.018,Focus=105,Radius=88,Latitude=41},
 		['Moonlit'] = {Time=23.1,Sun=2.35,Exposure=.1,Ambient=rgb(32,39,65),Outdoor=rgb(80,98,139),Top=rgb(186,207,255),Bottom=rgb(4,6,17),Softness=.38,Diffuse=.64,Specular=1,Contrast=.31,Saturation=-.08,Tint=rgb(217,229,255),Grade=.008,Bloom=.4,Threshold=1.28,Size=22,Halo=.11,HaloThreshold=1.55,Rays=.012,Spread=.9,Density=.21,Offset=.23,Air=rgb(133,155,204),Decay=rgb(54,63,103),Glare=0,Haze=1.2,Fog=rgb(111,130,169),FogStart=520,FogEnd=4600,DOFFar=.07,Focus=110,Radius=90},
 		['Cyberpunk'] = {Time=1.05,Sun=1.2,Exposure=.13,Ambient=rgb(31,13,54),Outdoor=rgb(72,54,109),Top=rgb(255,48,184),Bottom=rgb(0,13,31),Softness=.52,Diffuse=.56,Specular=1,Contrast=.42,Saturation=.48,Tint=rgb(226,203,255),Grade=.02,Bloom=1.05,Threshold=.7,Size=56,Halo=.55,HaloThreshold=.82,Rays=.025,Spread=1,Density=.34,Offset=.12,Air=rgb(93,73,162),Decay=rgb(18,52,85),Glare=.05,Haze=2.8,Fog=rgb(57,42,98),FogStart=180,FogEnd=1900,DOFFar=.18,Focus=67,Radius=47},
 		['Blood Moon'] = {Time=0.6,Sun=1.35,Exposure=-.18,Ambient=rgb(52,16,18),Outdoor=rgb(104,44,44),Top=rgb(255,71,49),Bottom=rgb(8,0,0),Softness=.72,Diffuse=.48,Specular=.76,Contrast=.48,Saturation=.12,Tint=rgb(255,181,170),Grade=-.035,Bloom=.62,Threshold=.88,Size=43,Halo=.29,HaloThreshold=1.02,Rays=.018,Spread=.96,Density=.39,Offset=.08,Air=rgb(133,56,52),Decay=rgb(45,9,13),Glare=.03,Haze=3.7,Fog=rgb(83,30,31),FogStart=110,FogEnd=1200,DOFFar=.22,Focus=55,Radius=38},
@@ -1609,7 +1613,7 @@ run(function()
 			ShadowSoftness = p.Softness,
 			EnvironmentDiffuseScale = math.clamp(p.Diffuse * (1 - depth * .12), 0, 1),
 			EnvironmentSpecularScale = math.clamp(p.Specular, 0, 1),
-			GeographicLatitude = 35,
+			GeographicLatitude = p.Latitude or 35,
 			FogColor = p.Fog,
 			FogStart = p.FogStart / math.max(fogScale, .05),
 			FogEnd = p.FogEnd / math.max(fogScale, .05)
@@ -1658,7 +1662,7 @@ run(function()
 			FarIntensity = p.DOFFar,
 			FocusDistance = p.Focus,
 			InFocusRadius = p.Radius,
-			NearIntensity = .035
+			NearIntensity = p.DOFNear or .035
 		}, animate)
 		effects.DepthOfFieldEffect.Enabled = DOF.Enabled
 
@@ -1705,7 +1709,7 @@ run(function()
 
 	RTXShaders = vape.Categories.Render:CreateModule({
 		Name = 'RTXShaders',
-		Tooltip = 'Shader-pack inspired lighting with 30 visual presets, cinematic grading, atmosphere and bloom.',
+		Tooltip = 'Shader-pack inspired lighting with 31 visual presets, cinematic grading, atmosphere and bloom.',
 		Function = function(enabled)
 			if enabled then task.defer(function() if RTXShaders and RTXShaders.Enabled then start() end end) else restore() end
 		end
@@ -3377,7 +3381,7 @@ run(function()
 end)
 -- ILLUSIONHD_FIREFLIES_END
 
--- ILLUSIONHD_HITEFFECTS_V1
+-- ILLUSIONHD_HITEFFECTS_V2
 run(function()
 	local HitEffects
 	local Mode
@@ -3389,6 +3393,8 @@ run(function()
 	local Quality
 	local HeadshotsOnly
 	local ConfirmedHits
+	local ExtraGlow
+	local MotionTrails
 
 	local Folder = Instance.new('Folder')
 	Folder.Name = 'IllusionHDHitEffects'
@@ -3396,232 +3402,359 @@ run(function()
 
 	local pending = {}
 	local healthCache = {}
+	local SPARK = 'rbxasset://textures/particles/sparkles_main.dds'
+	local SMOKE = 'rbxasset://textures/particles/smoke_main.dds'
+	local FIRE = 'rbxasset://textures/particles/fire_main.dds'
 
 	local modes = {
-		'Astral Bloom', 'Prism Break', 'Aurora', 'Starfall', 'Sakura', 'Love Burst', 'Kitty Pop',
-		'Sparks', 'Burst', 'Pulse', 'Ring', 'Slash', 'Cross', 'Lightning',
-		'Stars', 'Hearts', 'Crit', 'Smoke', 'Shards', 'Pixels', 'Spiral',
-		'Orbit', 'Bubble', 'Shockwave', 'Rainbow', 'Headshot', 'Random'
+		'Arcane Impact', 'Prism Shatter', 'Neon Slash', 'Thunder Crack', 'Void Ripple',
+		'Solar Flare', 'Frostbite', 'Ember Burst', 'Aurora Bloom', 'Pixel Glitch',
+		'Sakura Bloom', 'Love Burst', 'Starfall', 'Shock Ring', 'Headshot Crown',
+		'Chromatic Burst', 'Soul Spark', 'Crystal Hit',
+		'Astral Bloom', 'Prism Break', 'Aurora', 'Sakura', 'Kitty Pop', 'Sparks', 'Burst',
+		'Pulse', 'Ring', 'Slash', 'Cross', 'Lightning', 'Stars', 'Hearts', 'Crit', 'Smoke',
+		'Shards', 'Pixels', 'Spiral', 'Orbit', 'Bubble', 'Shockwave', 'Rainbow', 'Headshot', 'Random'
+	}
+
+	local aliases = {
+		['Astral Bloom'] = 'Arcane Impact', ['Burst'] = 'Arcane Impact', ['Crit'] = 'Arcane Impact',
+		['Prism Break'] = 'Prism Shatter', ['Shards'] = 'Prism Shatter',
+		['Aurora'] = 'Aurora Bloom', ['Sakura'] = 'Sakura Bloom', ['Kitty Pop'] = 'Love Burst',
+		['Sparks'] = 'Ember Burst', ['Pulse'] = 'Shock Ring', ['Ring'] = 'Shock Ring', ['Shockwave'] = 'Shock Ring',
+		['Slash'] = 'Neon Slash', ['Cross'] = 'Neon Slash', ['Lightning'] = 'Thunder Crack',
+		['Stars'] = 'Starfall', ['Hearts'] = 'Love Burst', ['Smoke'] = 'Soul Spark',
+		['Pixels'] = 'Pixel Glitch', ['Spiral'] = 'Aurora Bloom', ['Orbit'] = 'Aurora Bloom',
+		['Bubble'] = 'Soul Spark', ['Rainbow'] = 'Chromatic Burst', ['Headshot'] = 'Headshot Crown'
 	}
 
 	local randomModes = {
-		'Astral Bloom', 'Prism Break', 'Aurora', 'Starfall', 'Sakura', 'Love Burst', 'Kitty Pop',
-		'Sparks', 'Burst', 'Pulse', 'Ring', 'Slash', 'Cross', 'Lightning',
-		'Stars', 'Hearts', 'Crit', 'Smoke', 'Shards', 'Pixels', 'Spiral',
-		'Orbit', 'Bubble', 'Shockwave', 'Rainbow'
+		'Arcane Impact', 'Prism Shatter', 'Neon Slash', 'Thunder Crack', 'Void Ripple',
+		'Solar Flare', 'Frostbite', 'Ember Burst', 'Aurora Bloom', 'Pixel Glitch',
+		'Sakura Bloom', 'Love Burst', 'Starfall', 'Shock Ring', 'Chromatic Burst',
+		'Soul Spark', 'Crystal Hit'
 	}
 
+	local function qmul()
+		return Quality.Value == 'Low' and 0.68 or Quality.Value == 'High' and 1.65 or 1
+	end
+
 	local function amount(base)
-		local mul = Quality.Value == 'Low' and 0.85 or Quality.Value == 'High' and 2.35 or 1.45
-		return math.max(1, math.floor(base * mul + 0.5))
+		return math.max(1, math.floor(base * qmul() + 0.5))
 	end
 
 	local function getColors(ent)
 		if ColorMode.Value == 'Theme' then
 			local c = vape:GetGUIColorRGB()
-			return c, c:Lerp(Color3.new(1, 1, 1), 0.5)
+			return c, c:Lerp(Color3.new(1, 1, 1), 0.55)
 		elseif ColorMode.Value == 'Pastel' then
-			return Color3.fromRGB(255, 174, 216), Color3.fromRGB(174, 219, 255)
+			return Color3.fromRGB(255, 154, 219), Color3.fromRGB(138, 214, 255)
 		elseif ColorMode.Value == 'Target' and ent then
 			local c = entitylib.getEntityColor(ent)
-			if c then
-				return c, c:Lerp(Color3.new(1, 1, 1), 0.55)
-			end
+			if c then return c, c:Lerp(Color3.new(1, 1, 1), 0.6) end
 		elseif ColorMode.Value == 'Rainbow' then
-			local hue = (tick() * 0.2) % 1
-			return Color3.fromHSV(hue, 0.85, 1), Color3.fromHSV((hue + 0.5) % 1, 0.85, 1)
+			local h = (tick() * 0.22) % 1
+			return Color3.fromHSV(h, 0.9, 1), Color3.fromHSV((h + 0.42) % 1, 0.86, 1)
 		end
-
 		return Color3.fromHSV(PrimaryColor.Hue, PrimaryColor.Sat, PrimaryColor.Value),
 			Color3.fromHSV(SecondaryColor.Hue, SecondaryColor.Sat, SecondaryColor.Value)
 	end
 
 	local function cleanup(obj, life)
-		debrisService:AddItem(obj, math.max(life or Lifetime.Value, 0.05) + 0.15)
+		if obj then debrisService:AddItem(obj, math.max(life or 0.2, 0.05) + 0.2) end
 		return obj
 	end
 
-	local function makePart(size, cf, color, transparency, material, shape)
-		local obj = Instance.new('Part')
-		obj.Size = size
-		obj.CFrame = cf
-		obj.Anchored = true
-		obj.CanCollide = false
-		obj.CanTouch = false
-		obj.CanQuery = false
-		obj.CastShadow = false
-		obj.Color = color
-		obj.Transparency = transparency or 0
-		obj.Material = material or Enum.Material.Neon
-		if shape then
-			obj.Shape = shape
-		end
-		obj.Parent = Folder
-		return obj
-	end
-
-	local function tween(obj, life, props, style)
+	local function tween(obj, life, props, style, direction)
+		if not obj or not obj.Parent then return end
 		local tw = tweenService:Create(obj, TweenInfo.new(
 			math.max(life, 0.03),
-			style or Enum.EasingStyle.Quad,
-			Enum.EasingDirection.Out
+			style or Enum.EasingStyle.Quart,
+			direction or Enum.EasingDirection.Out
 		), props)
 		tw:Play()
-		tw.Completed:Connect(function()
-			pcall(function()
-				tw:Destroy()
-			end)
-		end)
+		tw.Completed:Connect(function() pcall(function() tw:Destroy() end) end)
 		return tw
 	end
 
-	local function sphere(pos, startSize, endSize, color, life, transparency)
-		local obj = makePart(
-			Vector3.one * math.max(startSize, 0.03),
-			CFrame.new(pos),
-			color,
-			transparency or 0,
-			Enum.Material.Neon,
-			Enum.PartType.Ball
-		)
-		tween(obj, life, {
-			Size = Vector3.one * math.max(endSize, 0.03),
-			Transparency = 1
-		}, Enum.EasingStyle.Quart)
-		cleanup(obj, life)
+	local function anchor(pos)
+		local p = Instance.new('Part')
+		p.Size = Vector3.one * 0.05
+		p.CFrame = typeof(pos) == 'CFrame' and pos or CFrame.new(pos)
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanTouch = false
+		p.CanQuery = false
+		p.CastShadow = false
+		p.Transparency = 1
+		p.Parent = Folder
+		return p
 	end
 
-	local function line(a, b, width, color, life)
-		local dist = (b - a).Magnitude
-		if dist <= 0.01 then return end
-
-		local obj = makePart(
-			Vector3.new(width, width, dist),
-			CFrame.lookAt((a + b) / 2, b),
-			color,
-			0,
-			Enum.Material.Neon
-		)
-
-		tween(obj, life, {
-			Transparency = 1,
-			Size = Vector3.new(math.max(width * 0.1, 0.015), math.max(width * 0.1, 0.015), dist)
-		}, Enum.EasingStyle.Quart)
-
-		cleanup(obj, life)
+	local function part(size, cf, color, transparency, material, shape)
+		local p = Instance.new('Part')
+		p.Size = size
+		p.CFrame = cf
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanTouch = false
+		p.CanQuery = false
+		p.CastShadow = false
+		p.Color = color
+		p.Transparency = transparency or 0
+		p.Material = material or Enum.Material.Neon
+		if shape then p.Shape = shape end
+		p.Parent = Folder
+		return p
 	end
 
-	local function burst(pos, count, radius, size, a, b, life, cubes, rainbow)
-		local total = amount(count)
-		for i = 1, total do
-			local dir = Vector3.new(
-				math.random(-100, 100) / 100,
-				math.random(-100, 100) / 100,
-				math.random(-100, 100) / 100
-			)
-			if dir.Magnitude < 0.05 then
-				dir = Vector3.yAxis
-			end
-			dir = dir.Unit
+	local function randUnit(upBias)
+		local v = Vector3.new(
+			math.random(-1000, 1000) / 1000,
+			math.random(-1000, 1000) / 1000 + (upBias or 0),
+			math.random(-1000, 1000) / 1000
+		)
+		return v.Magnitude > 0.03 and v.Unit or Vector3.yAxis
+	end
 
-			local color
-			if rainbow then
-				color = Color3.fromHSV(i / math.max(total, 1), 0.85, 1)
-			else
-				color = i % 2 == 0 and a or b
-			end
+	local function flash(pos, color, brightness, radius, life)
+		if ExtraGlow and not ExtraGlow.Enabled then return end
+		local a = anchor(pos)
+		local light = Instance.new('PointLight')
+		light.Color = color
+		light.Brightness = brightness
+		light.Range = radius
+		light.Shadows = false
+		light.Parent = a
+		tween(light, life, {Brightness = 0, Range = radius * 1.3}, Enum.EasingStyle.Quart)
+		cleanup(a, life)
+	end
 
-			local obj = makePart(
-				Vector3.one * size,
-				CFrame.new(pos) * CFrame.Angles(math.random(), math.random(), math.random()),
-				color,
+	local function orb(pos, startSize, endSize, color, life, transparency)
+		local p = part(Vector3.one * math.max(startSize, 0.025), CFrame.new(pos), color, transparency or 0, Enum.Material.Neon, Enum.PartType.Ball)
+		tween(p, life, {Size = Vector3.one * math.max(endSize, 0.025), Transparency = 1}, Enum.EasingStyle.Quart)
+		cleanup(p, life)
+		return p
+	end
+
+	local function beamRing(cf, startRadius, endRadius, segments, width, c1, c2, life, spin)
+		local root = anchor(cf)
+		local count = math.max(8, amount(segments))
+		local attachments = {}
+		for i = 1, count do
+			local ang = ((i - 1) / count) * math.pi * 2
+			local at = Instance.new('Attachment')
+			at.Position = Vector3.new(math.cos(ang) * startRadius, 0, math.sin(ang) * startRadius)
+			at.Parent = root
+			attachments[i] = at
+		end
+		for i = 1, count do
+			local b = Instance.new('Beam')
+			b.Attachment0 = attachments[i]
+			b.Attachment1 = attachments[(i % count) + 1]
+			b.FaceCamera = true
+			b.Width0 = width
+			b.Width1 = width
+			b.LightEmission = 1
+			b.LightInfluence = 0
+			b.Transparency = NumberSequence.new(0.05, 1)
+			b.Color = ColorSequence.new(i % 2 == 0 and c1 or c2, i % 2 == 0 and c2 or c1)
+			b.Parent = root
+		end
+		for i, at in attachments do
+			local ang = ((i - 1) / count) * math.pi * 2 + (spin or 0)
+			tween(at, life, {Position = Vector3.new(math.cos(ang) * endRadius, 0, math.sin(ang) * endRadius)}, Enum.EasingStyle.Quint)
+		end
+		if spin and spin ~= 0 then
+			tween(root, life, {CFrame = root.CFrame * CFrame.Angles(0, spin, 0)}, Enum.EasingStyle.Sine)
+		end
+		cleanup(root, life)
+		return root
+	end
+
+	local function arcBeam(p0, p1, color, width, life, curve, color2)
+		local a0 = anchor(p0)
+		local a1 = anchor(p1)
+		local at0 = Instance.new('Attachment')
+		local at1 = Instance.new('Attachment')
+		at0.Parent = a0
+		at1.Parent = a1
+		local b = Instance.new('Beam')
+		b.Attachment0 = at0
+		b.Attachment1 = at1
+		b.FaceCamera = true
+		b.Width0 = width
+		b.Width1 = math.max(width * 0.12, 0.01)
+		b.CurveSize0 = curve or 0
+		b.CurveSize1 = -(curve or 0) * 0.7
+		b.Segments = 8
+		b.LightEmission = 1
+		b.LightInfluence = 0
+		b.Color = ColorSequence.new(color, color2 or color)
+		b.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),
+			NumberSequenceKeypoint.new(0.7, 0.08),
+			NumberSequenceKeypoint.new(1, 1)
+		})
+		b.Parent = a0
+		task.delay(life * 0.18, function()
+			if b.Parent then tween(b, life * 0.82, {Width0 = 0.01, Width1 = 0.01}, Enum.EasingStyle.Quart) end
+		end)
+		cleanup(a0, life)
+		cleanup(a1, life)
+		return b
+	end
+
+	local function particleBurst(pos, c1, c2, count, speed, life, size, texture, drag)
+		local a = anchor(pos)
+		local pe = Instance.new('ParticleEmitter')
+		pe.Texture = texture or SPARK
+		pe.Rate = 0
+		pe.LightEmission = 1
+		pe.LightInfluence = 0
+		pe.Color = ColorSequence.new(c1, c2 or c1)
+		pe.Lifetime = NumberRange.new(life * 0.55, life)
+		pe.Speed = NumberRange.new(speed * 0.65, speed)
+		pe.Drag = drag or 4
+		pe.Rotation = NumberRange.new(0, 360)
+		pe.RotSpeed = NumberRange.new(-220, 220)
+		pe.SpreadAngle = Vector2.new(360, 360)
+		pe.Size = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, size),
+			NumberSequenceKeypoint.new(0.2, size * 0.75),
+			NumberSequenceKeypoint.new(1, 0)
+		})
+		pe.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.02),
+			NumberSequenceKeypoint.new(0.72, 0.2),
+			NumberSequenceKeypoint.new(1, 1)
+		})
+		pe.Parent = a
+		pe:Emit(amount(count))
+		cleanup(a, life + 0.15)
+	end
+
+	local function smokeBurst(pos, c1, c2, count, speed, life, size)
+		local a = anchor(pos)
+		local pe = Instance.new('ParticleEmitter')
+		pe.Texture = SMOKE
+		pe.Rate = 0
+		pe.LightEmission = 0.25
+		pe.LightInfluence = 0
+		pe.Color = ColorSequence.new(c1, c2)
+		pe.Lifetime = NumberRange.new(life * 0.75, life * 1.15)
+		pe.Speed = NumberRange.new(speed * 0.45, speed)
+		pe.Acceleration = Vector3.new(0, 2.4, 0)
+		pe.Drag = 5
+		pe.SpreadAngle = Vector2.new(360, 360)
+		pe.Size = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, size * 0.3),
+			NumberSequenceKeypoint.new(0.45, size),
+			NumberSequenceKeypoint.new(1, size * 1.35)
+		})
+		pe.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.45),
+			NumberSequenceKeypoint.new(0.6, 0.72),
+			NumberSequenceKeypoint.new(1, 1)
+		})
+		pe.Parent = a
+		pe:Emit(amount(count))
+		cleanup(a, life * 1.25)
+	end
+
+	local function streakBurst(pos, c1, c2, count, radius, size, life, upward, rainbow)
+		if MotionTrails and not MotionTrails.Enabled then
+			particleBurst(pos, c1, c2, count, radius * 2.2, life, size * 1.4, SPARK, 3)
+			return
+		end
+		for i = 1, amount(count) do
+			local dir = randUnit(upward or 0)
+			local c = rainbow and Color3.fromHSV(i / math.max(amount(count), 1), 0.9, 1) or (i % 2 == 0 and c1 or c2)
+			local p = part(Vector3.one * size, CFrame.new(pos), c, 0, Enum.Material.Neon, Enum.PartType.Ball)
+			local at0 = Instance.new('Attachment')
+			local at1 = Instance.new('Attachment')
+			at0.Position = Vector3.new(0, size * 0.45, 0)
+			at1.Position = Vector3.new(0, -size * 0.45, 0)
+			at0.Parent = p
+			at1.Parent = p
+			local tr = Instance.new('Trail')
+			tr.Attachment0 = at0
+			tr.Attachment1 = at1
+			tr.Color = ColorSequence.new(c, c:Lerp(Color3.new(1, 1, 1), 0.45))
+			tr.LightEmission = 1
+			tr.LightInfluence = 0
+			tr.Lifetime = math.min(life * 0.45, 0.3)
+			tr.MinLength = 0.02
+			tr.Transparency = NumberSequence.new(0.02, 1)
+			tr.WidthScale = NumberSequence.new(1, 0)
+			tr.Parent = p
+			local endpoint = pos + dir * radius * (0.65 + math.random() * 0.5)
+			tween(p, life, {CFrame = CFrame.new(endpoint), Size = Vector3.one * 0.018, Transparency = 1}, Enum.EasingStyle.Quart)
+			cleanup(p, life + tr.Lifetime)
+		end
+	end
+
+	local function shardBurst(pos, c1, c2, count, radius, size, life, material)
+		for i = 1, amount(count) do
+			local dir = randUnit(0.08)
+			local p = part(
+				Vector3.new(size * (0.35 + math.random()), size * (0.35 + math.random() * 1.5), size * (1.4 + math.random() * 2.8)),
+				CFrame.new(pos) * CFrame.Angles(math.random() * 5, math.random() * 5, math.random() * 5),
+				i % 3 == 0 and Color3.new(1, 1, 1) or (i % 2 == 0 and c1 or c2),
 				0,
-				Enum.Material.Neon,
-				cubes and nil or Enum.PartType.Ball
+				material or Enum.Material.Neon
 			)
-
-			local endPos = pos + dir * radius * (0.6 + math.random() * 0.5)
-			tween(obj, life, {
-				CFrame = CFrame.new(endPos) * CFrame.Angles(math.random() * 5, math.random() * 5, math.random() * 5),
-				Size = Vector3.one * math.max(size * 0.1, 0.02),
+			local endpoint = pos + dir * radius * (0.55 + math.random() * 0.55)
+			tween(p, life, {
+				CFrame = CFrame.new(endpoint) * CFrame.Angles(math.random() * 9, math.random() * 9, math.random() * 9),
+				Size = Vector3.one * 0.02,
 				Transparency = 1
 			}, Enum.EasingStyle.Quart)
-			cleanup(obj, life)
+			cleanup(p, life)
 		end
 	end
 
-	local function ring(pos, radius, count, size, a, b, life)
+	local function radialArcs(pos, c1, c2, count, radius, width, life, vertical)
 		local total = amount(count)
 		for i = 1, total do
-			local angle = (i / total) * math.pi * 2
-			local dir = Vector3.new(math.cos(angle), 0, math.sin(angle))
-			local start = pos + dir * radius * 0.15
-			local finish = pos + dir * radius
-			local obj = makePart(
-				Vector3.one * size,
-				CFrame.new(start),
-				i % 2 == 0 and a or b,
-				0,
-				Enum.Material.Neon,
-				Enum.PartType.Ball
-			)
-			tween(obj, life, {
-				CFrame = CFrame.new(finish),
-				Size = Vector3.one * math.max(size * 0.12, 0.02),
-				Transparency = 1
-			}, Enum.EasingStyle.Quart)
-			cleanup(obj, life)
+			local ang = (i / total) * math.pi * 2
+			local y = math.sin(ang * 2.7) * (vertical or 0)
+			local dir = Vector3.new(math.cos(ang), y, math.sin(ang)).Unit
+			arcBeam(pos + dir * 0.08, pos + dir * radius, i % 2 == 0 and c1 or c2, width, life, math.sin(ang * 3) * radius * 0.18, i % 2 == 0 and c2 or c1)
 		end
 	end
 
-	local function symbol(pos, text, color, life, count, scale)
-		for _ = 1, amount(count or 1) do
-			local anchor = makePart(Vector3.one * 0.03, CFrame.new(
-				pos + Vector3.new(math.random(-5, 5) / 10, math.random(-3, 5) / 10, math.random(-5, 5) / 10)
-			), color, 1, Enum.Material.SmoothPlastic)
-
-			local gui = Instance.new('BillboardGui')
-			gui.Size = UDim2.fromOffset(48 * (scale or 1), 48 * (scale or 1))
-			gui.AlwaysOnTop = true
-			gui.Adornee = anchor
-			gui.Parent = anchor
-
-			local label = Instance.new('TextLabel')
-			label.Size = UDim2.fromScale(1, 1)
-			label.BackgroundTransparency = 1
-			label.Text = text
-			label.TextScaled = true
-			label.TextColor3 = color
-			label.TextStrokeTransparency = 0.3
-			label.Font = Enum.Font.GothamBold
-			label.Parent = gui
-
-			tween(anchor, life, {
-				CFrame = anchor.CFrame + Vector3.new(math.random(-8, 8) / 10, 2 + math.random(), math.random(-8, 8) / 10)
-			}, Enum.EasingStyle.Sine)
-			tween(label, life, {
-				TextTransparency = 1,
-				TextStrokeTransparency = 1
-			}, Enum.EasingStyle.Quad)
-			cleanup(anchor, life)
-		end
+	local function symbol(pos, text, color, life, scale, rise, rotation)
+		local a = anchor(pos)
+		local gui = Instance.new('BillboardGui')
+		gui.Size = UDim2.fromOffset(54 * scale, 54 * scale)
+		gui.AlwaysOnTop = true
+		gui.Adornee = a
+		gui.Parent = a
+		local label = Instance.new('TextLabel')
+		label.Size = UDim2.fromScale(1, 1)
+		label.BackgroundTransparency = 1
+		label.Text = text
+		label.TextScaled = true
+		label.TextColor3 = color
+		label.TextStrokeColor3 = Color3.new(0, 0, 0)
+		label.TextStrokeTransparency = 0.45
+		label.Font = Enum.Font.GothamBold
+		label.Rotation = rotation or 0
+		label.Parent = gui
+		tween(a, life, {CFrame = a.CFrame + Vector3.new(0, rise or 1.8, 0)}, Enum.EasingStyle.Sine)
+		tween(label, life, {TextTransparency = 1, TextStrokeTransparency = 1, Rotation = (rotation or 0) + 75}, Enum.EasingStyle.Quad)
+		cleanup(a, life)
 	end
 
-	local function lightning(pos, a, b, scale, life)
-		local segments = amount(5)
-		local start = pos + Vector3.new(
-			math.random(-10, 10) / 10,
-			1.2 * scale,
-			math.random(-10, 10) / 10
-		)
-		for i = 1, segments do
-			local finish = pos + Vector3.new(
-				math.random(-15, 15) / 10 * scale,
-				(1.2 - i / segments * 2.4) * scale,
-				math.random(-15, 15) / 10 * scale
-			)
-			line(start, finish, 0.055 * scale, i % 2 == 0 and a or b, life)
-			start = finish
+	local function slashCross(pos, c1, c2, scale, life, count)
+		for i = 1, amount(count or 3) do
+			local yaw = math.random() * math.pi * 2
+			local pitch = math.rad(math.random(-35, 35))
+			local dir = Vector3.new(math.cos(yaw), math.sin(pitch), math.sin(yaw)).Unit
+			local side = dir:Cross(Vector3.yAxis)
+			if side.Magnitude < 0.05 then side = Vector3.xAxis else side = side.Unit end
+			local center = pos + side * ((i - 2) * 0.12 * scale)
+			arcBeam(center - dir * 1.8 * scale, center + dir * 2.1 * scale, i % 2 == 0 and c1 or c2, 0.09 * scale, life, (i % 2 == 0 and 0.35 or -0.35) * scale, Color3.new(1, 1, 1))
 		end
 	end
 
@@ -3630,308 +3763,185 @@ run(function()
 		if HeadshotsOnly.Enabled and not hit.Headshot then return end
 
 		local mode = Mode.Value
-		if mode == 'Random' then
-			mode = randomModes[math.random(1, #randomModes)]
-		elseif mode == 'Headshot' and not hit.Headshot then
-			mode = 'Sparks'
-		end
+		if mode == 'Random' then mode = randomModes[math.random(1, #randomModes)] end
+		mode = aliases[mode] or mode
+		if mode == 'Headshot Crown' and not hit.Headshot then mode = 'Arcane Impact' end
 
-		local scale = EffectSize.Value * (hit.Headshot and 1.18 or 1)
-		local life = math.max(Lifetime.Value, 0.12)
-		local a, b = getColors(hit.Entity)
 		local pos = hit.Position
-		local upgraded = ({Sparks = 'Astral Bloom', Hearts = 'Love Burst', Stars = 'Starfall'})[mode] or mode
-		if impactVisuals:Play(upgraded, Folder, pos, scale, life, a, b, Quality.Value, false) then return end
+		local scale = EffectSize.Value * (hit.Headshot and 1.18 or 1)
+		local life = math.max(Lifetime.Value, 0.11)
+		local a, b = getColors(hit.Entity)
 		local white = Color3.new(1, 1, 1)
+		local dark = Color3.new(0.015, 0.02, 0.04)
 
-		local function flashLight(color, brightness, radius, duration)
-			local anchor = makePart(Vector3.one * 0.04, CFrame.new(pos), color, 1, Enum.Material.Neon)
-			local light = Instance.new('PointLight')
-			light.Color = color
-			light.Brightness = brightness
-			light.Range = radius
-			light.Shadows = false
-			light.Parent = anchor
-			tween(light, duration, {
-				Brightness = 0,
-				Range = radius * 1.35
-			}, Enum.EasingStyle.Quart)
-			cleanup(anchor, duration)
+		-- Micro-impact layer shared by every style. This makes even the quiet modes feel crisp.
+		flash(pos, hit.Headshot and white or a, hit.Headshot and 6.5 or 3.5, (hit.Headshot and 10 or 6) * scale, life * 0.38)
+		orb(pos, 0.035 * scale, (hit.Headshot and 1.15 or 0.72) * scale, white, life * 0.22, 0.02)
+		orb(pos, 0.05 * scale, (hit.Headshot and 1.65 or 1.0) * scale, a, life * 0.34, 0.42)
+		particleBurst(pos, white, a, hit.Headshot and 9 or 5, 5.5 * scale, life * 0.55, 0.09 * scale, SPARK, 5)
+
+		if hit.Headshot and mode ~= 'Headshot Crown' then
+			beamRing(CFrame.new(pos) * CFrame.Angles(math.rad(90), 0, 0), 0.2 * scale, 1.35 * scale, 12, 0.025 * scale, white, a, life * 0.44, 0.5)
 		end
 
-		local function radialLines(count, radius, width, c1, c2, duration, tilt)
-			local total = amount(count)
-			for i = 1, total do
-				local ang = (i / total) * math.pi * 2
-				local y = math.sin(ang * 2) * (tilt or 0)
-				local dir = Vector3.new(math.cos(ang), y, math.sin(ang)).Unit
-				line(
-					pos + dir * 0.08 * scale,
-					pos + dir * radius * scale,
-					width * scale,
-					i % 2 == 0 and c1 or c2,
-					duration
-				)
+		if mode == 'Arcane Impact' then
+			beamRing(CFrame.new(pos) * CFrame.Angles(math.rad(90), 0, 0), 0.18 * scale, 2.25 * scale, 20, 0.045 * scale, a, b, life * 0.72, 1.3)
+			beamRing(CFrame.new(pos) * CFrame.Angles(0, 0, math.rad(62)), 0.1 * scale, 1.55 * scale, 14, 0.026 * scale, white, a, life * 0.58, -1.1)
+			radialArcs(pos, a, b, 8, 2.1 * scale, 0.05 * scale, life * 0.58, 0.22)
+			streakBurst(pos, a, b, 12, 2.5 * scale, 0.055 * scale, life * 0.7, 0.12)
+			particleBurst(pos, a, b, 16, 7 * scale, life, 0.11 * scale, SPARK, 4)
+
+		elseif mode == 'Prism Shatter' or mode == 'Crystal Hit' then
+			shardBurst(pos, a, b, 18, 3.2 * scale, 0.12 * scale, life, mode == 'Crystal Hit' and Enum.Material.Glass or Enum.Material.Neon)
+			beamRing(CFrame.new(pos) * CFrame.Angles(math.rad(90), 0, 0), 0.15 * scale, 2.8 * scale, 22, 0.035 * scale, a, white, life * 0.62, -0.8)
+			radialArcs(pos, white, b, 10, 3.1 * scale, 0.035 * scale, life * 0.55, 0.35)
+			particleBurst(pos, a, white, 18, 8 * scale, life * 0.9, 0.085 * scale, SPARK, 2)
+
+		elseif mode == 'Neon Slash' then
+			slashCross(pos, a, b, scale, life * 0.65, 5)
+			task.delay(life * 0.1, function()
+				if HitEffects.Enabled then slashCross(pos, white, a, scale * 0.82, life * 0.48, 2) end
+			end)
+			streakBurst(pos, a, b, 14, 2.9 * scale, 0.04 * scale, life * 0.68, 0.05)
+			beamRing(CFrame.new(pos) * CFrame.Angles(math.rad(90), 0, 0), 0.2 * scale, 2.15 * scale, 14, 0.022 * scale, white, a, life * 0.5, 1)
+
+		elseif mode == 'Thunder Crack' then
+			for i = 1, amount(5) do
+				local start = pos + Vector3.new(math.random(-18, 18) / 10, 2.8 + math.random() * 2.2, math.random(-18, 18) / 10) * scale
+				local finish = pos + randUnit(-0.12) * (1.0 + math.random() * 1.3) * scale
+				arcBeam(start, finish, i % 2 == 0 and white or a, (i == 1 and 0.09 or 0.055) * scale, life * 0.55, math.random(-12, 12) / 10 * scale, b)
 			end
-		end
+			flash(pos, white, 8, 11 * scale, life * 0.34)
+			radialArcs(pos, white, a, 11, 3.0 * scale, 0.03 * scale, life * 0.52, 0.3)
+			particleBurst(pos, white, a, 18, 9 * scale, life * 0.7, 0.065 * scale, SPARK, 2)
 
-		local function layeredRing(layers, baseRadius, points, dotSize, duration)
-			for layer = 1, layers do
-				task.delay((layer - 1) * duration * 0.08, function()
-					if not HitEffects.Enabled then return end
-					ring(
-						pos + Vector3.new(0, (layer - 1) * 0.08 * scale, 0),
-						(baseRadius + (layer - 1) * 0.55) * scale,
-						points + layer * 2,
-						dotSize * scale,
-						layer % 2 == 0 and b or a,
-						layer % 2 == 0 and a or b,
-						duration * (0.8 + layer * 0.06)
-					)
-				end)
+		elseif mode == 'Void Ripple' then
+			orb(pos, 0.2 * scale, 2.2 * scale, dark, life * 0.7, 0.03)
+			for i = 1, 3 do
+				beamRing(CFrame.new(pos) * CFrame.Angles(math.rad(90 + i * 17), i * 0.4, 0), (0.25 + i * 0.08) * scale, (1.7 + i * 0.65) * scale, 18, (0.04 - i * 0.006) * scale, i % 2 == 0 and a or b, dark, life * (0.55 + i * 0.1), (i % 2 == 0 and 1 or -1) * 1.5)
 			end
-		end
-
-		local function rainbowRays(count, radius, duration)
-			local total = amount(count)
-			for i = 1, total do
-				local ang = (i / total) * math.pi * 2
-				local color = Color3.fromHSV(i / total, 0.95, 1)
-				local dir = Vector3.new(math.cos(ang), math.sin(ang * 3) * 0.22, math.sin(ang)).Unit
-				line(pos, pos + dir * radius * scale, 0.045 * scale, color, duration)
+			for i = 1, amount(12) do
+				local p0 = pos + randUnit() * (2.4 + math.random() * 1.2) * scale
+				arcBeam(p0, pos, i % 2 == 0 and a or b, 0.04 * scale, life * 0.65, math.random(-10, 10) / 10 * scale, dark)
 			end
-		end
+			particleBurst(pos, a, b, 14, 3.5 * scale, life, 0.08 * scale, SPARK, 7)
 
-		-- Every confirmed hit gets a bright layered core so even the "small" modes pop.
-		flashLight(hit.Headshot and white or a, hit.Headshot and 5.5 or 3.5, (hit.Headshot and 9 or 6) * scale, life * 0.42)
-		sphere(pos, 0.035 * scale, (hit.Headshot and 0.95 or 0.62) * scale, white, life * 0.26, 0.02)
-		sphere(pos, 0.05 * scale, (hit.Headshot and 1.35 or 0.9) * scale, a, life * 0.34, 0.32)
-		burst(pos, hit.Headshot and 12 or 7, (hit.Headshot and 2.0 or 1.25) * scale, 0.045 * scale, a, b, life * 0.42, false, false)
+		elseif mode == 'Solar Flare' then
+			local sun = Color3.fromRGB(255, 174, 62)
+			flash(pos, white, 9, 13 * scale, life * 0.42)
+			orb(pos, 0.08 * scale, 2.6 * scale, sun, life * 0.5, 0.22)
+			beamRing(CFrame.new(pos) * CFrame.Angles(math.rad(90), 0, 0), 0.15 * scale, 3.1 * scale, 22, 0.045 * scale, white, sun, life * 0.62, 1.8)
+			radialArcs(pos, white, sun, 16, 3.65 * scale, 0.05 * scale, life * 0.6, 0.18)
+			particleBurst(pos, sun, a, 24, 10 * scale, life * 0.85, 0.1 * scale, FIRE, 2)
 
-		if hit.Headshot then
-			symbol(pos + Vector3.new(0, 0.15 * scale, 0), '✦', white, life * 0.55, 3, scale * 0.58)
-		end
+		elseif mode == 'Frostbite' then
+			local ice = Color3.fromRGB(190, 240, 255)
+			shardBurst(pos, ice, b, 22, 3.35 * scale, 0.13 * scale, life, Enum.Material.Ice)
+			beamRing(CFrame.new(pos) * CFrame.Angles(math.rad(90), 0, 0), 0.18 * scale, 3 * scale, 24, 0.032 * scale, ice, white, life * 0.68, -1.2)
+			particleBurst(pos, white, ice, 18, 6 * scale, life, 0.09 * scale, SPARK, 5)
+			smokeBurst(pos, ice, b, 8, 2.5 * scale, life, 0.32 * scale)
 
-		if mode == 'Sparks' then
-			burst(pos, 22, 2.6 * scale, 0.075 * scale, a, b, life, false, false)
-			radialLines(10, 2.15, 0.035, a, b, life * 0.62, 0.22)
+		elseif mode == 'Ember Burst' then
+			local ember = Color3.fromRGB(255, 92, 35)
+			local gold = Color3.fromRGB(255, 210, 78)
+			flash(pos, gold, 7, 10 * scale, life * 0.38)
+			streakBurst(pos, ember, gold, 20, 3.4 * scale, 0.055 * scale, life * 0.8, 0.4)
+			particleBurst(pos, gold, ember, 28, 9 * scale, life, 0.085 * scale, FIRE, 3)
+			smokeBurst(pos, Color3.fromRGB(55, 55, 60), ember, 7, 2.8 * scale, life * 1.1, 0.38 * scale)
+			beamRing(CFrame.new(pos) * CFrame.Angles(math.rad(90), 0, 0), 0.25 * scale, 2.6 * scale, 17, 0.035 * scale, gold, ember, life * 0.58, 1)
 
-		elseif mode == 'Burst' then
-			sphere(pos, 0.08 * scale, 1.65 * scale, a, life * 0.52, 0.12)
-			sphere(pos, 0.04 * scale, 1.15 * scale, b, life * 0.38, 0.18)
-			burst(pos, 30, 3.45 * scale, 0.095 * scale, a, b, life, false, false)
-			radialLines(12, 2.9, 0.045, white, a, life * 0.6, 0.12)
-
-		elseif mode == 'Pulse' then
+		elseif mode == 'Aurora Bloom' then
+			local cyan = Color3.fromRGB(104, 255, 224)
+			local violet = Color3.fromRGB(176, 112, 255)
 			for i = 1, 4 do
+				beamRing(CFrame.new(pos) * CFrame.Angles(math.rad(35 + i * 26), i * 0.5, i * 0.2), 0.1 * scale, (1.5 + i * 0.5) * scale, 18, 0.03 * scale, i % 2 == 0 and cyan or violet, i % 2 == 0 and violet or cyan, life * (0.55 + i * 0.08), (i % 2 == 0 and 1 or -1) * 1.4)
+			end
+			particleBurst(pos, cyan, violet, 22, 7 * scale, life, 0.09 * scale, SPARK, 4)
+			streakBurst(pos, cyan, violet, 12, 2.6 * scale, 0.045 * scale, life * 0.8, 0.2)
+
+		elseif mode == 'Pixel Glitch' then
+			for i = 1, amount(24) do
+				local s = (0.06 + math.random() * 0.12) * scale
+				local p = part(Vector3.new(s, s, s), CFrame.new(pos), i % 3 == 0 and white or (i % 2 == 0 and a or b), 0, Enum.Material.Neon)
+				local endpoint = pos + Vector3.new(math.random(-30, 30), math.random(-22, 22), math.random(-30, 30)) / 10 * scale
+				tween(p, life * (0.6 + math.random() * 0.4), {CFrame = CFrame.new(endpoint), Transparency = 1, Size = Vector3.one * 0.01}, Enum.EasingStyle.Quart)
+				cleanup(p, life)
+			end
+			for i = 1, 3 do
 				task.delay((i - 1) * life * 0.08, function()
 					if HitEffects.Enabled then
-						sphere(
-							pos,
-							0.04 * scale,
-							(0.9 + i * 0.65) * scale,
-							i % 2 == 0 and a or b,
-							life * 0.55,
-							0.58
-						)
+						beamRing(CFrame.new(pos) * CFrame.Angles(math.rad(90), 0, 0), 0.1 * scale, (1.2 + i * 0.7) * scale, 12, 0.028 * scale, i % 2 == 0 and a or white, b, life * 0.45, i)
 					end
 				end)
 			end
-			layeredRing(2, 1.3, 15, 0.055, life * 0.72)
 
-		elseif mode == 'Ring' then
-			layeredRing(4, 1.2, 18, 0.065, life)
-			sphere(pos, 0.04 * scale, 1.2 * scale, white, life * 0.34, 0.45)
-			radialLines(8, 2.0, 0.03, a, b, life * 0.55, 0)
+		elseif mode == 'Sakura Bloom' then
+			local pink = Color3.fromRGB(255, 143, 205)
+			local blush = Color3.fromRGB(255, 211, 234)
+			particleBurst(pos, pink, blush, 28, 5.4 * scale, life * 1.25, 0.13 * scale, SPARK, 5)
+			beamRing(CFrame.new(pos) * CFrame.Angles(math.rad(90), 0, 0), 0.15 * scale, 2.55 * scale, 20, 0.035 * scale, pink, blush, life * 0.7, 1.2)
+			for i = 1, amount(5) do symbol(pos + randUnit() * 0.35 * scale, '✿', i % 2 == 0 and pink or blush, life * 0.9, 0.55 * scale, 1.4 * scale, math.random(-25, 25)) end
 
-		elseif mode == 'Slash' then
-			for i = 1, amount(8) do
-				local yaw = (i / amount(8)) * math.pi * 2
-				local pitch = ((i % 3) - 1) * 0.38
-				local dir = Vector3.new(math.cos(yaw), pitch, math.sin(yaw)).Unit * (1.5 + (i % 2) * 0.6) * scale
-				line(pos - dir, pos + dir, (i % 3 == 0 and 0.075 or 0.045) * scale, i % 2 == 0 and a or b, life * (0.55 + (i % 3) * 0.08))
-			end
-			burst(pos, 14, 2.1 * scale, 0.055 * scale, a, b, life * 0.7, false, false)
+		elseif mode == 'Love Burst' then
+			local rose = Color3.fromRGB(255, 89, 160)
+			beamRing(CFrame.new(pos) * CFrame.Angles(math.rad(90), 0, 0), 0.18 * scale, 2.5 * scale, 18, 0.038 * scale, rose, white, life * 0.66, -1.1)
+			streakBurst(pos, rose, b, 12, 2.4 * scale, 0.05 * scale, life * 0.7, 0.2)
+			for i = 1, amount(7) do symbol(pos + randUnit() * 0.45 * scale, i % 2 == 0 and '♡' or '♥', i % 2 == 0 and white or rose, life, 0.58 * scale, (1.3 + math.random()) * scale, math.random(-18, 18)) end
 
-		elseif mode == 'Cross' then
-			for _, axis in {
-				Vector3.xAxis, Vector3.yAxis, Vector3.zAxis,
-				Vector3.new(1, 1, 0).Unit, Vector3.new(1, -1, 0).Unit,
-				Vector3.new(0, 1, 1).Unit, Vector3.new(0, 1, -1).Unit
-			} do
-				line(pos - axis * 1.55 * scale, pos + axis * 1.55 * scale, 0.045 * scale, math.random() > 0.5 and a or b, life * 0.65)
-			end
-			sphere(pos, 0.04 * scale, 1.45 * scale, white, life * 0.35, 0.35)
+		elseif mode == 'Starfall' then
+			streakBurst(pos, white, a, 22, 3.8 * scale, 0.055 * scale, life * 0.9, 0.35)
+			particleBurst(pos, white, b, 26, 8 * scale, life, 0.075 * scale, SPARK, 3)
+			for i = 1, amount(6) do symbol(pos + randUnit() * 0.5 * scale, i % 2 == 0 and '★' or '✦', i % 2 == 0 and a or white, life * 0.9, 0.58 * scale, 1.7 * scale, math.random(-35, 35)) end
+			radialArcs(pos, white, a, 10, 3.0 * scale, 0.035 * scale, life * 0.58, 0.25)
 
-		elseif mode == 'Lightning' then
-			for strike = 1, amount(4) do
-				local last = pos + Vector3.new(math.random(-10, 10) / 10, 2.4 + math.random(), math.random(-10, 10) / 10) * scale
-				for step = 1, 5 do
-					local finish = pos + Vector3.new(
-						math.random(-15, 15) / 10 * scale,
-						(2.2 - step * 0.55) * scale,
-						math.random(-15, 15) / 10 * scale
-					)
-					line(last, finish, (step == 5 and 0.065 or 0.04) * scale, strike % 2 == 0 and a or b, life * 0.55)
-					last = finish
-				end
-			end
-			sphere(pos, 0.05 * scale, 1.6 * scale, white, life * 0.32, 0.38)
-			burst(pos, 16, 2.4 * scale, 0.055 * scale, a, b, life * 0.65, false, false)
-
-		elseif mode == 'Stars' then
-			symbol(pos, '★', a, life, 7, scale * 0.95)
-			symbol(pos, '✦', b, life * 0.88, 7, scale * 0.72)
-			symbol(pos, '✧', white, life * 0.7, 4, scale * 0.55)
-			burst(pos, 12, 2.0 * scale, 0.045 * scale, a, b, life * 0.65, false, false)
-
-		elseif mode == 'Hearts' then
-			symbol(pos, '♥', a, life, 9, scale * 0.95)
-			symbol(pos, '♡', b, life * 0.9, 6, scale * 0.72)
-			burst(pos, 10, 1.8 * scale, 0.05 * scale, a, b, life * 0.6, false, false)
-
-		elseif mode == 'Crit' then
-			symbol(pos, '✦', white, life * 0.7, 7, scale * 0.75)
-			symbol(pos, '✧', a, life, 6, scale)
-			burst(pos, 24, 3.0 * scale, 0.07 * scale, a, b, life, false, false)
-			radialLines(10, 2.65, 0.04, white, b, life * 0.62, 0.25)
-
-		elseif mode == 'Smoke' then
-			for i = 1, amount(17) do
-				local offset = Vector3.new(
-					math.random(-10, 10) / 10,
-					math.random(-7, 9) / 10,
-					math.random(-10, 10) / 10
-				) * scale
-				sphere(
-					pos + offset,
-					0.12 * scale,
-					(0.45 + math.random() * 0.55) * scale,
-					i % 2 == 0 and a or b,
-					life * (0.75 + math.random() * 0.3),
-					0.4
-				)
-			end
-			burst(pos, 10, 1.7 * scale, 0.05 * scale, white, a, life * 0.5, false, false)
-
-		elseif mode == 'Shards' then
-			burst(pos, 30, 3.2 * scale, 0.12 * scale, a, b, life, true, false)
-			radialLines(12, 2.8, 0.04, a, white, life * 0.6, 0.35)
-			sphere(pos, 0.04 * scale, 1.0 * scale, b, life * 0.32, 0.4)
-
-		elseif mode == 'Pixels' then
-			for i = 1, amount(28) do
-				local obj = makePart(
-					Vector3.one * (0.08 + math.random() * 0.08) * scale,
-					CFrame.new(pos),
-					i % 3 == 0 and white or (i % 2 == 0 and a or b),
-					0,
-					Enum.Material.Neon
-				)
-				local finish = pos + Vector3.new(
-					math.random(-28, 28) / 10,
-					math.random(-24, 24) / 10,
-					math.random(-28, 28) / 10
-				) * scale
-				tween(obj, life, {
-					CFrame = CFrame.new(finish) * CFrame.Angles(math.random() * 4, math.random() * 4, math.random() * 4),
-					Transparency = 1,
-					Size = Vector3.one * 0.02
-				}, Enum.EasingStyle.Quart)
-				cleanup(obj, life)
-			end
-
-		elseif mode == 'Spiral' then
-			local total = amount(34)
-			for i = 1, total do
-				local alpha = i / total
-				local theta = alpha * math.pi * 7
-				local radius = (0.15 + alpha * 1.9) * scale
-				local finish = pos + Vector3.new(
-					math.cos(theta) * radius,
-					(alpha - 0.5) * 3.0 * scale,
-					math.sin(theta) * radius
-				)
-				local obj = makePart(
-					Vector3.one * (0.05 + alpha * 0.04) * scale,
-					CFrame.new(pos),
-					i % 2 == 0 and a or b,
-					0,
-					Enum.Material.Neon,
-					Enum.PartType.Ball
-				)
-				tween(obj, life, {
-					CFrame = CFrame.new(finish),
-					Transparency = 1,
-					Size = Vector3.one * 0.018
-				}, Enum.EasingStyle.Sine)
-				cleanup(obj, life)
-			end
-			sphere(pos, 0.04 * scale, 1.2 * scale, white, life * 0.36, 0.35)
-
-		elseif mode == 'Orbit' then
-			layeredRing(4, 0.95, 18, 0.07, life)
-			for i = 1, amount(12) do
-				local ang = i / amount(12) * math.pi * 2
-				local p1 = pos + Vector3.new(math.cos(ang), math.sin(ang) * 0.7, math.sin(ang)) * 0.5 * scale
-				local p2 = pos + Vector3.new(math.cos(ang + 1.7), math.sin(ang + 1.7) * 1.25, math.sin(ang + 1.7)) * 2.2 * scale
-				line(p1, p2, 0.03 * scale, i % 2 == 0 and a or b, life * 0.75)
-			end
-
-		elseif mode == 'Bubble' then
-			for i = 1, amount(19) do
-				local offset = Vector3.new(
-					math.random(-14, 14) / 10,
-					math.random(-10, 12) / 10,
-					math.random(-14, 14) / 10
-				) * scale
-				sphere(
-					pos + offset,
-					0.055 * scale,
-					(0.22 + math.random() * 0.48) * scale,
-					i % 2 == 0 and a or b,
-					life * (0.7 + math.random() * 0.3),
-					0.22
-				)
-			end
-			layeredRing(2, 1.0, 12, 0.04, life * 0.65)
-
-		elseif mode == 'Shockwave' then
+		elseif mode == 'Shock Ring' then
 			for i = 1, 4 do
-				task.delay((i - 1) * life * 0.06, function()
-					if HitEffects.Enabled then
-						sphere(pos, 0.04 * scale, (1.15 + i * 0.7) * scale, i % 2 == 0 and a or b, life * 0.55, 0.62)
-					end
+				task.delay((i - 1) * life * 0.07, function()
+					if HitEffects.Enabled then beamRing(CFrame.new(pos) * CFrame.Angles(math.rad(90), 0, 0), 0.08 * scale, (1.25 + i * 0.7) * scale, 24, (0.045 - i * 0.006) * scale, i % 2 == 0 and a or white, b, life * (0.45 + i * 0.06), i * 0.7) end
 				end)
 			end
-			radialLines(18, 3.2, 0.038, white, a, life * 0.65, 0.18)
-			burst(pos, 16, 2.5 * scale, 0.055 * scale, a, b, life * 0.65, false, false)
+			radialArcs(pos, white, a, 15, 3.3 * scale, 0.035 * scale, life * 0.55, 0.18)
+			streakBurst(pos, a, b, 15, 3.0 * scale, 0.045 * scale, life * 0.68, 0.08)
 
-		elseif mode == 'Rainbow' then
-			burst(pos, 34, 3.2 * scale, 0.075 * scale, a, b, life, false, true)
-			rainbowRays(18, 2.8, life * 0.72)
-			for i = 1, 3 do
-				local color = Color3.fromHSV((tick() * 0.3 + i / 3) % 1, 0.95, 1)
-				sphere(pos, 0.04 * scale, (0.75 + i * 0.5) * scale, color, life * 0.45, 0.55)
+		elseif mode == 'Headshot Crown' then
+			flash(pos, white, 11, 15 * scale, life * 0.45)
+			local crownPos = pos + Vector3.new(0, 0.65 * scale, 0)
+			beamRing(CFrame.new(crownPos) * CFrame.Angles(math.rad(90), 0, 0), 0.28 * scale, 1.65 * scale, 18, 0.055 * scale, white, a, life * 0.64, 1.5)
+			for i = 1, 6 do
+				local ang = (i / 6) * math.pi * 2
+				local base = crownPos + Vector3.new(math.cos(ang), 0, math.sin(ang)) * 0.85 * scale
+				arcBeam(base, base + Vector3.new(0, (i % 2 == 0 and 1.25 or 0.8) * scale, 0), i % 2 == 0 and white or a, 0.05 * scale, life * 0.58, 0.15 * scale, b)
 			end
+			symbol(crownPos + Vector3.new(0, 0.55 * scale, 0), '♛', white, life, 0.9 * scale, 1.0 * scale, 0)
+			streakBurst(pos, white, a, 26, 4.5 * scale, 0.06 * scale, life * 0.9, 0.2)
+			particleBurst(pos, white, a, 32, 10 * scale, life, 0.09 * scale, SPARK, 2)
 
-		elseif mode == 'Headshot' then
-			flashLight(white, 8, 12 * scale, life * 0.45)
-			sphere(pos, 0.04 * scale, 2.0 * scale, white, life * 0.34, 0.18)
-			sphere(pos, 0.05 * scale, 2.65 * scale, a, life * 0.48, 0.58)
-			symbol(pos + Vector3.new(0, 0.2 * scale, 0), '✦', white, life, 8, scale * 0.9)
-			symbol(pos + Vector3.new(0, 0.35 * scale, 0), '★', a, life * 0.85, 5, scale * 0.72)
-			burst(pos, 38, 4.1 * scale, 0.085 * scale, a, b, life, false, false)
-			radialLines(20, 3.65, 0.05, white, b, life * 0.7, 0.28)
-			layeredRing(3, 1.35, 18, 0.055, life * 0.75)
+		elseif mode == 'Chromatic Burst' then
+			for i = 1, 5 do
+				local c = Color3.fromHSV((i / 5 + tick() * 0.12) % 1, 0.92, 1)
+				beamRing(CFrame.new(pos) * CFrame.Angles(math.rad(90 + i * 13), i * 0.3, 0), 0.08 * scale, (1.3 + i * 0.48) * scale, 18, 0.028 * scale, c, white, life * (0.45 + i * 0.06), i * 0.7)
+			end
+			streakBurst(pos, a, b, 26, 3.6 * scale, 0.05 * scale, life * 0.78, 0.1, true)
+			particleBurst(pos, Color3.fromHSV(0, 0.9, 1), Color3.fromHSV(0.65, 0.9, 1), 24, 9 * scale, life, 0.08 * scale, SPARK, 3)
+
+		elseif mode == 'Soul Spark' then
+			orb(pos, 0.08 * scale, 1.8 * scale, a, life * 0.65, 0.55)
+			for i = 1, amount(14) do
+				local start = pos + randUnit() * (0.3 + math.random()) * scale
+				local p = part(Vector3.one * (0.05 + math.random() * 0.05) * scale, CFrame.new(start), i % 2 == 0 and a or b, 0, Enum.Material.Neon, Enum.PartType.Ball)
+				local finish = start + Vector3.new(math.random(-8, 8) / 10, 2.2 + math.random() * 2.2, math.random(-8, 8) / 10) * scale
+				tween(p, life * (0.7 + math.random() * 0.3), {CFrame = CFrame.new(finish), Transparency = 1, Size = Vector3.one * 0.015}, Enum.EasingStyle.Sine)
+				cleanup(p, life)
+			end
+			beamRing(CFrame.new(pos) * CFrame.Angles(math.rad(90), 0, 0), 0.1 * scale, 2.2 * scale, 16, 0.03 * scale, a, b, life * 0.7, -1)
+			particleBurst(pos, a, white, 13, 4.5 * scale, life, 0.075 * scale, SPARK, 6)
 		end
 	end
+
 	local function trimPending()
 		local now = tick()
 		for i = #pending, 1, -1 do
-			if now - pending[i].Time > 0.8 then
-				table.remove(pending, i)
-			end
+			if now - pending[i].Time > 0.8 then table.remove(pending, i) end
 		end
 	end
 
@@ -3941,45 +3951,24 @@ run(function()
 			if callback then
 				table.clear(pending)
 				table.clear(healthCache)
-
 				for _, ent in entitylib.List do
-					if ent and ent.Id then
-						healthCache[ent.Id] = ent.Health or 100
-					end
+					if ent and ent.Id then healthCache[ent.Id] = ent.Health or 100 end
 				end
 
 				HitEffects:Clean(frontlines.LocalHitEvent.Event:Connect(function(ent, pos, headshot)
 					if not ent or not ent.Id or not pos then return end
 					if HeadshotsOnly.Enabled and not headshot then return end
-
-					if not ConfirmedHits.Enabled then
-						runEffect({
-							Entity = ent,
-							Position = pos,
-							Headshot = headshot,
-							Time = tick()
-						})
-						return
-					end
-
+					local data = {Id = ent.Id, Entity = ent, Position = pos, Headshot = headshot, Health = ent.Health or healthCache[ent.Id] or 100, Time = tick()}
+					if not ConfirmedHits.Enabled then runEffect(data); return end
 					trimPending()
-					table.insert(pending, {
-						Id = ent.Id,
-						Entity = ent,
-						Position = pos,
-						Headshot = headshot,
-						Health = ent.Health or healthCache[ent.Id] or 100,
-						Time = tick()
-					})
+					table.insert(pending, data)
 				end))
 
 				HitEffects:Clean(entitylib.Events.EntityUpdated:Connect(function(ent)
 					if not ent or not ent.Id then return end
-
 					local current = ent.Health or 0
 					local previous = healthCache[ent.Id]
 					healthCache[ent.Id] = current
-
 					trimPending()
 					for i = #pending, 1, -1 do
 						local hit = pending[i]
@@ -3996,15 +3985,10 @@ run(function()
 				end))
 
 				HitEffects:Clean(entitylib.Events.EntityAdded:Connect(function(ent)
-					if ent and ent.Id then
-						healthCache[ent.Id] = ent.Health or 100
-					end
+					if ent and ent.Id then healthCache[ent.Id] = ent.Health or 100 end
 				end))
-
 				HitEffects:Clean(entitylib.Events.EntityRemoved:Connect(function(ent)
-					if ent and ent.Id then
-						healthCache[ent.Id] = nil
-					end
+					if ent and ent.Id then healthCache[ent.Id] = nil end
 				end))
 			else
 				Folder:ClearAllChildren()
@@ -4012,75 +3996,26 @@ run(function()
 				table.clear(healthCache)
 			end
 		end,
-		Tooltip = 'Displays a visual effect at the exact impact point when you damage a target.'
+		Tooltip = 'Layered impact VFX with beams, trails, particles, sigils and headshot escalation.'
 	})
 
-	Mode = HitEffects:CreateDropdown({
-		Name = 'Mode',
-		List = modes,
-		Default = 'Astral Bloom'
-	})
+	Mode = HitEffects:CreateDropdown({Name = 'Mode', List = modes, Default = 'Arcane Impact'})
+	ColorMode = HitEffects:CreateDropdown({Name = 'Color Mode', List = {'Custom', 'Theme', 'Pastel', 'Target', 'Rainbow'}, Default = 'Custom'})
+	PrimaryColor = HitEffects:CreateColorSlider({Name = 'Primary Color', DefaultHue = 0.78, DefaultSat = 0.82, DefaultValue = 1})
+	SecondaryColor = HitEffects:CreateColorSlider({Name = 'Secondary Color', DefaultHue = 0.58, DefaultSat = 0.78, DefaultValue = 1})
+	EffectSize = HitEffects:CreateSlider({Name = 'Size', Min = 0.25, Max = 2.5, Default = 1, Decimal = 100})
+	Lifetime = HitEffects:CreateSlider({Name = 'Lifetime', Min = 0.08, Max = 2, Default = 0.42, Decimal = 100, Suffix = 's'})
+	Quality = HitEffects:CreateDropdown({Name = 'Quality', List = {'Low', 'Normal', 'High'}, Default = 'Normal'})
+	ExtraGlow = HitEffects:CreateToggle({Name = 'Dynamic Glow', Default = true})
+	MotionTrails = HitEffects:CreateToggle({Name = 'Motion Trails', Default = true})
+	HeadshotsOnly = HitEffects:CreateToggle({Name = 'Headshots only'})
+	ConfirmedHits = HitEffects:CreateToggle({Name = 'Confirmed hits', Default = true})
 
-	ColorMode = HitEffects:CreateDropdown({
-		Name = 'Color Mode',
-		List = {'Custom', 'Theme', 'Pastel', 'Target', 'Rainbow'},
-		Default = 'Custom'
-	})
-
-	PrimaryColor = HitEffects:CreateColorSlider({
-		Name = 'Primary Color',
-		DefaultHue = 0.78,
-		DefaultSat = 0.8,
-		DefaultValue = 1
-	})
-
-	SecondaryColor = HitEffects:CreateColorSlider({
-		Name = 'Secondary Color',
-		DefaultHue = 0.58,
-		DefaultSat = 0.75,
-		DefaultValue = 1
-	})
-
-	EffectSize = HitEffects:CreateSlider({
-		Name = 'Size',
-		Min = 0.25,
-		Max = 2.5,
-		Default = 1,
-		Decimal = 100
-	})
-
-	Lifetime = HitEffects:CreateSlider({
-		Name = 'Lifetime',
-		Min = 0.08,
-		Max = 2,
-		Default = 0.35,
-		Decimal = 100,
-		Suffix = 's'
-	})
-
-	Quality = HitEffects:CreateDropdown({
-		Name = 'Quality',
-		List = {'Low', 'Normal', 'High'},
-		Default = 'Normal'
-	})
-
-	HeadshotsOnly = HitEffects:CreateToggle({
-		Name = 'Headshots only'
-	})
-
-	ConfirmedHits = HitEffects:CreateToggle({
-		Name = 'Confirmed hits',
-		Default = true
-	})
-
-	vape:Clean(function()
-		if Folder then
-			Folder:Destroy()
-		end
-	end)
+	vape:Clean(function() if Folder then Folder:Destroy() end end)
 end)
 -- ILLUSIONHD_HITEFFECTS_END
 
+-- ILLUSIONHD_KILLEFFECTS_V2
 run(function()
 	local KillEffects
 	local Mode
@@ -4090,9 +4025,14 @@ run(function()
 	local EffectSize
 	local Lifetime
 	local Quality
+	local Intensity
+	local DynamicGlow
+	local MotionTrails
+	local GroundSigils
 	local KillSound
 	local KillSoundFile
 	local KillSoundVolume
+
 	local Folder = Instance.new('Folder')
 	Folder.Name = 'VapeKillEffects'
 	Folder.Parent = workspace
@@ -4103,6 +4043,43 @@ run(function()
 	local cachedSoundInput
 	local cachedSoundAsset
 	local customAsset = getcustomasset or getsynasset or getasset
+	local SPARK = 'rbxasset://textures/particles/sparkles_main.dds'
+	local SMOKE = 'rbxasset://textures/particles/smoke_main.dds'
+	local FIRE = 'rbxasset://textures/particles/fire_main.dds'
+
+	local modes = {
+		'Supernova', 'Singularity', 'Divine Judgment', 'Soul Ascension', 'Astral Gate',
+		'Thunder God', 'Execution Slash', 'Crystal Cataclysm', 'Sakura Funeral', 'Inferno',
+		'Frost Nova', 'Prism Funeral', 'Galaxy Collapse', 'Cyber Execution', 'Reaper',
+		'Celestial Vortex', 'Starfall', 'Heartstorm',
+		'Astral Bloom', 'Prism Break', 'Aurora', 'Nova', 'Explosion', 'Lightning', 'Soul',
+		'Rings', 'Spiral', 'Firework', 'Tornado', 'Shatter', 'Slash', 'Beam', 'Pulse',
+		'Shockwave', 'Confetti', 'Rainbow', 'Galaxy', 'Freeze', 'Void', 'Ghost', 'Hearts',
+		'Skull', 'Black Hole', 'Disintegrate', 'Crystal', 'Orbit', 'Pixel Burst', 'Kitty Pop',
+		'Love Burst', 'Sakura', 'Random'
+	}
+
+	local randomModes = {
+		'Supernova', 'Singularity', 'Divine Judgment', 'Soul Ascension', 'Astral Gate',
+		'Thunder God', 'Execution Slash', 'Crystal Cataclysm', 'Sakura Funeral', 'Inferno',
+		'Frost Nova', 'Prism Funeral', 'Galaxy Collapse', 'Cyber Execution', 'Reaper',
+		'Celestial Vortex', 'Starfall', 'Heartstorm'
+	}
+
+	local aliases = {
+		['Astral Bloom'] = 'Supernova', ['Nova'] = 'Supernova', ['Explosion'] = 'Supernova',
+		['Prism Break'] = 'Prism Funeral', ['Rainbow'] = 'Prism Funeral', ['Confetti'] = 'Prism Funeral',
+		['Aurora'] = 'Astral Gate', ['Rings'] = 'Astral Gate', ['Orbit'] = 'Astral Gate',
+		['Lightning'] = 'Thunder God', ['Beam'] = 'Divine Judgment',
+		['Soul'] = 'Soul Ascension', ['Ghost'] = 'Soul Ascension', ['Disintegrate'] = 'Soul Ascension',
+		['Spiral'] = 'Celestial Vortex', ['Tornado'] = 'Celestial Vortex',
+		['Shatter'] = 'Crystal Cataclysm', ['Crystal'] = 'Crystal Cataclysm', ['Freeze'] = 'Frost Nova',
+		['Slash'] = 'Execution Slash', ['Pulse'] = 'Supernova', ['Shockwave'] = 'Supernova',
+		['Galaxy'] = 'Galaxy Collapse', ['Void'] = 'Singularity', ['Black Hole'] = 'Singularity',
+		['Skull'] = 'Reaper', ['Hearts'] = 'Heartstorm', ['Love Burst'] = 'Heartstorm',
+		['Sakura'] = 'Sakura Funeral', ['Firework'] = 'Starfall', ['Pixel Burst'] = 'Cyber Execution',
+		['Kitty Pop'] = 'Heartstorm'
+	}
 
 	local function resolveSound(value)
 		value = tostring(value or ''):gsub('^%s+', ''):gsub('%s+$', '')
@@ -4110,7 +4087,6 @@ run(function()
 		if cachedSoundInput == value then return cachedSoundAsset end
 		cachedSoundInput = value
 		cachedSoundAsset = nil
-
 		if value:match('^%d+$') then
 			cachedSoundAsset = 'rbxassetid://'..value
 		elseif value:match('^rbxassetid://') or value:match('^rbxasset://') then
@@ -4118,117 +4094,367 @@ run(function()
 		elseif customAsset then
 			local path = value:gsub('^file://', ''):gsub('\\', '/')
 			local ok, asset = pcall(customAsset, path)
-			if ok and asset then
-				cachedSoundAsset = asset
-			end
+			if ok and asset then cachedSoundAsset = asset end
 		end
 		return cachedSoundAsset
 	end
 
+	local function qmul()
+		local q = Quality.Value == 'Low' and 0.64 or Quality.Value == 'High' and 1.35 or 1
+		local density = 0.65 + (math.clamp(Intensity.Value or 1, 0.5, 2) * 0.35)
+		return q * density
+	end
+
 	local function amount(base)
-		local multiplier = Quality.Value == 'Low' and 0.8 or Quality.Value == 'High' and 2.25 or 1.4
-		return math.max(1, math.floor(base * multiplier + 0.5))
+		return math.clamp(math.floor(base * qmul() + 0.5), 1, 120)
 	end
 
 	local function colors(death)
 		if ColorMode.Value == 'Theme' then
 			local c = vape:GetGUIColorRGB()
-			return c, c:Lerp(Color3.new(1, 1, 1), 0.5)
+			return c, c:Lerp(Color3.new(1, 1, 1), 0.55)
 		elseif ColorMode.Value == 'Pastel' then
-			return Color3.fromRGB(255, 174, 216), Color3.fromRGB(174, 219, 255)
-		end
-		if ColorMode.Value == 'Target' and death and death.Color then
-			return death.Color, death.Color:Lerp(Color3.new(1, 1, 1), 0.55)
+			return Color3.fromRGB(255, 155, 220), Color3.fromRGB(139, 213, 255)
+		elseif ColorMode.Value == 'Target' and death and death.Color then
+			return death.Color, death.Color:Lerp(Color3.new(1, 1, 1), 0.58)
 		elseif ColorMode.Value == 'Rainbow' then
-			local hue = (tick() * 0.18) % 1
-			return Color3.fromHSV(hue, 0.8, 1), Color3.fromHSV((hue + 0.5) % 1, 0.8, 1)
+			local h = (tick() * 0.16) % 1
+			return Color3.fromHSV(h, 0.9, 1), Color3.fromHSV((h + 0.43) % 1, 0.88, 1)
 		end
-		return Color3.fromHSV(PrimaryColor.Hue, PrimaryColor.Sat, PrimaryColor.Value), Color3.fromHSV(SecondaryColor.Hue, SecondaryColor.Sat, SecondaryColor.Value)
+		return Color3.fromHSV(PrimaryColor.Hue, PrimaryColor.Sat, PrimaryColor.Value),
+			Color3.fromHSV(SecondaryColor.Hue, SecondaryColor.Sat, SecondaryColor.Value)
 	end
 
-	local function cleanup(obj, delayTime)
-		debrisService:AddItem(obj, math.max(delayTime or Lifetime.Value, 0.05) + 0.15)
+	local function cleanup(obj, life)
+		if obj then debrisService:AddItem(obj, math.max(life or 0.2, 0.05) + 0.25) end
 		return obj
 	end
 
-	local function part(size, cf, color, transparency, material, shape)
-		local obj = Instance.new('Part')
-		obj.Size = size
-		obj.CFrame = cf
-		obj.Anchored = true
-		obj.CanCollide = false
-		obj.CanTouch = false
-		obj.CanQuery = false
-		obj.CastShadow = false
-		obj.Color = color
-		obj.Transparency = transparency or 0
-		obj.Material = material or Enum.Material.Neon
-		if shape then obj.Shape = shape end
-		obj.Parent = Folder
-		return obj
-	end
-
-	local function tween(obj, duration, props, style, direction)
-		local tw = tweenService:Create(obj, TweenInfo.new(duration, style or Enum.EasingStyle.Quad, direction or Enum.EasingDirection.Out), props)
+	local function tween(obj, life, props, style, direction)
+		if not obj or not obj.Parent then return end
+		local tw = tweenService:Create(obj, TweenInfo.new(
+			math.max(life, 0.03),
+			style or Enum.EasingStyle.Quart,
+			direction or Enum.EasingDirection.Out
+		), props)
 		tw:Play()
-		tw.Completed:Connect(function()
-			pcall(function() tw:Destroy() end)
-		end)
+		tw.Completed:Connect(function() pcall(function() tw:Destroy() end) end)
 		return tw
 	end
 
-	local function sphere(pos, startSize, endSize, color, duration, startTransparency)
-		local obj = part(Vector3.one * math.max(startSize, 0.05), CFrame.new(pos), color, startTransparency or 0, Enum.Material.Neon, Enum.PartType.Ball)
-		tween(obj, duration, {Size = Vector3.one * math.max(endSize, 0.05), Transparency = 1}, Enum.EasingStyle.Quart)
-		return cleanup(obj, duration)
+	local function anchor(pos)
+		local p = Instance.new('Part')
+		p.Size = Vector3.one * 0.05
+		p.CFrame = typeof(pos) == 'CFrame' and pos or CFrame.new(pos)
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanTouch = false
+		p.CanQuery = false
+		p.CastShadow = false
+		p.Transparency = 1
+		p.Parent = Folder
+		return p
 	end
 
-	local function line(a, b, width, color, duration)
-		local dist = (b - a).Magnitude
-		if dist <= 0.01 then return end
-		local obj = part(Vector3.new(width, width, dist), CFrame.lookAt((a + b) / 2, b), color, 0, Enum.Material.Neon)
-		tween(obj, duration, {Transparency = 1, Size = Vector3.new(math.max(width * 0.15, 0.02), math.max(width * 0.15, 0.02), dist)}, Enum.EasingStyle.Quart)
-		return cleanup(obj, duration)
+	local function part(size, cf, color, transparency, material, shape)
+		local p = Instance.new('Part')
+		p.Size = size
+		p.CFrame = cf
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanTouch = false
+		p.CanQuery = false
+		p.CastShadow = false
+		p.Color = color
+		p.Transparency = transparency or 0
+		p.Material = material or Enum.Material.Neon
+		if shape then p.Shape = shape end
+		p.Parent = Folder
+		return p
 	end
 
-	local function burst(pos, count, radius, size, a, b, life, cubes, upward, rainbow)
+	local function randUnit(upBias)
+		local v = Vector3.new(
+			math.random(-1000, 1000) / 1000,
+			math.random(-1000, 1000) / 1000 + (upBias or 0),
+			math.random(-1000, 1000) / 1000
+		)
+		return v.Magnitude > 0.03 and v.Unit or Vector3.yAxis
+	end
+
+	local function flash(pos, color, brightness, radius, life)
+		if DynamicGlow and not DynamicGlow.Enabled then return end
+		local a = anchor(pos)
+		local light = Instance.new('PointLight')
+		light.Color = color
+		light.Brightness = brightness
+		light.Range = radius
+		light.Shadows = false
+		light.Parent = a
+		tween(light, life, {Brightness = 0, Range = radius * 1.45}, Enum.EasingStyle.Quart)
+		cleanup(a, life)
+	end
+
+	local function orb(pos, startSize, endSize, color, life, transparency)
+		local p = part(Vector3.one * math.max(startSize, 0.025), CFrame.new(pos), color, transparency or 0, Enum.Material.Neon, Enum.PartType.Ball)
+		tween(p, life, {Size = Vector3.one * math.max(endSize, 0.03), Transparency = 1}, Enum.EasingStyle.Quint)
+		cleanup(p, life)
+		return p
+	end
+
+	local function beamRing(cf, startRadius, endRadius, segments, width, c1, c2, life, spin)
+		local root = anchor(cf)
+		local count = math.max(10, amount(segments))
+		local ats = {}
+		for i = 1, count do
+			local ang = ((i - 1) / count) * math.pi * 2
+			local at = Instance.new('Attachment')
+			at.Position = Vector3.new(math.cos(ang) * startRadius, 0, math.sin(ang) * startRadius)
+			at.Parent = root
+			ats[i] = at
+		end
+		for i = 1, count do
+			local b = Instance.new('Beam')
+			b.Attachment0 = ats[i]
+			b.Attachment1 = ats[(i % count) + 1]
+			b.FaceCamera = true
+			b.Width0 = width
+			b.Width1 = width
+			b.LightEmission = 1
+			b.LightInfluence = 0
+			b.Color = ColorSequence.new(i % 2 == 0 and c1 or c2, i % 2 == 0 and c2 or c1)
+			b.Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0.03),
+				NumberSequenceKeypoint.new(0.72, 0.12),
+				NumberSequenceKeypoint.new(1, 1)
+			})
+			b.Parent = root
+		end
+		for i, at in ats do
+			local ang = ((i - 1) / count) * math.pi * 2 + (spin or 0)
+			tween(at, life, {Position = Vector3.new(math.cos(ang) * endRadius, 0, math.sin(ang) * endRadius)}, Enum.EasingStyle.Quint)
+		end
+		if spin and spin ~= 0 then tween(root, life, {CFrame = root.CFrame * CFrame.Angles(0, spin, 0)}, Enum.EasingStyle.Sine) end
+		cleanup(root, life)
+		return root
+	end
+
+	local function arcBeam(p0, p1, color, width, life, curve, color2)
+		local a0 = anchor(p0)
+		local a1 = anchor(p1)
+		local at0 = Instance.new('Attachment')
+		local at1 = Instance.new('Attachment')
+		at0.Parent = a0
+		at1.Parent = a1
+		local b = Instance.new('Beam')
+		b.Attachment0 = at0
+		b.Attachment1 = at1
+		b.FaceCamera = true
+		b.Width0 = width
+		b.Width1 = math.max(width * 0.08, 0.01)
+		b.CurveSize0 = curve or 0
+		b.CurveSize1 = -(curve or 0) * 0.7
+		b.Segments = 10
+		b.LightEmission = 1
+		b.LightInfluence = 0
+		b.Color = ColorSequence.new(color, color2 or color)
+		b.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),
+			NumberSequenceKeypoint.new(0.78, 0.08),
+			NumberSequenceKeypoint.new(1, 1)
+		})
+		b.Parent = a0
+		task.delay(life * 0.2, function()
+			if b.Parent then tween(b, life * 0.8, {Width0 = 0.01, Width1 = 0.01}, Enum.EasingStyle.Quart) end
+		end)
+		cleanup(a0, life)
+		cleanup(a1, life)
+		return b
+	end
+
+	local function particleBurst(pos, c1, c2, count, speed, life, size, texture, drag, acceleration)
+		local a = anchor(pos)
+		local pe = Instance.new('ParticleEmitter')
+		pe.Texture = texture or SPARK
+		pe.Rate = 0
+		pe.LightEmission = texture == SMOKE and 0.18 or 1
+		pe.LightInfluence = 0
+		pe.Color = ColorSequence.new(c1, c2 or c1)
+		pe.Lifetime = NumberRange.new(life * 0.62, life)
+		pe.Speed = NumberRange.new(speed * 0.62, speed)
+		pe.Drag = drag or 4
+		pe.Acceleration = acceleration or Vector3.zero
+		pe.Rotation = NumberRange.new(0, 360)
+		pe.RotSpeed = NumberRange.new(-260, 260)
+		pe.SpreadAngle = Vector2.new(360, 360)
+		pe.Size = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, size),
+			NumberSequenceKeypoint.new(0.22, size * 0.78),
+			NumberSequenceKeypoint.new(1, 0)
+		})
+		pe.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, texture == SMOKE and 0.48 or 0.02),
+			NumberSequenceKeypoint.new(0.72, texture == SMOKE and 0.7 or 0.18),
+			NumberSequenceKeypoint.new(1, 1)
+		})
+		pe.Parent = a
+		pe:Emit(amount(count))
+		cleanup(a, life + 0.2)
+	end
+
+	local function streakBurst(pos, c1, c2, count, radius, size, life, upward, rainbow)
+		if MotionTrails and not MotionTrails.Enabled then
+			particleBurst(pos, c1, c2, count, radius * 2.1, life, size * 1.5, SPARK, 3)
+			return
+		end
+		local total = amount(count)
+		for i = 1, total do
+			local dir = randUnit(upward or 0)
+			local c = rainbow and Color3.fromHSV(i / total, 0.92, 1) or (i % 2 == 0 and c1 or c2)
+			local p = part(Vector3.one * size, CFrame.new(pos), c, 0, Enum.Material.Neon, Enum.PartType.Ball)
+			local at0 = Instance.new('Attachment')
+			local at1 = Instance.new('Attachment')
+			at0.Position = Vector3.new(0, size * 0.5, 0)
+			at1.Position = Vector3.new(0, -size * 0.5, 0)
+			at0.Parent = p
+			at1.Parent = p
+			local tr = Instance.new('Trail')
+			tr.Attachment0 = at0
+			tr.Attachment1 = at1
+			tr.Color = ColorSequence.new(c, c:Lerp(Color3.new(1, 1, 1), 0.5))
+			tr.LightEmission = 1
+			tr.LightInfluence = 0
+			tr.Lifetime = math.min(life * 0.42, 0.42)
+			tr.MinLength = 0.03
+			tr.Transparency = NumberSequence.new(0.02, 1)
+			tr.WidthScale = NumberSequence.new(1, 0)
+			tr.Parent = p
+			local endpoint = pos + dir * radius * (0.68 + math.random() * 0.48)
+			tween(p, life, {CFrame = CFrame.new(endpoint), Size = Vector3.one * 0.018, Transparency = 1}, Enum.EasingStyle.Quart)
+			cleanup(p, life + tr.Lifetime)
+		end
+	end
+
+	local function shardBurst(pos, c1, c2, count, radius, size, life, material, upward)
 		for i = 1, amount(count) do
-			local dir = Vector3.new(math.random(-100, 100) / 100, math.random(-35, 100) / 100 + (upward or 0), math.random(-100, 100) / 100)
-			if dir.Magnitude < 0.05 then dir = Vector3.yAxis end
-			dir = dir.Unit
-			local color = rainbow and Color3.fromHSV(i / math.max(amount(count), 1), 0.85, 1) or (i % 2 == 0 and a or b)
-			local obj = part(Vector3.one * size, CFrame.new(pos) * CFrame.Angles(math.random(), math.random(), math.random()), color, 0, Enum.Material.Neon, cubes and nil or Enum.PartType.Ball)
-			local endpoint = pos + dir * radius * (0.65 + math.random() * 0.45)
-			tween(obj, life, {
-				CFrame = CFrame.new(endpoint) * CFrame.Angles(math.random() * 6, math.random() * 6, math.random() * 6),
-				Size = Vector3.one * math.max(size * 0.15, 0.03),
+			local dir = randUnit(upward or 0.15)
+			local p = part(
+				Vector3.new(size * (0.28 + math.random()), size * (0.45 + math.random() * 1.8), size * (1.3 + math.random() * 3.2)),
+				CFrame.new(pos) * CFrame.Angles(math.random() * 5, math.random() * 5, math.random() * 5),
+				i % 4 == 0 and Color3.new(1, 1, 1) or (i % 2 == 0 and c1 or c2),
+				0,
+				material or Enum.Material.Neon
+			)
+			local endpoint = pos + dir * radius * (0.58 + math.random() * 0.52)
+			tween(p, life, {
+				CFrame = CFrame.new(endpoint) * CFrame.Angles(math.random() * 10, math.random() * 10, math.random() * 10),
+				Size = Vector3.one * 0.02,
 				Transparency = 1
 			}, Enum.EasingStyle.Quart)
-			cleanup(obj, life)
+			cleanup(p, life)
 		end
 	end
 
-	local function symbol(pos, text, color, life, count, scale)
-		for i = 1, amount(count or 1) do
-			local anchor = part(Vector3.one * 0.05, CFrame.new(pos + Vector3.new(math.random(-12, 12) / 10, math.random(0, 12) / 10, math.random(-12, 12) / 10)), color, 1, Enum.Material.SmoothPlastic)
-			local gui = Instance.new('BillboardGui')
-			gui.Size = UDim2.fromOffset(72 * (scale or 1), 72 * (scale or 1))
-			gui.AlwaysOnTop = true
-			gui.Adornee = anchor
-			gui.Parent = anchor
-			local label = Instance.new('TextLabel')
-			label.Size = UDim2.fromScale(1, 1)
-			label.BackgroundTransparency = 1
-			label.Text = text
-			label.TextScaled = true
-			label.TextColor3 = color
-			label.TextStrokeTransparency = 0.35
-			label.Font = Enum.Font.GothamBold
-			label.Parent = gui
-			tween(anchor, life, {CFrame = anchor.CFrame + Vector3.new(math.random(-18, 18) / 10, 5 + math.random() * 2, math.random(-18, 18) / 10)}, Enum.EasingStyle.Sine)
-			tween(label, life, {TextTransparency = 1, TextStrokeTransparency = 1}, Enum.EasingStyle.Quad)
-			cleanup(anchor, life)
+	local function radialArcs(pos, c1, c2, count, radius, width, life, vertical)
+		local total = amount(count)
+		for i = 1, total do
+			local ang = (i / total) * math.pi * 2
+			local y = math.sin(ang * 2.5) * (vertical or 0)
+			local dir = Vector3.new(math.cos(ang), y, math.sin(ang)).Unit
+			arcBeam(pos + dir * 0.1, pos + dir * radius, i % 2 == 0 and c1 or c2, width, life, math.sin(ang * 3) * radius * 0.2, i % 2 == 0 and c2 or c1)
 		end
+	end
+
+	local function symbol(pos, text, color, life, scale, rise, rotation)
+		local a = anchor(pos)
+		local gui = Instance.new('BillboardGui')
+		gui.Size = UDim2.fromOffset(76 * scale, 76 * scale)
+		gui.AlwaysOnTop = true
+		gui.Adornee = a
+		gui.Parent = a
+		local label = Instance.new('TextLabel')
+		label.Size = UDim2.fromScale(1, 1)
+		label.BackgroundTransparency = 1
+		label.Text = text
+		label.TextScaled = true
+		label.TextColor3 = color
+		label.TextStrokeColor3 = Color3.new(0, 0, 0)
+		label.TextStrokeTransparency = 0.4
+		label.Font = Enum.Font.GothamBold
+		label.Rotation = rotation or 0
+		label.Parent = gui
+		tween(a, life, {CFrame = a.CFrame + Vector3.new(0, rise or 4, 0)}, Enum.EasingStyle.Sine)
+		tween(label, life, {TextTransparency = 1, TextStrokeTransparency = 1, Rotation = (rotation or 0) + 90}, Enum.EasingStyle.Quad)
+		cleanup(a, life)
+	end
+
+	local function groundSigil(pos, a, b, scale, life)
+		if GroundSigils and not GroundSigils.Enabled then return end
+		local floor = CFrame.new(pos + Vector3.new(0, 0.08 * scale, 0))
+		beamRing(floor, 0.35 * scale, 4.8 * scale, 28, 0.06 * scale, a, b, life * 0.82, 1.6)
+		beamRing(floor, 1.1 * scale, 3.7 * scale, 18, 0.035 * scale, Color3.new(1, 1, 1), a, life * 0.68, -1.2)
+		local total = amount(12)
+		for i = 1, total do
+			local ang = i / total * math.pi * 2
+			local dir = Vector3.new(math.cos(ang), 0, math.sin(ang))
+			arcBeam(pos + dir * 0.6 * scale, pos + dir * 4.6 * scale, i % 2 == 0 and a or b, 0.035 * scale, life * 0.62, math.sin(ang * 2) * 0.35 * scale, Color3.new(1, 1, 1))
+		end
+	end
+
+	local function pillar(pos, c1, c2, height, width, life)
+		local bottom = pos - Vector3.new(0, 0.5, 0)
+		local top = pos + Vector3.new(0, height, 0)
+		arcBeam(bottom, top, c1, width, life, 0, c2)
+		arcBeam(bottom + Vector3.new(0.18, 0, 0), top + Vector3.new(-0.18, 0, 0), c2, width * 0.45, life * 0.9, 0.6, Color3.new(1, 1, 1))
+	end
+
+	local function vortex(pos, c1, c2, radius, height, count, life, inward)
+		local total = amount(count)
+		for i = 1, total do
+			local t = i / total
+			local ang = t * math.pi * 10 + (i % 3) * 2.1
+			local r = radius * (inward and (1 - t * 0.78) or (0.22 + t * 0.78))
+			local start = pos + Vector3.new(math.cos(ang) * r, (t - 0.2) * height, math.sin(ang) * r)
+			local p = part(Vector3.one * (0.06 + t * 0.08), CFrame.new(start), i % 2 == 0 and c1 or c2, 0, Enum.Material.Neon, Enum.PartType.Ball)
+			local nextAng = ang + (inward and -2.8 or 2.8)
+			local endR = inward and math.max(0.1, r * 0.15) or r + radius * 0.45
+			local finish = pos + Vector3.new(math.cos(nextAng) * endR, (t * height) + 2.2, math.sin(nextAng) * endR)
+			tween(p, life * (0.72 + t * 0.28), {CFrame = CFrame.new(finish), Transparency = 1, Size = Vector3.one * 0.018}, Enum.EasingStyle.Sine)
+			cleanup(p, life)
+		end
+	end
+
+	local function ghostEffect(death, color, scale, life)
+		local char = death.Character
+		if not char or not char.Parent then
+			orb(death.Position + Vector3.new(0, 1.4 * scale, 0), 0.45 * scale, 4.2 * scale, color, life, 0.4)
+			return
+		end
+		local oldArchivable = char.Archivable
+		char.Archivable = true
+		local ok, clone = pcall(function() return char:Clone() end)
+		char.Archivable = oldArchivable
+		if not ok or not clone then return end
+		clone.Name = 'KillEffectGhost'
+		clone.Parent = Folder
+		for _, obj in clone:GetDescendants() do
+			if obj:IsA('BasePart') then
+				obj.Anchored = true
+				obj.CanCollide = false
+				obj.CanTouch = false
+				obj.CanQuery = false
+				obj.CastShadow = false
+				obj.Material = Enum.Material.ForceField
+				obj.Color = color
+				obj.Transparency = math.max(obj.Transparency, 0.3)
+				tween(obj, life, {CFrame = obj.CFrame + Vector3.new(0, 7 * scale, 0), Transparency = 1}, Enum.EasingStyle.Sine)
+			elseif obj:IsA('Decal') or obj:IsA('Texture') then
+				tween(obj, life * 0.75, {Transparency = 1}, Enum.EasingStyle.Sine)
+			elseif obj:IsA('Script') or obj:IsA('LocalScript') then
+				obj:Destroy()
+			end
+		end
+		cleanup(clone, life)
 	end
 
 	local function playKillSound()
@@ -4243,439 +4469,265 @@ run(function()
 		debrisService:AddItem(sound, 6)
 	end
 
-	local function ghostEffect(death, a, scale, life)
-		local char = death.Character
-		if not char or not char.Parent then
-			sphere(death.Position + Vector3.new(0, 1.5 * scale, 0), 0.5 * scale, 4 * scale, a, life, 0.35)
-			return
-		end
-		local archivable = char.Archivable
-		char.Archivable = true
-		local ok, clone = pcall(function() return char:Clone() end)
-		char.Archivable = archivable
-		if not ok or not clone then return end
-		clone.Name = 'KillEffectGhost'
-		clone.Parent = Folder
-		for _, obj in clone:GetDescendants() do
-			if obj:IsA('BasePart') then
-				obj.Anchored = true
-				obj.CanCollide = false
-				obj.CanTouch = false
-				obj.CanQuery = false
-				obj.CastShadow = false
-				obj.Material = Enum.Material.ForceField
-				obj.Color = a
-				obj.Transparency = math.max(obj.Transparency, 0.28)
-				tween(obj, life, {CFrame = obj.CFrame + Vector3.new(0, 6 * scale, 0), Transparency = 1}, Enum.EasingStyle.Sine)
-			elseif obj:IsA('Decal') or obj:IsA('Texture') then
-				tween(obj, life, {Transparency = 1}, Enum.EasingStyle.Sine)
-			elseif obj:IsA('Script') or obj:IsA('LocalScript') then
-				obj:Destroy()
-			end
-		end
-		cleanup(clone, life)
-	end
-
 	local function runEffect(death)
 		if not death or not death.Position then return end
+		local mode = Mode.Value
+		if mode == 'Random' then mode = randomModes[math.random(1, #randomModes)] end
+		mode = aliases[mode] or mode
 
-		local pos = death.Position
 		local scale = EffectSize.Value
-		local life = math.max(Lifetime.Value, 0.18)
+		local life = math.max(Lifetime.Value, 0.28)
 		local a, b = colors(death)
 		local white = Color3.new(1, 1, 1)
-		local mode = Mode.Value
-
-		if mode == 'Random' then
-			local pool = {
-				'Supernova', 'Astral Bloom', 'Prism Break', 'Aurora', 'Starfall', 'Sakura', 'Love Burst', 'Kitty Pop',
-				'Nova', 'Lightning', 'Soul', 'Rings', 'Spiral', 'Firework', 'Tornado',
-				'Shatter', 'Slash', 'Beam', 'Pulse', 'Confetti', 'Galaxy', 'Freeze',
-				'Void', 'Ghost', 'Hearts', 'Skull', 'Black Hole', 'Disintegrate',
-				'Crystal', 'Orbit'
-			}
-			mode = pool[math.random(1, #pool)]
-		end
-
-		local center = pos + Vector3.new(0, 1.35 * scale, 0)
-
-		local function flashLight(where, color, brightness, radius, duration)
-			local anchor = part(Vector3.one * 0.05, CFrame.new(where), color, 1, Enum.Material.Neon)
-			local light = Instance.new('PointLight')
-			light.Color = color
-			light.Brightness = brightness
-			light.Range = radius
-			light.Shadows = false
-			light.Parent = anchor
-			tween(light, duration, {
-				Brightness = 0,
-				Range = radius * 1.35
-			}, Enum.EasingStyle.Quart)
-			cleanup(anchor, duration)
-		end
-
-		local function radialLines(where, count, radius, width, c1, c2, duration, vertical)
-			local total = amount(count)
-			for i = 1, total do
-				local ang = (i / total) * math.pi * 2
-				local y = math.sin(ang * 2) * (vertical or 0)
-				local dir = Vector3.new(math.cos(ang), y, math.sin(ang)).Unit
-				line(
-					where + dir * 0.15 * scale,
-					where + dir * radius * scale,
-					width * scale,
-					i % 2 == 0 and c1 or c2,
-					duration
-				)
-			end
-		end
-
-		local function orbitLayer(where, rings, points, radius, height, duration, reverse)
-			for ringIndex = 1, rings do
-				local total = amount(points)
-				for i = 1, total do
-					local alpha = i / total
-					local dir = reverse and -1 or 1
-					local ang = alpha * math.pi * 2 * dir + ringIndex * 0.7
-					local y = ((ringIndex - (rings + 1) / 2) * height) * scale
-					local start = where + Vector3.new(math.cos(ang) * radius * scale, y, math.sin(ang) * radius * scale)
-					local finish = where + Vector3.new(
-						math.cos(ang + dir * 2.4) * (radius + 2.1) * scale,
-						y + math.sin(ang * 2) * 1.2 * scale,
-						math.sin(ang + dir * 2.4) * (radius + 2.1) * scale
-					)
-					local orb = part(
-						Vector3.one * (0.09 + ringIndex * 0.018) * scale,
-						CFrame.new(start),
-						(i + ringIndex) % 2 == 0 and a or b,
-						0,
-						Enum.Material.Neon,
-						Enum.PartType.Ball
-					)
-					tween(orb, duration, {
-						CFrame = CFrame.new(finish),
-						Transparency = 1,
-						Size = Vector3.one * 0.025
-					}, Enum.EasingStyle.Sine)
-					cleanup(orb, duration)
-				end
-			end
-		end
-
-		local function sparkleCloud(where, count, radius, duration, rainbow)
-			local total = amount(count)
-			for i = 1, total do
-				local offset = Vector3.new(
-					math.random(-100, 100) / 100,
-					math.random(-100, 100) / 100,
-					math.random(-100, 100) / 100
-				)
-				if offset.Magnitude < 0.05 then offset = Vector3.yAxis end
-				offset = offset.Unit * radius * (0.3 + math.random() * 0.7) * scale
-				local c = rainbow and Color3.fromHSV(i / total, 0.95, 1) or (i % 3 == 0 and white or (i % 2 == 0 and a or b))
-				local obj = part(
-					Vector3.one * (0.055 + math.random() * 0.085) * scale,
-					CFrame.new(where),
-					c,
-					0,
-					Enum.Material.Neon,
-					Enum.PartType.Ball
-				)
-				tween(obj, duration, {
-					CFrame = CFrame.new(where + offset),
-					Transparency = 1,
-					Size = Vector3.one * 0.018
-				}, Enum.EasingStyle.Quart)
-				cleanup(obj, duration)
-			end
-		end
-
-		local function pulseStack(where, layers, maxRadius, duration)
-			for i = 1, layers do
-				task.delay((i - 1) * duration * 0.065, function()
-					if KillEffects.Enabled then
-						sphere(
-							where,
-							0.08 * scale,
-							(maxRadius * (0.45 + i / layers * 0.55)) * scale,
-							i % 3 == 0 and white or (i % 2 == 0 and a or b),
-							duration * (0.65 + i * 0.04),
-							0.58
-						)
-					end
-				end)
-			end
-		end
+		local black = Color3.new(0.004, 0.006, 0.014)
+		local center = death.Position + Vector3.new(0, 1.35 * scale, 0)
+		local ground = death.Position
 
 		playKillSound()
-		local upgraded = ({Nova = 'Supernova', Hearts = 'Love Burst', Galaxy = 'Aurora'})[mode] or mode
-		if impactVisuals:Play(upgraded, Folder, center, scale, life, a, b, Quality.Value, true) then return end
 
-		-- Universal cinematic base: white-hot core + colored bloom + debris.
-		flashLight(center, white, 8.5, 18 * scale, life * 0.42)
-		flashLight(center, a, 5.5, 13 * scale, life * 0.62)
-		sphere(center, 0.08 * scale, 1.6 * scale, white, life * 0.28, 0.06)
-		sphere(center, 0.12 * scale, 2.65 * scale, a, life * 0.4, 0.38)
-		burst(center, 16, 3.7 * scale, 0.075 * scale, a, b, life * 0.55, false, 0.18)
-		sparkleCloud(center, 10, 2.8, life * 0.48, false)
+		-- Premium base layer: compression flash -> shock ring -> debris. Every kill feels stronger than a hit.
+		flash(center, white, 9, 18 * scale, life * 0.34)
+		orb(center, 0.12 * scale, 2.2 * scale, white, life * 0.22, 0.02)
+		orb(center, 0.18 * scale, 3.3 * scale, a, life * 0.36, 0.42)
+		beamRing(CFrame.new(ground + Vector3.new(0, 0.12 * scale, 0)), 0.2 * scale, 4.2 * scale, 24, 0.045 * scale, a, b, life * 0.52, 1.2)
+		particleBurst(center, white, a, 18, 10 * scale, life * 0.6, 0.09 * scale, SPARK, 3)
 
-		if mode == 'Nova' or mode == 'Explosion' then
-			pulseStack(center, 5, 8.5, life * 0.8)
-			sphere(center, 0.25 * scale, 8.5 * scale, a, life * 0.82, 0.5)
-			sphere(center, 0.18 * scale, 5.2 * scale, b, life * 0.62, 0.5)
-			burst(center, 46, 10 * scale, 0.21 * scale, a, b, life, false, 0.2)
-			radialLines(center, 24, 9.4, 0.07, white, a, life * 0.72, 0.22)
-			sparkleCloud(center, 28, 8.0, life * 0.9, false)
+		if death.Headshot then
+			symbol(center + Vector3.new(0, 1.4 * scale, 0), '♛', white, life * 0.8, 0.8 * scale, 2.2 * scale, 0)
+			beamRing(CFrame.new(center + Vector3.new(0, 1.25 * scale, 0)) * CFrame.Angles(math.rad(90), 0, 0), 0.25 * scale, 1.8 * scale, 18, 0.05 * scale, white, a, life * 0.55, 1.4)
+		end
 
-		elseif mode == 'Lightning' then
-			local top = center + Vector3.new(0, 16 * scale, 0)
-			for strike = 1, amount(6) do
-				local last = top + Vector3.new(math.random(-25, 25) / 10 * scale, 0, math.random(-25, 25) / 10 * scale)
-				for step = 1, 9 do
-					local nextp = top:Lerp(center, step / 9) + Vector3.new(
-						math.random(-18, 18) / 10 * scale,
-						0,
-						math.random(-18, 18) / 10 * scale
-					)
-					line(last, nextp, (step > 6 and 0.12 or 0.075) * scale, strike % 3 == 0 and white or (strike % 2 == 0 and b or a), life * 0.62)
-					if step % 3 == 0 then
-						local branch = nextp + Vector3.new(
-							math.random(-35, 35) / 10,
-							math.random(-8, 20) / 10,
-							math.random(-35, 35) / 10
-						) * scale
-						line(nextp, branch, 0.045 * scale, b, life * 0.48)
-					end
-					last = nextp
-				end
-			end
-			pulseStack(center, 3, 5.5, life * 0.6)
-			burst(center, 34, 7.2 * scale, 0.11 * scale, white, a, life * 0.75, false, 0.15)
-			radialLines(center, 18, 7.5, 0.055, white, b, life * 0.62, 0.3)
-
-		elseif mode == 'Soul' then
-			sphere(center, 0.3 * scale, 5.1 * scale, a, life, 0.5)
-			sphere(center, 0.2 * scale, 3.3 * scale, b, life * 0.72, 0.55)
-			for i = 1, amount(34) do
-				local start = center + Vector3.new(
-					math.random(-26, 26) / 10,
-					math.random(-12, 22) / 10,
-					math.random(-26, 26) / 10
-				) * scale
-				local orb = part(Vector3.one * (0.11 + math.random() * 0.16) * scale, CFrame.new(start), i % 3 == 0 and white or (i % 2 == 0 and a or b), 0.08, Enum.Material.Neon, Enum.PartType.Ball)
-				tween(orb, life * (0.72 + math.random() * 0.28), {
-					CFrame = CFrame.new(start + Vector3.new(
-						math.random(-18, 18) / 10,
-						9 + math.random() * 6,
-						math.random(-18, 18) / 10
-					) * scale),
-					Transparency = 1,
-					Size = Vector3.one * 0.025
-				}, Enum.EasingStyle.Sine)
-				cleanup(orb, life * 1.1)
-			end
-			orbitLayer(center, 2, 18, 2.2, 0.6, life * 0.9, false)
-			symbol(center + Vector3.new(0, 2 * scale, 0), '✦', white, life, 7, scale * 0.85)
-
-		elseif mode == 'Rings' or mode == 'Orbit' then
-			orbitLayer(center, 5, 22, 1.4, 0.48, life, mode == 'Orbit')
-			orbitLayer(center, 3, 16, 2.4, 0.7, life * 0.82, not (mode == 'Orbit'))
-			pulseStack(center, 3, 4.3, life * 0.62)
-			radialLines(center, 16, 5.5, 0.045, white, a, life * 0.6, 0.18)
-
-		elseif mode == 'Spiral' or mode == 'Tornado' then
-			local total = amount(mode == 'Tornado' and 62 or 48)
-			for i = 1, total do
-				local alpha = i / total
-				local turns = mode == 'Tornado' and 11 or 7
-				local ang = alpha * math.pi * turns
-				local radius = mode == 'Tornado' and (0.6 + alpha * 4.8) or (1.15 + math.sin(alpha * math.pi) * 2.8)
-				local start = center + Vector3.new(
-					math.cos(ang) * radius * scale,
-					(alpha * (mode == 'Tornado' and 10 or 7) - 1.5) * scale,
-					math.sin(ang) * radius * scale
-				)
-				local orb = part(
-					Vector3.one * (0.08 + alpha * 0.12) * scale,
-					CFrame.new(start),
-					i % 4 == 0 and white or (i % 2 == 0 and a or b),
-					0,
-					Enum.Material.Neon,
-					Enum.PartType.Ball
-				)
-				tween(orb, life, {
-					CFrame = CFrame.new(start + Vector3.new(
-						math.cos(ang + 2.6) * 3.3,
-						3.6 + alpha * 2.2,
-						math.sin(ang + 2.6) * 3.3
-					) * scale),
-					Transparency = 1,
-					Size = Vector3.one * 0.025
-				}, Enum.EasingStyle.Sine)
-				cleanup(orb, life)
-			end
-			burst(center, 30, 6 * scale, 0.09 * scale, a, b, life * 0.72, false, 0.7)
-
-		elseif mode == 'Firework' then
-			local sky = center + Vector3.new(0, 10 * scale, 0)
-			line(center, sky, 0.15 * scale, white, life * 0.36)
-			for i = 1, amount(9) do
-				local trailPos = center:Lerp(sky, i / amount(9))
-				sphere(trailPos, 0.04 * scale, 0.35 * scale, i % 2 == 0 and a or b, life * 0.3, 0.2)
-			end
-			task.delay(life * 0.23, function()
-				if KillEffects.Enabled then
-					flashLight(sky, white, 9, 20 * scale, life * 0.45)
-					pulseStack(sky, 4, 6.0, life * 0.65)
-					burst(sky, 72, 10 * scale, 0.17 * scale, a, b, life * 0.9, false, 0.12)
-					radialLines(sky, 30, 8.8, 0.055, white, a, life * 0.72, 0.35)
-					sparkleCloud(sky, 46, 8.5, life, false)
-				end
-			end)
-
-		elseif mode == 'Shatter' or mode == 'Disintegrate' or mode == 'Pixel Burst' then
-			local count = mode == 'Disintegrate' and 68 or 50
-			burst(center, count, 9 * scale, 0.27 * scale, a, b, life, true, mode == 'Disintegrate' and 0.9 or 0.25)
-			burst(center, 34, 6.5 * scale, 0.11 * scale, white, b, life * 0.75, true, 0.5)
-			radialLines(center, 22, 7.5, 0.05, white, a, life * 0.62, 0.4)
-			pulseStack(center, 2, 4.7, life * 0.55)
-
-		elseif mode == 'Slash' then
-			for i = 1, amount(10) do
-				local yaw = (i / amount(10)) * math.pi * 2
-				local pitch = ((i % 4) - 1.5) * 0.24
-				local dir = Vector3.new(math.cos(yaw), pitch, math.sin(yaw)).Unit * (5.5 + (i % 3)) * scale
-				line(center - dir, center + dir, (i % 3 == 0 and 0.17 or 0.095) * scale, i % 3 == 0 and white or (i % 2 == 0 and a or b), life * (0.6 + (i % 4) * 0.05))
-			end
-			pulseStack(center, 3, 5.1, life * 0.55)
-			burst(center, 34, 6.5 * scale, 0.11 * scale, a, b, life * 0.72, false, 0.12)
-
-		elseif mode == 'Beam' then
-			for i = 1, 4 do
-				local offset = Vector3.new((i - 2.5) * 0.38 * scale, 0, ((i % 2) - 0.5) * 0.42 * scale)
-				line(center - Vector3.new(0, 4 * scale, 0) + offset, center + Vector3.new(0, 18 * scale, 0) + offset, (i == 2 and 0.36 or 0.13) * scale, i == 2 and white or (i % 2 == 0 and a or b), life)
-			end
-			pulseStack(center, 5, 6.5, life * 0.72)
-			orbitLayer(center, 3, 18, 2.0, 0.55, life * 0.85, false)
-			burst(center, 28, 6.2 * scale, 0.09 * scale, a, b, life * 0.65, false, 0.25)
-
-		elseif mode == 'Pulse' or mode == 'Shockwave' then
-			pulseStack(center, 7, 9.0, life)
-			radialLines(center, 34, 10, 0.055, white, a, life * 0.68, 0.18)
-			burst(center, 42, 8.0 * scale, 0.11 * scale, a, b, life * 0.82, false, 0.2)
-			sparkleCloud(center, 30, 6.7, life * 0.86, false)
-
-		elseif mode == 'Confetti' or mode == 'Rainbow' then
-			burst(center, 80, 10 * scale, 0.18 * scale, a, b, life, true, 1.0, mode == 'Rainbow')
-			sparkleCloud(center, 54, 8.5, life * 0.95, mode == 'Rainbow')
-			if mode == 'Rainbow' then
-				local total = amount(26)
-				for i = 1, total do
-					local ang = i / total * math.pi * 2
-					local c = Color3.fromHSV(i / total, 0.95, 1)
-					line(center, center + Vector3.new(math.cos(ang), math.sin(ang * 3) * 0.28, math.sin(ang)).Unit * 8 * scale, 0.055 * scale, c, life * 0.72)
-				end
-				pulseStack(center, 4, 6.0, life * 0.65)
-			end
-
-		elseif mode == 'Galaxy' then
-			sphere(center, 0.25 * scale, 4.8 * scale, b, life, 0.52)
-			sphere(center, 0.14 * scale, 3.2 * scale, Color3.new(0.02, 0.02, 0.05), life * 0.9, 0.1)
-			for arm = 1, 4 do
-				local total = amount(26)
-				for i = 1, total do
-					local alpha = i / total
-					local ang = alpha * math.pi * 3.5 + arm * math.pi / 2
-					local rad = (0.6 + alpha * 5.5) * scale
-					local start = center + Vector3.new(
-						math.cos(ang) * rad,
-						math.sin(ang * 0.65) * 1.3 * scale,
-						math.sin(ang) * rad
-					)
-					local orb = part(Vector3.one * (0.06 + alpha * 0.08) * scale, CFrame.new(start), (i + arm) % 3 == 0 and white or ((i + arm) % 2 == 0 and a or b), 0, Enum.Material.Neon, Enum.PartType.Ball)
-					tween(orb, life, {
-						CFrame = CFrame.new(center + Vector3.new(
-							math.cos(ang + 2.8) * (rad + 2.5 * scale),
-							math.sin(ang + 1) * 2.4 * scale,
-							math.sin(ang + 2.8) * (rad + 2.5 * scale)
-						)),
-						Transparency = 1,
-						Size = Vector3.one * 0.025
-					}, Enum.EasingStyle.Sine)
-					cleanup(orb, life)
-				end
-			end
-			flashLight(center, b, 7, 18 * scale, life * 0.8)
-			sparkleCloud(center, 36, 7.5, life, false)
-
-		elseif mode == 'Freeze' or mode == 'Crystal' then
-			for i = 1, amount(34) do
-				local ang = (i / amount(34)) * math.pi * 2
-				local endpoint = center + Vector3.new(
-					math.cos(ang) * (3.5 + math.random() * 5.5) * scale,
-					(math.random(-2, 8) + math.random()) * scale,
-					math.sin(ang) * (3.5 + math.random() * 5.5) * scale
-				)
-				local shard = line(center, endpoint, (0.075 + math.random() * 0.16) * scale, i % 4 == 0 and white or (i % 2 == 0 and a or b), life)
-				if shard then shard.Material = Enum.Material.Ice end
-			end
-			pulseStack(center, 4, 6.5, life * 0.76)
-			burst(center, 48, 8.0 * scale, 0.15 * scale, white, a, life * 0.82, true, 0.3)
-			sparkleCloud(center, 28, 6.0, life * 0.75, false)
-
-		elseif mode == 'Void' or mode == 'Black Hole' then
-			sphere(center, 0.3 * scale, 5.1 * scale, Color3.new(0.005, 0.005, 0.012), life, 0.02)
-			sphere(center, 0.2 * scale, 6.6 * scale, a, life * 0.78, 0.7)
-			for ringIndex = 1, 4 do
-				local total = amount(24)
-				for i = 1, total do
-					local ang = (i / total) * math.pi * 2 + ringIndex * 0.5
-					local rad = (4.5 + ringIndex * 1.4) * scale
-					local start = center + Vector3.new(
-						math.cos(ang) * rad,
-						math.sin(ang * 2) * 2.3 * scale,
-						math.sin(ang) * rad
-					)
-					local orb = part(Vector3.one * (0.08 + ringIndex * 0.025) * scale, CFrame.new(start), (i + ringIndex) % 3 == 0 and white or ((i + ringIndex) % 2 == 0 and a or b), 0, Enum.Material.Neon, Enum.PartType.Ball)
-					tween(orb, life * (0.7 + ringIndex * 0.07), {
-						CFrame = CFrame.new(center),
-						Transparency = 1,
-						Size = Vector3.one * 0.02
-					}, Enum.EasingStyle.Quint)
-					cleanup(orb, life)
-				end
-			end
-			radialLines(center, 22, 7.5, 0.045, a, b, life * 0.62, 0.28)
-			flashLight(center, a, 6.5, 16 * scale, life * 0.75)
-
-		elseif mode == 'Ghost' then
-			ghostEffect(death, a, scale, life)
-			for i = 1, 3 do
-				task.delay(i * life * 0.07, function()
+		if mode == 'Supernova' then
+			groundSigil(ground, a, b, scale, life)
+			orb(center, 0.15 * scale, 5.8 * scale, a, life * 0.72, 0.52)
+			orb(center, 0.1 * scale, 3.8 * scale, white, life * 0.48, 0.64)
+			for i = 1, 5 do
+				task.delay((i - 1) * life * 0.055, function()
 					if KillEffects.Enabled then
-						sphere(center + Vector3.new(0, i * 0.7 * scale, 0), 0.1 * scale, (3.3 + i) * scale, i % 2 == 0 and a or b, life * 0.7, 0.72)
+						beamRing(CFrame.new(center) * CFrame.Angles(math.rad(90 + i * 9), i * 0.3, 0), 0.15 * scale, (3.4 + i * 1.45) * scale, 26, (0.06 - i * 0.006) * scale, i % 2 == 0 and white or a, b, life * (0.52 + i * 0.06), (i % 2 == 0 and 1 or -1) * 1.5)
 					end
 				end)
 			end
-			symbol(center + Vector3.new(0, 2.4 * scale, 0), '✦', white, life, 10, scale * 0.8)
-			sparkleCloud(center, 34, 6.5, life, false)
+			radialArcs(center, white, a, 28, 10 * scale, 0.06 * scale, life * 0.7, 0.34)
+			streakBurst(center, a, b, 56, 11 * scale, 0.1 * scale, life, 0.25)
+			particleBurst(center, white, a, 68, 13 * scale, life, 0.12 * scale, SPARK, 2)
 
-		elseif mode == 'Hearts' then
-			symbol(center, '♥', a, life, 18, scale)
-			symbol(center + Vector3.new(0, 1.0 * scale, 0), '♡', b, life * 0.9, 12, scale * 0.78)
-			symbol(center + Vector3.new(0, 0.4 * scale, 0), '✦', white, life * 0.72, 8, scale * 0.62)
-			pulseStack(center, 4, 5.5, life * 0.68)
-			burst(center, 34, 7.0 * scale, 0.1 * scale, a, b, life * 0.78, false, 0.65)
+		elseif mode == 'Singularity' then
+			groundSigil(ground, a, black, scale, life)
+			orb(center, 0.25 * scale, 5.4 * scale, black, life, 0.02)
+			orb(center, 0.2 * scale, 7.2 * scale, a, life * 0.82, 0.74)
+			for i = 1, 4 do
+				beamRing(CFrame.new(center) * CFrame.Angles(math.rad(48 + i * 31), i * 0.55, i * 0.2), (5.4 + i * 1.15) * scale, 0.38 * scale, 24, 0.045 * scale, i % 2 == 0 and a or b, black, life * (0.7 + i * 0.05), (i % 2 == 0 and 1 or -1) * 2.2)
+			end
+			vortex(center, a, b, 6.8 * scale, 8 * scale, 54, life, true)
+			for i = 1, amount(18) do
+				local p0 = center + randUnit() * (7 + math.random() * 5) * scale
+				arcBeam(p0, center, i % 2 == 0 and a or b, 0.045 * scale, life * 0.78, math.random(-22, 22) / 10 * scale, black)
+			end
+			flash(center, a, 7, 17 * scale, life * 0.72)
 
-		elseif mode == 'Skull' then
-			symbol(center + Vector3.new(0, 3.0 * scale, 0), '☠', white, life, 1, 2.0 * scale)
-			symbol(center + Vector3.new(0, 2.7 * scale, 0), '☠', a, life * 0.92, 2, 1.45 * scale)
-			pulseStack(center, 4, 6.5, life * 0.72)
-			radialLines(center, 28, 8.5, 0.06, white, b, life * 0.72, 0.35)
-			burst(center, 50, 8.5 * scale, 0.12 * scale, a, b, life * 0.85, false, 0.25)
-			sparkleCloud(center, 30, 6.0, life * 0.75, false)
+		elseif mode == 'Divine Judgment' then
+			local gold = Color3.fromRGB(255, 218, 112)
+			groundSigil(ground, gold, white, scale, life)
+			pillar(center, white, gold, 22 * scale, 0.6 * scale, life)
+			for i = 1, 4 do
+				beamRing(CFrame.new(ground + Vector3.new(0, i * 0.2 * scale, 0)), 0.2 * scale, (3.4 + i * 1.0) * scale, 24, 0.05 * scale, gold, white, life * (0.52 + i * 0.07), i)
+			end
+			streakBurst(center, white, gold, 42, 9 * scale, 0.085 * scale, life * 0.9, 0.65)
+			particleBurst(center, white, gold, 60, 8 * scale, life, 0.12 * scale, SPARK, 4, Vector3.new(0, 5, 0))
+			symbol(center + Vector3.new(0, 3 * scale, 0), '✦', white, life, 1.1 * scale, 5 * scale, 0)
+
+		elseif mode == 'Soul Ascension' then
+			groundSigil(ground, a, b, scale, life)
+			ghostEffect(death, a, scale, life * 1.12)
+			orb(center, 0.2 * scale, 4.2 * scale, a, life * 0.82, 0.62)
+			for i = 1, amount(36) do
+				local start = center + randUnit() * (0.8 + math.random() * 2.3) * scale
+				local p = part(Vector3.one * (0.07 + math.random() * 0.13) * scale, CFrame.new(start), i % 3 == 0 and white or (i % 2 == 0 and a or b), 0.05, Enum.Material.Neon, Enum.PartType.Ball)
+				local finish = start + Vector3.new(math.random(-18, 18) / 10, 9 + math.random() * 8, math.random(-18, 18) / 10) * scale
+				tween(p, life * (0.75 + math.random() * 0.35), {CFrame = CFrame.new(finish), Transparency = 1, Size = Vector3.one * 0.02}, Enum.EasingStyle.Sine)
+				cleanup(p, life * 1.15)
+			end
+			beamRing(CFrame.new(center + Vector3.new(0, 3.7 * scale, 0)) * CFrame.Angles(math.rad(90), 0, 0), 0.45 * scale, 3.4 * scale, 26, 0.05 * scale, white, a, life * 0.8, 1.4)
+			particleBurst(center, a, white, 36, 6 * scale, life, 0.1 * scale, SPARK, 6, Vector3.new(0, 4, 0))
+
+		elseif mode == 'Astral Gate' then
+			groundSigil(ground, a, b, scale, life)
+			for i = 1, 5 do
+				beamRing(CFrame.new(center) * CFrame.Angles(0, 0, math.rad(90)) * CFrame.Angles(0, i * 0.18, 0), (0.5 + i * 0.15) * scale, (3.2 + i * 0.72) * scale, 28, (0.055 - i * 0.005) * scale, i % 2 == 0 and a or white, i % 2 == 0 and b or a, life * (0.58 + i * 0.06), (i % 2 == 0 and 1 or -1) * 1.8)
+			end
+			vortex(center, a, b, 5.5 * scale, 9 * scale, 48, life, false)
+			particleBurst(center, white, a, 52, 7.5 * scale, life, 0.1 * scale, SPARK, 4)
+			streakBurst(center, a, b, 28, 7.5 * scale, 0.07 * scale, life * 0.88, 0.2)
+
+		elseif mode == 'Thunder God' then
+			groundSigil(ground, a, white, scale, life)
+			local top = center + Vector3.new(0, 20 * scale, 0)
+			for strike = 1, amount(8) do
+				local start = top + Vector3.new(math.random(-45, 45) / 10, math.random() * 3, math.random(-45, 45) / 10) * scale
+				local finish = center + Vector3.new(math.random(-16, 16) / 10, math.random(-10, 10) / 10, math.random(-16, 16) / 10) * scale
+				arcBeam(start, finish, strike % 3 == 0 and white or (strike % 2 == 0 and a or b), (strike <= 2 and 0.16 or 0.085) * scale, life * 0.68, math.random(-30, 30) / 10 * scale, white)
+			end
+			flash(center, white, 13, 24 * scale, life * 0.42)
+			radialArcs(center, white, a, 30, 11 * scale, 0.055 * scale, life * 0.7, 0.42)
+			streakBurst(center, white, a, 46, 9.5 * scale, 0.07 * scale, life * 0.8, 0.18)
+			particleBurst(center, white, a, 58, 12 * scale, life * 0.85, 0.09 * scale, SPARK, 2)
+
+		elseif mode == 'Execution Slash' then
+			groundSigil(ground, a, b, scale, life)
+			for i = 1, amount(12) do
+				local yaw = (i / amount(12)) * math.pi * 2
+				local pitch = ((i % 5) - 2) * 0.18
+				local dir = Vector3.new(math.cos(yaw), pitch, math.sin(yaw)).Unit
+				local side = dir:Cross(Vector3.yAxis)
+				if side.Magnitude < 0.05 then side = Vector3.xAxis else side = side.Unit end
+				local mid = center + side * ((i % 3) - 1) * 0.3 * scale
+				arcBeam(mid - dir * 8 * scale, mid + dir * 8 * scale, i % 3 == 0 and white or (i % 2 == 0 and a or b), (i % 3 == 0 and 0.18 or 0.095) * scale, life * (0.54 + (i % 3) * 0.07), (i % 2 == 0 and 1 or -1) * 1.3 * scale, white)
+			end
+			task.delay(life * 0.12, function()
+				if KillEffects.Enabled then
+					flash(center, white, 12, 20 * scale, life * 0.35)
+					streakBurst(center, white, a, 48, 10 * scale, 0.08 * scale, life * 0.72, 0.1)
+				end
+			end)
+			shardBurst(center, a, b, 38, 8 * scale, 0.18 * scale, life * 0.88, Enum.Material.Neon, 0.1)
+
+		elseif mode == 'Crystal Cataclysm' then
+			local ice = Color3.fromRGB(183, 239, 255)
+			groundSigil(ground, ice, b, scale, life)
+			shardBurst(center, ice, a, 58, 11 * scale, 0.24 * scale, life, Enum.Material.Glass, 0.3)
+			for i = 1, 5 do
+				beamRing(CFrame.new(center) * CFrame.Angles(math.rad(90 + i * 12), i * 0.25, 0), 0.2 * scale, (3.4 + i * 1.1) * scale, 25, 0.045 * scale, i % 2 == 0 and ice or white, a, life * (0.54 + i * 0.06), -i * 0.6)
+			end
+			particleBurst(center, white, ice, 52, 10 * scale, life, 0.11 * scale, SPARK, 4)
+			particleBurst(center, ice, b, 18, 4 * scale, life * 1.15, 0.5 * scale, SMOKE, 6, Vector3.new(0, 2, 0))
+
+		elseif mode == 'Sakura Funeral' then
+			local pink = Color3.fromRGB(255, 125, 192)
+			local blush = Color3.fromRGB(255, 219, 237)
+			groundSigil(ground, pink, blush, scale, life)
+			beamRing(CFrame.new(center) * CFrame.Angles(math.rad(90), 0, 0), 0.3 * scale, 5.4 * scale, 28, 0.05 * scale, pink, blush, life * 0.78, 1.8)
+			vortex(center, pink, blush, 4.6 * scale, 9 * scale, 42, life, false)
+			particleBurst(center, pink, blush, 72, 7.5 * scale, life * 1.2, 0.14 * scale, SPARK, 5, Vector3.new(0, 2.5, 0))
+			for i = 1, amount(16) do
+				symbol(center + randUnit() * (1 + math.random() * 2.2) * scale, '✿', i % 2 == 0 and pink or blush, life * (0.8 + math.random() * 0.25), 0.62 * scale, (3 + math.random() * 4) * scale, math.random(-45, 45))
+			end
+
+		elseif mode == 'Inferno' then
+			local ember = Color3.fromRGB(255, 72, 24)
+			local gold = Color3.fromRGB(255, 211, 77)
+			groundSigil(ground, ember, gold, scale, life)
+			flash(center, gold, 12, 22 * scale, life * 0.4)
+			orb(center, 0.2 * scale, 5.4 * scale, ember, life * 0.68, 0.52)
+			vortex(center, ember, gold, 5.4 * scale, 10 * scale, 54, life, false)
+			streakBurst(center, ember, gold, 58, 10 * scale, 0.09 * scale, life, 0.6)
+			particleBurst(center, gold, ember, 82, 12 * scale, life, 0.13 * scale, FIRE, 3, Vector3.new(0, 5, 0))
+			particleBurst(center, Color3.fromRGB(48, 48, 52), Color3.fromRGB(110, 55, 35), 26, 5 * scale, life * 1.25, 0.72 * scale, SMOKE, 4, Vector3.new(0, 4, 0))
+
+		elseif mode == 'Frost Nova' then
+			local ice = Color3.fromRGB(174, 232, 255)
+			groundSigil(ground, ice, white, scale, life)
+			for i = 1, 6 do
+				beamRing(CFrame.new(ground + Vector3.new(0, 0.1 * i * scale, 0)), 0.2 * scale, (3 + i * 1.2) * scale, 30, 0.045 * scale, ice, white, life * (0.5 + i * 0.06), -i * 0.7)
+			end
+			shardBurst(center, ice, b, 64, 11 * scale, 0.22 * scale, life, Enum.Material.Ice, 0.25)
+			particleBurst(center, white, ice, 58, 9 * scale, life, 0.1 * scale, SPARK, 5)
+			particleBurst(center, ice, Color3.fromRGB(110, 170, 210), 24, 4 * scale, life * 1.2, 0.58 * scale, SMOKE, 7, Vector3.new(0, 1.5, 0))
+
+		elseif mode == 'Prism Funeral' then
+			groundSigil(ground, a, b, scale, life)
+			for i = 1, 7 do
+				local c = Color3.fromHSV((i / 7 + tick() * 0.08) % 1, 0.92, 1)
+				local c2 = Color3.fromHSV(((i + 2) / 7 + tick() * 0.08) % 1, 0.92, 1)
+				beamRing(CFrame.new(center) * CFrame.Angles(math.rad(90 + i * 11), i * 0.22, 0), 0.12 * scale, (2.5 + i * 1.0) * scale, 24, 0.04 * scale, c, c2, life * (0.48 + i * 0.055), i * 0.75)
+			end
+			streakBurst(center, a, b, 72, 12 * scale, 0.09 * scale, life, 0.25, true)
+			particleBurst(center, Color3.fromHSV(0, 0.9, 1), Color3.fromHSV(0.68, 0.9, 1), 76, 12 * scale, life, 0.11 * scale, SPARK, 3)
+
+		elseif mode == 'Galaxy Collapse' then
+			local violet = Color3.fromRGB(151, 92, 255)
+			local cyan = Color3.fromRGB(92, 217, 255)
+			groundSigil(ground, violet, cyan, scale, life)
+			orb(center, 0.25 * scale, 5.2 * scale, black, life, 0.08)
+			orb(center, 0.2 * scale, 7.4 * scale, violet, life * 0.86, 0.78)
+			vortex(center, violet, cyan, 7 * scale, 7 * scale, 72, life, true)
+			for arm = 1, 4 do
+				for i = 1, amount(14) do
+					local t = i / amount(14)
+					local ang = t * math.pi * 4 + arm * math.pi / 2
+					local r = (1 + t * 8) * scale
+					local p0 = center + Vector3.new(math.cos(ang) * r, math.sin(ang * 0.7) * 1.5 * scale, math.sin(ang) * r)
+					arcBeam(p0, center + randUnit() * 0.35 * scale, (i + arm) % 2 == 0 and violet or cyan, 0.03 * scale, life * 0.78, math.sin(ang) * 1.8 * scale, white)
+				end
+			end
+			particleBurst(center, white, violet, 64, 7 * scale, life, 0.09 * scale, SPARK, 6)
+
+		elseif mode == 'Cyber Execution' then
+			local cyan = Color3.fromRGB(0, 245, 255)
+			local magenta = Color3.fromRGB(255, 35, 204)
+			groundSigil(ground, cyan, magenta, scale, life)
+			for i = 1, 6 do
+				beamRing(CFrame.new(center) * CFrame.Angles(math.rad(90), i * 0.12, 0), 0.15 * scale, (2.2 + i * 0.9) * scale, 18, 0.035 * scale, i % 2 == 0 and cyan or magenta, white, life * (0.46 + i * 0.055), i * 1.1)
+			end
+			for i = 1, amount(68) do
+				local s = (0.08 + math.random() * 0.17) * scale
+				local p = part(Vector3.new(s, s, s), CFrame.new(center), i % 3 == 0 and white or (i % 2 == 0 and cyan or magenta), 0, Enum.Material.Neon)
+				local endpoint = center + Vector3.new(math.random(-95, 95), math.random(-75, 95), math.random(-95, 95)) / 10 * scale
+				tween(p, life * (0.62 + math.random() * 0.35), {CFrame = CFrame.new(endpoint), Transparency = 1, Size = Vector3.one * 0.01}, Enum.EasingStyle.Quart)
+				cleanup(p, life)
+			end
+			pillar(center, cyan, magenta, 14 * scale, 0.22 * scale, life * 0.7)
+			particleBurst(center, cyan, magenta, 44, 10 * scale, life * 0.8, 0.08 * scale, SPARK, 3)
+
+		elseif mode == 'Reaper' then
+			local purple = Color3.fromRGB(135, 58, 255)
+			groundSigil(ground, purple, black, scale, life)
+			ghostEffect(death, purple, scale, life)
+			orb(center, 0.25 * scale, 5.8 * scale, black, life, 0.08)
+			vortex(center, purple, black, 6.5 * scale, 10 * scale, 54, life, true)
+			symbol(center + Vector3.new(0, 2.2 * scale, 0), '☠', white, life, 1.25 * scale, 4.5 * scale, 0)
+			for i = 1, amount(16) do
+				local p0 = center + randUnit() * (5 + math.random() * 4) * scale
+				arcBeam(p0, center, i % 2 == 0 and purple or white, 0.04 * scale, life * 0.72, math.random(-20, 20) / 10 * scale, black)
+			end
+			particleBurst(center, purple, black, 52, 6 * scale, life, 0.1 * scale, SPARK, 6)
+
+		elseif mode == 'Celestial Vortex' then
+			groundSigil(ground, a, b, scale, life)
+			vortex(center, a, b, 6.5 * scale, 12 * scale, 82, life, false)
+			vortex(center, white, a, 4.2 * scale, 10 * scale, 52, life * 0.85, true)
+			for i = 1, 4 do
+				beamRing(CFrame.new(center) * CFrame.Angles(math.rad(36 + i * 34), i * 0.38, 0), 0.22 * scale, (3.5 + i * 1.25) * scale, 25, 0.04 * scale, i % 2 == 0 and a or b, white, life * (0.58 + i * 0.06), (i % 2 == 0 and 1 or -1) * 2)
+			end
+			streakBurst(center, a, b, 46, 9 * scale, 0.07 * scale, life * 0.9, 0.6)
+
+		elseif mode == 'Starfall' then
+			groundSigil(ground, a, white, scale, life)
+			for i = 1, amount(16) do
+				local target = center + Vector3.new(math.random(-55, 55) / 10, math.random(-12, 35) / 10, math.random(-55, 55) / 10) * scale
+				local start = target + Vector3.new(math.random(-35, 35) / 10, 12 + math.random() * 8, math.random(-35, 35) / 10) * scale
+				task.delay((i - 1) * 0.018, function()
+					if KillEffects.Enabled then
+						arcBeam(start, target, i % 2 == 0 and white or a, 0.065 * scale, life * 0.62, math.random(-12, 12) / 10 * scale, b)
+						orb(target, 0.04 * scale, 0.9 * scale, i % 2 == 0 and a or white, life * 0.34, 0.2)
+					end
+				end)
+			end
+			particleBurst(center, white, a, 72, 11 * scale, life, 0.1 * scale, SPARK, 3)
+			streakBurst(center, white, a, 52, 10 * scale, 0.075 * scale, life * 0.9, 0.3)
+			for i = 1, amount(10) do symbol(center + randUnit() * 2.5 * scale, i % 2 == 0 and '★' or '✦', i % 2 == 0 and white or a, life, 0.7 * scale, (3 + math.random() * 4) * scale, math.random(-30, 30)) end
+
+		elseif mode == 'Heartstorm' then
+			local rose = Color3.fromRGB(255, 74, 151)
+			local blush = Color3.fromRGB(255, 197, 224)
+			groundSigil(ground, rose, blush, scale, life)
+			vortex(center, rose, blush, 5 * scale, 9 * scale, 42, life, false)
+			streakBurst(center, rose, blush, 44, 8 * scale, 0.07 * scale, life * 0.9, 0.4)
+			particleBurst(center, rose, blush, 58, 8 * scale, life, 0.11 * scale, SPARK, 4)
+			for i = 1, amount(20) do symbol(center + randUnit() * (1 + math.random() * 3) * scale, i % 2 == 0 and '♥' or '♡', i % 3 == 0 and white or (i % 2 == 0 and rose or blush), life * (0.75 + math.random() * 0.3), 0.68 * scale, (2.5 + math.random() * 4.5) * scale, math.random(-35, 35)) end
 		end
 	end
+
 	local function rememberDeath(ent)
 		if not ent or ent == entitylib.character or not ent.Id then return end
 		local newHealth = ent.Health or 0
@@ -4703,23 +4755,14 @@ run(function()
 		local preferred = frontlines.LastLocalHit
 		if preferred and now - preferred.Time <= 1.5 then
 			for _, death in recentDeaths do
-				if not death.Used and death.Id == preferred.Id and now - death.Time <= 1.5 then
-					death.Used = true
-					return death
-				end
+				if not death.Used and death.Id == preferred.Id and now - death.Time <= 1.5 then death.Used = true; return death end
 			end
 		end
 		for _, death in recentDeaths do
-			if not death.Used and death.LocalHitTime and now - death.LocalHitTime <= 1.6 and now - death.Time <= 1.5 then
-				death.Used = true
-				return death
-			end
+			if not death.Used and death.LocalHitTime and now - death.LocalHitTime <= 1.6 and now - death.Time <= 1.5 then death.Used = true; return death end
 		end
 		for _, death in recentDeaths do
-			if not death.Used and now - death.Time <= 0.7 then
-				death.Used = true
-				return death
-			end
+			if not death.Used and now - death.Time <= 0.7 then death.Used = true; return death end
 		end
 	end
 
@@ -4730,31 +4773,19 @@ run(function()
 				table.clear(healthCache)
 				table.clear(recentDeaths)
 				table.clear(recentHits)
-				for _, ent in entitylib.List do
-					healthCache[ent.Id] = ent.Health or 100
-				end
-
+				for _, ent in entitylib.List do healthCache[ent.Id] = ent.Health or 100 end
 				KillEffects:Clean(frontlines.LocalHitEvent.Event:Connect(function(ent, pos, headshot)
-					if ent and ent.Id then
-						recentHits[ent.Id] = {Time = tick(), Position = pos, Headshot = headshot}
-					end
+					if ent and ent.Id then recentHits[ent.Id] = {Time = tick(), Position = pos, Headshot = headshot} end
 				end))
 				KillEffects:Clean(entitylib.Events.EntityUpdated:Connect(rememberDeath))
-				KillEffects:Clean(entitylib.Events.EntityAdded:Connect(function(ent)
-					healthCache[ent.Id] = ent.Health or 100
-				end))
-				KillEffects:Clean(entitylib.Events.EntityRemoved:Connect(function(ent)
-					if ent and ent.Id then healthCache[ent.Id] = nil end
-				end))
+				KillEffects:Clean(entitylib.Events.EntityAdded:Connect(function(ent) healthCache[ent.Id] = ent.Health or 100 end))
+				KillEffects:Clean(entitylib.Events.EntityRemoved:Connect(function(ent) if ent and ent.Id then healthCache[ent.Id] = nil end end))
 				KillEffects:Clean(frontlines.KillEffectEvent.Event:Connect(function()
 					task.spawn(function()
-						for _ = 1, 8 do
+						for _ = 1, 9 do
 							if not KillEffects.Enabled then return end
 							local death = consumeDeath()
-							if death then
-								runEffect(death)
-								return
-							end
+							if death then runEffect(death); return end
 							task.wait(0.035)
 						end
 					end)
@@ -4766,20 +4797,20 @@ run(function()
 				table.clear(recentHits)
 			end
 		end,
-		Tooltip = 'Reworked kill effects with local-hit matching and performance-aware visuals.'
+		Tooltip = 'Cinematic multi-stage kill VFX with beams, trails, particles, sigils, portals and death animations.'
 	})
 
-	Mode = KillEffects:CreateDropdown({
-		Name = 'Mode',
-		List = {'Supernova', 'Astral Bloom', 'Prism Break', 'Aurora', 'Starfall', 'Sakura', 'Love Burst', 'Kitty Pop', 'Nova', 'Explosion', 'Lightning', 'Soul', 'Rings', 'Spiral', 'Firework', 'Tornado', 'Shatter', 'Slash', 'Beam', 'Pulse', 'Shockwave', 'Confetti', 'Rainbow', 'Galaxy', 'Freeze', 'Void', 'Ghost', 'Hearts', 'Skull', 'Black Hole', 'Disintegrate', 'Crystal', 'Orbit', 'Pixel Burst', 'Random'},
-		Default = 'Supernova'
-	})
+	Mode = KillEffects:CreateDropdown({Name = 'Mode', List = modes, Default = 'Supernova'})
 	ColorMode = KillEffects:CreateDropdown({Name = 'Color Mode', List = {'Custom', 'Theme', 'Pastel', 'Target', 'Rainbow'}, Default = 'Custom'})
-	PrimaryColor = KillEffects:CreateColorSlider({Name = 'Primary Color', DefaultHue = 0.78, DefaultSat = 0.75, DefaultValue = 1})
-	SecondaryColor = KillEffects:CreateColorSlider({Name = 'Secondary Color', DefaultHue = 0.58, DefaultSat = 0.7, DefaultValue = 1})
-	EffectSize = KillEffects:CreateSlider({Name = 'Size', Min = 0.5, Max = 2.5, Default = 1, Decimal = 10})
-	Lifetime = KillEffects:CreateSlider({Name = 'Lifetime', Min = 0.2, Max = 3, Default = 0.9, Decimal = 100, Suffix = 's'})
+	PrimaryColor = KillEffects:CreateColorSlider({Name = 'Primary Color', DefaultHue = 0.78, DefaultSat = 0.78, DefaultValue = 1})
+	SecondaryColor = KillEffects:CreateColorSlider({Name = 'Secondary Color', DefaultHue = 0.58, DefaultSat = 0.72, DefaultValue = 1})
+	EffectSize = KillEffects:CreateSlider({Name = 'Size', Min = 0.5, Max = 2.75, Default = 1, Decimal = 100})
+	Lifetime = KillEffects:CreateSlider({Name = 'Lifetime', Min = 0.25, Max = 3.5, Default = 1.1, Decimal = 100, Suffix = 's'})
 	Quality = KillEffects:CreateDropdown({Name = 'Quality', List = {'Low', 'Normal', 'High'}, Default = 'Normal'})
+	Intensity = KillEffects:CreateSlider({Name = 'Intensity', Min = 0.5, Max = 2, Default = 1, Decimal = 100})
+	DynamicGlow = KillEffects:CreateToggle({Name = 'Dynamic Glow', Default = true})
+	MotionTrails = KillEffects:CreateToggle({Name = 'Motion Trails', Default = true})
+	GroundSigils = KillEffects:CreateToggle({Name = 'Ground Sigils', Default = true})
 	KillSound = KillEffects:CreateToggle({
 		Name = 'Kill Sound',
 		Function = function(callback)
@@ -4792,16 +4823,11 @@ run(function()
 		Default = 'rbxassetid://9118823106',
 		Darker = true,
 		Visible = false,
-		Function = function()
-			cachedSoundInput = nil
-			cachedSoundAsset = nil
-		end
+		Function = function() cachedSoundInput = nil; cachedSoundAsset = nil end
 	})
 	KillSoundVolume = KillEffects:CreateSlider({Name = 'Kill Sound Volume', Min = 0, Max = 2, Default = 0.7, Decimal = 100, Darker = true, Visible = false})
 
-	vape:Clean(function()
-		if Folder then Folder:Destroy() end
-	end)
+	vape:Clean(function() if Folder then Folder:Destroy() end end)
 end)
 
 run(function()
