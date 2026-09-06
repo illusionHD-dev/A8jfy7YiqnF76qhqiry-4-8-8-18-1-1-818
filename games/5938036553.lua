@@ -2781,7 +2781,7 @@ run(function()
 		end
 	end
 
-\tlocal function updateKnife()
+	local function updateKnife()
 		local gun = currentEquipment()
 
 		-- Firearm equipped: hide custom knife but preserve it for instant return.
