@@ -29,6 +29,9 @@ end
 local playersService = cloneref(game:GetService('Players'))
 local REPO_RAW = 'https://raw.githubusercontent.com/illusionhd-dev/A8jfy7YiqnF76qhqiry-4-8-8-18-1-1-818/main/'
 
+-- Always use the normal Vape GUI.
+local gui = 'new'
+
 local function invalidDownload(data, path)
 	if type(data) ~= 'string' or data == '' then return true end
 	local head = data:sub(1, 512):lower()
