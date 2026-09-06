@@ -2310,7 +2310,7 @@ run(function()
 end)
 -- ILLUSIONHD_GUNCHANGER_END
 
--- ILLUSIONHD_CUSTOMKNIFE_V7
+-- ILLUSIONHD_CUSTOMKNIFE_V8
 run(function()
 	local CustomKnife
 	local AssetID
@@ -2331,6 +2331,8 @@ run(function()
 	local target
 	local targetBoundsCF
 	local targetBoundsSize
+	local targetAnchor
+	local targetAnchorOffset
 	local lastTargetScan = 0
 	local lastAppliedScale = -1
 	local hiddenParts = {}
@@ -2451,6 +2453,8 @@ run(function()
 		target = nil
 		targetBoundsCF = nil
 		targetBoundsSize = nil
+		targetAnchor = nil
+		targetAnchorOffset = nil
 		lastAppliedScale = -1
 		clearHidden()
 	end
@@ -2685,6 +2689,8 @@ run(function()
 		target = nil
 		targetBoundsCF = nil
 		targetBoundsSize = nil
+		targetAnchor = nil
+		targetAnchorOffset = nil
 		lastTargetScan = 0
 		rebuildVisual()
 	end
@@ -2746,7 +2752,7 @@ run(function()
 
 		local cf, size = proxy:GetBoundingBox()
 		proxy:Destroy()
-		return cf, size
+		return cf, size, largest
 	end
 
 	local function applyAutoScale()
@@ -2775,14 +2781,16 @@ run(function()
 		end
 	end
 
-	local function updateKnife()
+\tlocal function updateKnife()
 		local gun = currentEquipment()
 
-		-- Switching to a firearm: hide the custom knife but KEEP the clone alive.
+		-- Firearm equipped: hide custom knife but preserve it for instant return.
 		if not gun or gun.type ~= 2 then
 			target = nil
 			targetBoundsCF = nil
 			targetBoundsSize = nil
+			targetAnchor = nil
+			targetAnchorOffset = nil
 			lastAppliedScale = -1
 			clearHidden()
 
@@ -2792,7 +2800,6 @@ run(function()
 			return
 		end
 
-		-- Switching BACK to knife: rebuild/re-parent automatically.
 		if not visual then
 			rebuildVisual()
 		end
@@ -2810,6 +2817,7 @@ run(function()
 		local now = tick()
 		local newTarget = findKnifeTarget()
 
+		-- Only rescan geometry occasionally or when Frontlines replaces workspace.Model.
 		if newTarget ~= target
 			or not target
 			or not target.Parent
@@ -2820,24 +2828,51 @@ run(function()
 			if newTarget ~= target then
 				clearHidden()
 				lastAppliedScale = -1
+				targetAnchor = nil
+				targetAnchorOffset = nil
 			end
 
 			target = newTarget
 
 			if target then
-				targetBoundsCF, targetBoundsSize = getFilteredBounds(target)
+				local boundsCF, boundsSize, anchor = getFilteredBounds(target)
+				targetBoundsCF = boundsCF
+				targetBoundsSize = boundsSize
+				targetAnchor = anchor
+
+				if targetBoundsCF and targetAnchor and targetAnchor.Parent then
+					targetAnchorOffset = targetAnchor.CFrame:ToObjectSpace(targetBoundsCF)
+				else
+					targetAnchorOffset = nil
+				end
+
 				hideWeapon(target)
 			else
 				targetBoundsCF = nil
 				targetBoundsSize = nil
+				targetAnchor = nil
+				targetAnchorOffset = nil
 			end
 		end
 
-		if not target or not targetBoundsCF then
+		if not target or not target.Parent then
 			return
 		end
 
 		applyAutoScale()
+
+		-- Follow the live knife part every render frame instead of following
+		-- the 0.12-second cached bounding box. This removes visible trailing.
+		local liveCF = targetBoundsCF
+		if targetAnchor
+			and targetAnchor.Parent
+			and targetAnchorOffset then
+			liveCF = targetAnchor.CFrame * targetAnchorOffset
+		end
+
+		if not liveCF then
+			return
+		end
 
 		local offset = CFrame.new(
 			value(OffsetX, 0),
@@ -2850,7 +2885,7 @@ run(function()
 		)
 
 		pcall(function()
-			visual:PivotTo(targetBoundsCF * offset)
+			visual:PivotTo(liveCF * offset)
 		end)
 	end
 
@@ -2865,12 +2900,21 @@ run(function()
 				end
 
 				lastTargetScan = 0
-				CustomKnife:Clean(runService.RenderStepped:Connect(updateKnife))
+				local renderName = 'IllusionHDCustomKnifeFollow'
+				pcall(function()
+					runService:UnbindFromRenderStep(renderName)
+				end)
+				runService:BindToRenderStep(renderName, Enum.RenderPriority.Last.Value, updateKnife)
+				CustomKnife:Clean(function()
+					pcall(function()
+						runService:UnbindFromRenderStep(renderName)
+					end)
+				end)
 			else
 				destroyVisual()
 			end
 		end,
-		Tooltip = 'Loads a model from an asset ID, auto-centers it, auto-sizes it to the Frontlines knife and restores it after weapon swaps.'
+		Tooltip = 'Loads a model from an asset ID, auto-centers/sizes it and locks it to the live Frontlines knife without render lag.'
 	})
 
 	AssetID = CustomKnife:CreateTextBox({
