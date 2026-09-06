@@ -3766,1264 +3766,887 @@ run(function()
 end)
 -- ILLUSIONHD_FIREFLIES_END
 
--- ILLUSIONHD_HITEFFECTS_V3
+-- ILLUSIONHD_EFFECTS_V4_BEGIN
+-- 26 authored timelines. No aliases, asset downloads, character edits, or camera effects.
+-- Trail API: https://create.roblox.com/docs/reference/engine/classes/Trail
 run(function()
-	local HitEffects
-	local Mode
-	local ColorMode
-	local PrimaryColor
-	local SecondaryColor
-	local EffectSize
-	local Lifetime
-	local Quality
-	local HeadshotsOnly
-	local ConfirmedHits
-	local DynamicGlow
-	local MotionTrails
-
-	local Folder = Instance.new('Folder')
-	Folder.Name = 'IllusionHDHitEffects'
-	Folder.Parent = workspace
-
-	local pending = {}
-	local healthCache = {}
-	local SPARK = 'rbxasset://textures/particles/sparkles_main.dds'
-	local SMOKE = 'rbxasset://textures/particles/smoke_main.dds'
-	local FIRE = 'rbxasset://textures/particles/fire_main.dds'
-
-	-- The first group is the actual V3 set. Legacy names stay selectable so old configs do not break.
-	local modes = {
-		'Impact', 'Critical', 'Arcane', 'Slash', 'Thunder', 'Void', 'Frost', 'Ember',
-		'Prism', 'Glitch', 'Sakura', 'Headshot Crown',
-		'Arcane Impact', 'Prism Shatter', 'Neon Slash', 'Thunder Crack', 'Void Ripple',
-		'Solar Flare', 'Frostbite', 'Ember Burst', 'Aurora Bloom', 'Pixel Glitch',
-		'Sakura Bloom', 'Love Burst', 'Starfall', 'Shock Ring', 'Chromatic Burst',
-		'Soul Spark', 'Crystal Hit', 'Astral Bloom', 'Prism Break', 'Aurora', 'Kitty Pop',
-		'Sparks', 'Burst', 'Pulse', 'Ring', 'Cross', 'Lightning', 'Stars', 'Hearts', 'Crit',
-		'Smoke', 'Shards', 'Pixels', 'Spiral', 'Orbit', 'Bubble', 'Shockwave', 'Rainbow',
-		'Headshot', 'Random'
+	local V = Vector3.new
+	local ZERO, WHITE = Vector3.zero, Color3.new(1, 1, 1)
+	local TAU = math.pi * 2
+	local scenes, controllers = {}, {}
+	local root = Instance.new('Folder')
+	root.Name = 'IllusionHDV4Effects'
+	root.Parent = workspace
+	local HitStyles, KillStyles = {}, {}
+	local HitNames = {'Needlepoint', 'Glassbite', 'Redline', 'Short Circuit', 'Inkblot', 'Hard Reset',
+		'Petal Kiss', 'Cold Snap', 'Echo Chamber', 'Firecracker', 'Star Stitch', 'Orbit Trap'}
+	local KillNames = {'Event Horizon', 'Heavenfall', 'Paper Moon', 'Dead Channel', 'Rose Requiem',
+		'Winterglass', 'Railbreak', 'Afterimage', 'Clockwork', 'Wildfire', 'Deepwater', 'Faultline', 'Last Blossom', 'Royal Flush'}
+	local palettes = {
+		['Needlepoint'] = {0xffdd8b, 0xff8759}, ['Glassbite'] = {0x9cfff2, 0xb4bdff},
+		['Redline'] = {0xff375c, 0xffbdce}, ['Short Circuit'] = {0x75f7ff, 0x7f80ff},
+		['Inkblot'] = {0xc0a2ff, 0xf8eaff}, ['Hard Reset'] = {0x54ffc5, 0xfe62ce},
+		['Petal Kiss'] = {0xff92bb, 0xffdfdb}, ['Cold Snap'] = {0xa3dcff, 0xe7fcff},
+		['Echo Chamber'] = {0x7dabff, 0xba9aff}, ['Firecracker'] = {0xff8b38, 0xffe18c},
+		['Star Stitch'] = {0xffdf83, 0xfff1cc}, ['Orbit Trap'] = {0xd59aff, 0x99bfff},
+		['Event Horizon'] = {0x9c63ff, 0xffa5e0}, ['Heavenfall'] = {0xffd985, 0xffffec},
+		['Paper Moon'] = {0xe8efff, 0x91afff}, ['Dead Channel'] = {0x70ffbc, 0xd0fff0},
+		['Rose Requiem'] = {0xfa497e, 0xffb2cf}, ['Winterglass'] = {0x6dceff, 0xc8f9ff},
+		['Railbreak'] = {0xff653b, 0xffd899}, ['Afterimage'] = {0x61f5ff, 0xf971ff},
+		['Clockwork'] = {0xffc75e, 0xffedb0}, ['Wildfire'] = {0xff581d, 0xffce49},
+		['Deepwater'] = {0x57baff, 0x9affe3}, ['Faultline'] = {0xff9951, 0xffdf92},
+		['Last Blossom'] = {0xf5ffdc, 0xb5edcb}, ['Royal Flush'] = {0xff5279, 0xffd275}
 	}
-
-	local aliases = {
-		['Arcane Impact'] = 'Arcane', ['Astral Bloom'] = 'Arcane', ['Aurora Bloom'] = 'Arcane', ['Aurora'] = 'Arcane',
-		['Prism Shatter'] = 'Prism', ['Prism Break'] = 'Prism', ['Chromatic Burst'] = 'Prism', ['Rainbow'] = 'Prism', ['Shards'] = 'Critical',
-		['Neon Slash'] = 'Slash', ['Cross'] = 'Slash',
-		['Thunder Crack'] = 'Thunder', ['Lightning'] = 'Thunder',
-		['Void Ripple'] = 'Void', ['Soul Spark'] = 'Void', ['Smoke'] = 'Void', ['Bubble'] = 'Void',
-		['Solar Flare'] = 'Ember', ['Ember Burst'] = 'Ember', ['Sparks'] = 'Ember', ['Burst'] = 'Impact',
-		['Frostbite'] = 'Frost', ['Crystal Hit'] = 'Frost',
-		['Pixel Glitch'] = 'Glitch', ['Pixels'] = 'Glitch',
-		['Sakura Bloom'] = 'Sakura', ['Love Burst'] = 'Sakura', ['Hearts'] = 'Sakura', ['Kitty Pop'] = 'Sakura',
-		['Starfall'] = 'Critical', ['Stars'] = 'Critical', ['Crit'] = 'Critical',
-		['Shock Ring'] = 'Impact', ['Pulse'] = 'Impact', ['Ring'] = 'Impact', ['Shockwave'] = 'Impact',
-		['Spiral'] = 'Arcane', ['Orbit'] = 'Arcane',
-		['Headshot'] = 'Headshot Crown'
-	}
-
-	local randomModes = {'Impact', 'Critical', 'Arcane', 'Slash', 'Thunder', 'Void', 'Frost', 'Ember', 'Prism', 'Glitch', 'Sakura'}
-
-	local function qualityScale()
-		if Quality.Value == 'Low' then return 0.72 end
-		if Quality.Value == 'High' then return 1.35 end
-		return 1
+	local function rgb(hex)
+		return Color3.fromRGB(math.floor(hex / 65536) % 256, math.floor(hex / 256) % 256, hex % 256)
+	end
+	local function out(t) return 1 - (1 - t)^3 end
+	local function fade(t) return math.clamp((t - 0.42) / 0.58, 0, 1) end
+	local function polar(angle, radius, z) return V(math.cos(angle) * radius, math.sin(angle) * radius, z or 0) end
+	local function noise() return math.random() * 2 - 1 end
+	local function limit(value, default, lo, hi)
+		value = tonumber(value)
+		return value and value == value and math.clamp(value, lo, hi) or default
+	end
+	local function removeScene(index)
+		local s = scenes[index]
+		s.Alive = false
+		s.Folder:Destroy()
+		table.remove(scenes, index)
+	end
+	local function clearController(controller)
+		for i = #scenes, 1, -1 do if scenes[i].Owner == controller then removeScene(i) end end
 	end
 
-	local function amount(base)
-		return math.max(1, math.floor(base * qualityScale() + 0.5))
+	local Scene = {}
+	Scene.__index = Scene
+	function Scene:count(n)
+		return math.max(1, math.floor(n * self.Quality * (self.Kill and (0.85 + self.Intensity * 0.15) or 1) + 0.5))
 	end
-
-	local function getColors(ent)
-		if ColorMode.Value == 'Theme' then
-			local c = vape:GetGUIColorRGB()
-			return c, c:Lerp(Color3.new(1, 1, 1), 0.58)
-		elseif ColorMode.Value == 'Pastel' then
-			return Color3.fromRGB(255, 145, 210), Color3.fromRGB(119, 205, 255)
-		elseif ColorMode.Value == 'Target' and ent then
-			local c = entitylib.getEntityColor(ent)
-			if c then return c, c:Lerp(Color3.new(1, 1, 1), 0.62) end
-		elseif ColorMode.Value == 'Rainbow' then
-			local h = (tick() * 0.18) % 1
-			return Color3.fromHSV(h, 0.88, 1), Color3.fromHSV((h + 0.42) % 1, 0.82, 1)
-		end
-		return Color3.fromHSV(PrimaryColor.Hue, PrimaryColor.Sat, PrimaryColor.Value),
-			Color3.fromHSV(SecondaryColor.Hue, SecondaryColor.Sat, SecondaryColor.Value)
+	function Scene:world(v, ground)
+		return (ground and self.GroundFrame or self.Frame):PointToWorldSpace(v * self.Scale)
 	end
-
-	local function cleanup(obj, life)
-		if obj then debrisService:AddItem(obj, math.max(life or 0.2, 0.05) + 0.2) end
-		return obj
+	function Scene:part(color, shape, material)
+		if self.Parts >= self.Budget then return nil end
+		self.Parts = self.Parts + 1
+		local p = Instance.new(shape == 'Wedge' and 'WedgePart' or 'Part')
+		p.Name = self.Name
+		p.Anchored, p.CanCollide, p.CanTouch, p.CanQuery, p.CastShadow = true, false, false, false, false
+		p.Material = material or Enum.Material.Neon
+		p.Color, p.Transparency = color, 1
+		p.Size, p.CFrame = V(0.02, 0.02, 0.02), CFrame.new(self.Position)
+		if shape == 'Ball' then p.Shape = Enum.PartType.Ball end
+		p.Parent = self.Folder
+		return p
 	end
-
-	local function tween(obj, life, props, style, direction)
-		if not obj or not obj.Parent then return end
-		local tw = tweenService:Create(obj, TweenInfo.new(
-			math.max(life or 0.1, 0.03),
-			style or Enum.EasingStyle.Quart,
-			direction or Enum.EasingDirection.Out
-		), props)
-		tw:Play()
-		tw.Completed:Connect(function()
-			pcall(function() tw:Destroy() end)
-		end)
-		return tw
-	end
-
-	local function makePart(size, cf, color, transparency, material, shape)
-		local obj = Instance.new('Part')
-		obj.Size = size
-		obj.CFrame = cf
-		obj.Anchored = true
-		obj.CanCollide = false
-		obj.CanTouch = false
-		obj.CanQuery = false
-		obj.CastShadow = false
-		obj.Color = color
-		obj.Transparency = transparency or 0
-		obj.Material = material or Enum.Material.Neon
-		if shape then obj.Shape = shape end
-		obj.Parent = Folder
-		return obj
-	end
-
-	local function segment(a, b, width, color, transparency)
-		local dist = (b - a).Magnitude
-		if dist < 0.002 then return end
-		local obj = makePart(
-			Vector3.new(width, width, dist),
-			CFrame.lookAt((a + b) / 2, b),
-			color,
-			transparency or 0,
-			Enum.Material.Neon
-		)
-		return obj
-	end
-
-	local function fadeSegment(obj, life, widthMul, lengthMul)
+	function Scene:track(obj, delay, duration, fn)
 		if not obj then return end
-		local size = obj.Size
-		tween(obj, life, {
-			Transparency = 1,
-			Size = Vector3.new(math.max(size.X * (widthMul or 0.2), 0.01), math.max(size.Y * (widthMul or 0.2), 0.01), size.Z * (lengthMul or 1.06))
-		}, Enum.EasingStyle.Quint)
-		cleanup(obj, life)
+		local item = {Object = obj, Start = delay or 0, Duration = math.max(duration or 1, 0.01), Update = fn}
+		self.Items[#self.Items + 1] = item
+		-- Initialize before adding trails; a delayed element is never flashed at the origin.
+		if item.Start <= 0 then fn(obj, 0) end
 	end
-
-	local function sphere(pos, startSize, endSize, color, life, transparency)
-		local obj = makePart(Vector3.one * math.max(startSize, 0.02), CFrame.new(pos), color, transparency or 0, Enum.Material.Neon, Enum.PartType.Ball)
-		tween(obj, life, {Size = Vector3.one * math.max(endSize, 0.02), Transparency = 1}, Enum.EasingStyle.Quint)
-		cleanup(obj, life)
-		return obj
+	function Scene:trail(part, width)
+		if not part or not self.Trails or self.TrailCount >= (self.Kill and 14 or 6) then return end
+		self.TrailCount = self.TrailCount + 1
+		local a, b = Instance.new('Attachment'), Instance.new('Attachment')
+		a.Position, b.Position = V(0, width * self.Scale, 0), V(0, -width * self.Scale, 0)
+		a.Parent, b.Parent = part, part
+		local trail = Instance.new('Trail')
+		trail.Attachment0, trail.Attachment1 = a, b
+		trail.Color = ColorSequence.new(part.Color, self.B)
+		trail.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.25), NumberSequenceKeypoint.new(1, 1)})
+		trail.WidthScale = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 0)})
+		trail.FaceCamera, trail.LightEmission, trail.LightInfluence = true, 1, 0
+		trail.Lifetime, trail.MinLength, trail.Enabled = math.min(self.Life * 0.18, 0.22), 0.015, false
+		trail.Parent = part
+		self.TrailObjects[part] = trail
 	end
-
-	local function flashLight(pos, color, brightness, range, life)
-		if not DynamicGlow.Enabled then return end
-		local anchor = makePart(Vector3.one * 0.03, CFrame.new(pos), color, 1, Enum.Material.Neon)
+	function Scene:dot(color, size, delay, duration, trajectory, shape, material, opacity)
+		local p = self:part(color, shape or 'Ball', material)
+		self:track(p, delay, duration, function(obj, u)
+			local pos, spin, stretch = trajectory(u)
+			obj.CFrame = self.Frame * CFrame.new(pos * self.Scale) * (spin or CFrame.new())
+			local k = math.max(stretch or (1 - u * 0.65), 0.025)
+			obj.Size = V(math.max(size.X * k * self.Scale, 0.015), math.max(size.Y * k * self.Scale, 0.015), math.max(size.Z * k * self.Scale, 0.015))
+			obj.Transparency = math.clamp((opacity or 0.08) + fade(u) * (1 - (opacity or 0.08)), 0, 1)
+		end)
+		return p
+	end
+	function Scene:line(color, width, delay, duration, trajectory, ground)
+		local p = self:part(color)
+		self:track(p, delay, duration, function(obj, u)
+			local a, b, alpha = trajectory(u)
+			a, b = self:world(a, ground), self:world(b, ground)
+			local length = (b - a).Magnitude
+			if length < 0.001 then obj.Transparency = 1; return end
+			obj.CFrame = CFrame.lookAt((a + b) * 0.5, b)
+			local w = math.max(width * self.Scale * (1 - fade(u) * 0.7), 0.008)
+			obj.Size = V(w, w, length)
+			obj.Transparency = math.clamp(alpha or (0.05 + fade(u) * 0.95), 0, 1)
+		end)
+		return p
+	end
+	function Scene:arc(color, width, delay, duration, curve, ground, segments)
+		local n = math.max(10, self:count(segments or 24))
+		for i = 1, n do
+			local t0, t1 = (i - 1) / n, i / n
+			self:line(color, width, delay, duration, function(u)
+				return curve(t0, u), curve(t1, u)
+			end, ground)
+		end
+	end
+	function Scene:light(delay, duration, power)
+		if not self.Glow then return end
+		local p = self:part(self.A)
+		if not p then return end
 		local light = Instance.new('PointLight')
-		light.Color = color
-		light.Brightness = brightness
-		light.Range = range
-		light.Shadows = false
-		light.Parent = anchor
-		tween(light, life, {Brightness = 0, Range = range * 1.15}, Enum.EasingStyle.Quint)
-		cleanup(anchor, life)
+		light.Color, light.Range, light.Brightness, light.Shadows = self.A, (self.Kill and 12 or 5) * self.Scale, 0, false
+		light.Parent = p
+		self:track(p, delay, duration, function(obj, u)
+			obj.Transparency = 1
+			light.Brightness = (power or 2) * self.Intensity * (1 - u)^2
+		end)
 	end
-
-	local function particleBurst(pos, texture, c1, c2, count, speed, life, size, acceleration, drag)
-		local anchor = makePart(Vector3.one * 0.03, CFrame.new(pos), c1, 1, Enum.Material.Neon)
-		local emitter = Instance.new('ParticleEmitter')
-		emitter.Rate = 0
-		emitter.Texture = texture
-		emitter.Color = ColorSequence.new(c1, c2 or c1)
-		emitter.LightEmission = 0.72
-		emitter.Lifetime = NumberRange.new(life * 0.62, life)
-		emitter.Speed = NumberRange.new(speed * 0.7, speed)
-		emitter.Drag = drag or 2
-		emitter.SpreadAngle = Vector2.new(180, 180)
-		emitter.Rotation = NumberRange.new(0, 360)
-		emitter.RotSpeed = NumberRange.new(-180, 180)
-		emitter.Size = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, size),
-			NumberSequenceKeypoint.new(0.18, size * 0.72),
-			NumberSequenceKeypoint.new(1, 0)
-		})
-		emitter.Transparency = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 0.02),
-			NumberSequenceKeypoint.new(0.7, 0.2),
-			NumberSequenceKeypoint.new(1, 1)
-		})
-		if acceleration then emitter.Acceleration = acceleration end
-		emitter.Parent = anchor
-		emitter:Emit(amount(count))
-		cleanup(anchor, life + 0.12)
-	end
-
-	local function ring(pos, startRadius, endRadius, width, color, life, rotation, segments)
-		local total = math.max(8, math.floor((segments or 14) * qualityScale()))
-		local base = CFrame.new(pos) * (rotation or CFrame.new())
-		for i = 1, total do
-			local a0 = ((i - 1) / total) * math.pi * 2
-			local a1 = (i / total) * math.pi * 2
-			local s1 = base:PointToWorldSpace(Vector3.new(math.cos(a0) * startRadius, 0, math.sin(a0) * startRadius))
-			local s2 = base:PointToWorldSpace(Vector3.new(math.cos(a1) * startRadius, 0, math.sin(a1) * startRadius))
-			local e1 = base:PointToWorldSpace(Vector3.new(math.cos(a0) * endRadius, 0, math.sin(a0) * endRadius))
-			local e2 = base:PointToWorldSpace(Vector3.new(math.cos(a1) * endRadius, 0, math.sin(a1) * endRadius))
-			local obj = segment(s1, s2, width, color, 0.04)
-			if obj then
-				tween(obj, life, {
-					CFrame = CFrame.lookAt((e1 + e2) / 2, e2),
-					Size = Vector3.new(width * 0.22, width * 0.22, (e2 - e1).Magnitude),
-					Transparency = 1
-				}, Enum.EasingStyle.Quint)
-				cleanup(obj, life)
-			end
-		end
-	end
-
-	local function streakBurst(pos, c1, c2, count, radius, width, life, verticalBias)
-		local total = amount(count)
-		for i = 1, total do
-			local theta = (i / total) * math.pi * 2 + math.random() * 0.28
-			local y = (math.random() - 0.5) * (verticalBias or 0.75)
-			local dir = Vector3.new(math.cos(theta), y, math.sin(theta)).Unit
-			local inner = pos + dir * radius * 0.08
-			local outer = pos + dir * radius * (0.65 + math.random() * 0.35)
-			local obj = segment(inner, outer, width * (0.7 + math.random() * 0.5), i % 2 == 0 and c1 or c2, 0.04)
-			fadeSegment(obj, life * (0.72 + math.random() * 0.25), 0.08, 1.08)
-		end
-	end
-
-	local function trailShard(startPos, endPos, color, size, life, delayTime)
-		local function spawnShard()
-			if not HitEffects.Enabled then return end
-			local obj = makePart(Vector3.one * size, CFrame.new(startPos), color, 0, Enum.Material.Neon, Enum.PartType.Ball)
-			if MotionTrails.Enabled then
-				local a0 = Instance.new('Attachment')
-				local a1 = Instance.new('Attachment')
-				a0.Position = Vector3.new(0, size * 0.5, 0)
-				a1.Position = Vector3.new(0, -size * 0.5, 0)
-				a0.Parent = obj
-				a1.Parent = obj
-				local trail = Instance.new('Trail')
-				trail.Attachment0 = a0
-				trail.Attachment1 = a1
-				trail.FaceCamera = true
-				trail.LightEmission = 1
-				trail.Lifetime = math.max(life * 0.34, 0.05)
-				trail.MinLength = 0.01
-				trail.Color = ColorSequence.new(color, color:Lerp(Color3.new(1, 1, 1), 0.55))
-				trail.Transparency = NumberSequence.new({
-					NumberSequenceKeypoint.new(0, 0.02),
-					NumberSequenceKeypoint.new(1, 1)
-				})
-				trail.WidthScale = NumberSequence.new({
-					NumberSequenceKeypoint.new(0, 1),
-					NumberSequenceKeypoint.new(1, 0)
-				})
-				trail.Parent = obj
-			end
-			tween(obj, life, {CFrame = CFrame.new(endPos), Transparency = 1, Size = Vector3.one * size * 0.25}, Enum.EasingStyle.Quint)
-			cleanup(obj, life + 0.1)
-		end
-		if delayTime and delayTime > 0 then task.delay(delayTime, spawnShard) else spawnShard() end
-	end
-
-	local function slash(pos, dir, length, width, color, life, offset)
-		local center = pos + (offset or Vector3.zero)
-		local obj = segment(center - dir.Unit * length * 0.5, center + dir.Unit * length * 0.5, width, color, 0)
-		fadeSegment(obj, life, 0.05, 1.18)
-		return obj
-	end
-
-	local function lightning(startPos, endPos, color, width, life, bends)
-		local points = {startPos}
-		local count = bends or 4
-		local delta = endPos - startPos
-		local right = delta:Cross(Vector3.new(0, 1, 0))
-		if right.Magnitude < 0.05 then right = Vector3.new(1, 0, 0) else right = right.Unit end
-		local up = right:Cross(delta.Unit)
-		for i = 1, count - 1 do
-			local t = i / count
-			local jitter = right * ((math.random() - 0.5) * 0.7) + up * ((math.random() - 0.5) * 0.7)
-			table.insert(points, startPos + delta * t + jitter)
-		end
-		table.insert(points, endPos)
-		for i = 1, #points - 1 do
-			local obj = segment(points[i], points[i + 1], width * (1 - (i - 1) / #points * 0.3), color, 0)
-			fadeSegment(obj, life * (0.82 + i * 0.035), 0.08, 1)
-		end
-	end
-
-	local function glitchBlocks(pos, c1, c2, scale, life)
-		for i = 1, amount(9) do
-			local width = (0.12 + math.random() * 0.35) * scale
-			local height = (0.035 + math.random() * 0.09) * scale
-			local start = pos + Vector3.new((math.random() - 0.5) * 0.7, (math.random() - 0.5) * 1.3, (math.random() - 0.5) * 0.7) * scale
-			local finish = start + Vector3.new((math.random() - 0.5) * 2.6, (math.random() - 0.5) * 0.35, (math.random() - 0.5) * 0.35) * scale
-			local obj = makePart(Vector3.new(width, height, height), CFrame.new(start), i % 2 == 0 and c1 or c2, 0.05, Enum.Material.Neon)
-			tween(obj, life * (0.55 + math.random() * 0.3), {CFrame = CFrame.new(finish), Transparency = 1, Size = Vector3.new(width * 0.25, height * 0.25, height * 0.25)}, Enum.EasingStyle.Quint)
-			cleanup(obj, life)
-		end
-	end
-
-	local function petals(pos, c1, c2, scale, life)
-		for i = 1, amount(10) do
-			local start = pos + Vector3.new((math.random() - 0.5) * 0.65, (math.random() - 0.45) * 0.55, (math.random() - 0.5) * 0.65) * scale
-			local finish = start + Vector3.new((math.random() - 0.5) * 2.4, 1.0 + math.random() * 1.5, (math.random() - 0.5) * 2.4) * scale
-			local obj = makePart(Vector3.new(0.17, 0.035, 0.09) * scale, CFrame.new(start) * CFrame.Angles(math.random() * 3, math.random() * 3, math.random() * 3), i % 2 == 0 and c1 or c2, 0.03, Enum.Material.Neon)
-			tween(obj, life * (0.75 + math.random() * 0.3), {CFrame = CFrame.new(finish) * CFrame.Angles(math.random() * 7, math.random() * 7, math.random() * 7), Transparency = 1}, Enum.EasingStyle.Sine)
-			cleanup(obj, life + 0.1)
-		end
-	end
-
-	local function runEffect(hit)
-		if not HitEffects.Enabled or not hit or not hit.Position then return end
-		if HeadshotsOnly.Enabled and not hit.Headshot then return end
-
-		local mode = aliases[Mode.Value] or Mode.Value
-		if mode == 'Random' then mode = randomModes[math.random(1, #randomModes)] end
-		if mode == 'Headshot Crown' and not hit.Headshot then mode = 'Impact' end
-
-		local scale = EffectSize.Value * (hit.Headshot and 1.08 or 1)
-		local life = math.max(Lifetime.Value, 0.1)
-		local a, b = getColors(hit.Entity)
-		local white = Color3.new(1, 1, 1)
-		local pos = hit.Position
-
-		-- V3 base impact: one clean flash and a tiny spark burst. No permanent particle soup.
-		flashLight(pos, hit.Headshot and white or a, hit.Headshot and 4.5 or 2.8, (hit.Headshot and 7 or 4.8) * scale, life * 0.25)
-		sphere(pos, 0.04 * scale, (hit.Headshot and 0.55 or 0.38) * scale, white, life * 0.2, 0.02)
-		particleBurst(pos, SPARK, white, a, hit.Headshot and 7 or 4, 4.5 * scale, life * 0.72, 0.07 * scale, Vector3.new(0, -2, 0), 3)
-
-		if mode == 'Impact' then
-			ring(pos, 0.12 * scale, 0.95 * scale, 0.045 * scale, a, life * 0.55, CFrame.Angles(math.rad(90), 0, 0), 12)
-			streakBurst(pos, a, b, 6, 1.35 * scale, 0.04 * scale, life * 0.48, 0.45)
-
-		elseif mode == 'Critical' then
-			ring(pos, 0.1 * scale, 1.25 * scale, 0.05 * scale, white, life * 0.58, CFrame.Angles(math.rad(90), 0, 0), 14)
-			ring(pos, 0.18 * scale, 0.95 * scale, 0.035 * scale, a, life * 0.45, CFrame.Angles(math.rad(90), 0, math.rad(35)), 12)
-			for i = 1, amount(7) do
-				local ang = i / amount(7) * math.pi * 2
-				local dir = Vector3.new(math.cos(ang), 0.25 + math.random() * 0.6, math.sin(ang)).Unit
-				trailShard(pos + dir * 0.08 * scale, pos + dir * (1.4 + math.random() * 0.65) * scale, i % 2 == 0 and a or b, 0.075 * scale, life * 0.58)
-			end
-
-		elseif mode == 'Arcane' then
-			ring(pos, 0.18 * scale, 1.05 * scale, 0.035 * scale, a, life * 0.72, CFrame.Angles(math.rad(90), 0, 0), 14)
-			ring(pos, 0.2 * scale, 0.88 * scale, 0.028 * scale, b, life * 0.78, CFrame.Angles(math.rad(35), math.rad(25), 0), 12)
-			ring(pos, 0.18 * scale, 0.75 * scale, 0.024 * scale, white, life * 0.62, CFrame.Angles(math.rad(-35), math.rad(-20), 0), 10)
-			for i = 1, amount(4) do
-				local ang = i / amount(4) * math.pi * 2
-				local start = pos + Vector3.new(math.cos(ang), 0, math.sin(ang)) * 0.55 * scale
-				local finish = pos + Vector3.new(math.cos(ang + 1.2), 1.15, math.sin(ang + 1.2)) * scale
-				trailShard(start, finish, i % 2 == 0 and a or b, 0.055 * scale, life * 0.7, (i - 1) * 0.015)
-			end
-
-		elseif mode == 'Slash' then
-			local d1 = Vector3.new(1, 0.62, 0.15).Unit
-			local d2 = Vector3.new(-0.72, 0.9, -0.12).Unit
-			slash(pos, d1, 3.0 * scale, 0.075 * scale, white, life * 0.42)
-			slash(pos, d1, 2.85 * scale, 0.03 * scale, a, life * 0.58, Vector3.new(0, 0.08 * scale, 0))
-			task.delay(life * 0.055, function()
-				if HitEffects.Enabled then
-					slash(pos, d2, 2.45 * scale, 0.055 * scale, b, life * 0.45)
-				end
+	function Scene:rayBurst(n, length, color, delay, duration, lift)
+		for i = 1, self:count(n) do
+			local dir = polar(i * 2.39996, 0.75 + math.random() * 0.25, noise() * 0.3)
+			self:line(i % 3 == 0 and self.B or color, 0.035, delay + math.random() * 0.025, duration, function(u)
+				local r = out(u) * length
+				local drift = V(0, (lift or 0) * u - 0.4 * u * u, 0)
+				return dir * (r + 0.08) + drift, dir * (r + 0.38 * (1 - u)) + drift
 			end)
-			particleBurst(pos, SPARK, white, a, 8, 6 * scale, life * 0.55, 0.055 * scale, Vector3.new(0, -3, 0), 3.5)
-
-		elseif mode == 'Thunder' then
-			lightning(pos + Vector3.new(-1.4, 2.0, 0.6) * scale, pos, white, 0.055 * scale, life * 0.36, 4)
-			lightning(pos + Vector3.new(1.2, 1.5, -0.8) * scale, pos, a, 0.04 * scale, life * 0.45, 4)
-			ring(pos, 0.08 * scale, 1.05 * scale, 0.035 * scale, b, life * 0.5, CFrame.Angles(math.rad(90), 0, 0), 12)
-			particleBurst(pos, SPARK, white, b, 10, 7 * scale, life * 0.46, 0.05 * scale, Vector3.new(0, -5, 0), 4)
-
-		elseif mode == 'Void' then
-			local dark = Color3.fromRGB(8, 8, 14)
-			sphere(pos, 0.08 * scale, 0.7 * scale, dark, life * 0.48, 0.06)
-			ring(pos, 0.55 * scale, 0.12 * scale, 0.04 * scale, a, life * 0.52, CFrame.Angles(math.rad(90), 0, 0), 14)
-			for i = 1, amount(6) do
-				local ang = i / amount(6) * math.pi * 2
-				local start = pos + Vector3.new(math.cos(ang), (math.random() - 0.5) * 0.7, math.sin(ang)) * 1.25 * scale
-				trailShard(start, pos, i % 2 == 0 and a or b, 0.05 * scale, life * 0.48, (i - 1) * 0.012)
+		end
+	end
+	function Scene:ghosts(count)
+		local result, char = {}, self.Data.Character
+		if char and char.Parent then
+			for _, obj in ipairs(char:GetDescendants()) do
+				if obj:IsA('BasePart') and obj.Transparency < 0.95 and obj.Name ~= 'HumanoidRootPart' then
+					result[#result + 1] = {Size = obj.Size, Frame = obj.CFrame}
+					if #result >= count then break end
+				end
 			end
-			particleBurst(pos, SMOKE, dark, a, 5, 1.6 * scale, life * 0.8, 0.22 * scale, Vector3.new(0, 0.6, 0), 3)
-
-		elseif mode == 'Frost' then
-			ring(pos, 0.1 * scale, 1.1 * scale, 0.04 * scale, b, life * 0.62, CFrame.Angles(math.rad(90), 0, 0), 14)
-			for i = 1, amount(8) do
-				local ang = i / amount(8) * math.pi * 2
-				local dir = Vector3.new(math.cos(ang), 0.15 + math.random() * 0.8, math.sin(ang)).Unit
-				local obj = makePart(Vector3.new(0.06, 0.22, 0.06) * scale, CFrame.new(pos) * CFrame.Angles(math.random() * 3, math.random() * 3, math.random() * 3), i % 2 == 0 and b or white, 0.02, Enum.Material.Neon)
-				tween(obj, life * 0.72, {CFrame = CFrame.new(pos + dir * (1.4 + math.random() * 0.6) * scale) * CFrame.Angles(math.random() * 6, math.random() * 6, math.random() * 6), Transparency = 1, Size = Vector3.new(0.025, 0.4, 0.025) * scale}, Enum.EasingStyle.Quint)
-				cleanup(obj, life)
+		end
+		-- Stylized body fallback keeps the finisher visible if the ragdoll was already removed.
+		if #result == 0 then
+			for _, item in ipairs({{V(1, 1, 1), V(0, 1.6, 0)}, {V(1.6, 1.9, 0.7), ZERO},
+				{V(0.6, 1.8, 0.6), V(-1.15, 0, 0)}, {V(0.6, 1.8, 0.6), V(1.15, 0, 0)},
+				{V(0.65, 1.7, 0.65), V(-0.45, -1.75, 0)}, {V(0.65, 1.7, 0.65), V(0.45, -1.75, 0)}}) do
+				result[#result + 1] = {Size = item[1], Frame = self.Frame * CFrame.new(item[2])}
 			end
-			particleBurst(pos, SMOKE, b:Lerp(white, 0.45), white, 4, 1.2 * scale, life * 0.9, 0.18 * scale, Vector3.new(0, 0.9, 0), 2.2)
+		end
+		return result
+	end
 
-		elseif mode == 'Ember' then
-			particleBurst(pos, FIRE, a, Color3.fromRGB(255, 210, 95), 7, 3.4 * scale, life * 0.7, 0.14 * scale, Vector3.new(0, 2.5, 0), 2.7)
-			particleBurst(pos, SPARK, white, b, 9, 6.5 * scale, life * 0.55, 0.05 * scale, Vector3.new(0, -4, 0), 3.5)
-			streakBurst(pos, a, b, 6, 1.55 * scale, 0.035 * scale, life * 0.48, 1.25)
-
-		elseif mode == 'Prism' then
-			local total = math.max(8, amount(10))
-			for i = 1, total do
-				local c = Color3.fromHSV((i - 1) / total, 0.82, 1)
-				local ang = i / total * math.pi * 2
-				local dir = Vector3.new(math.cos(ang), (i % 3 - 1) * 0.18, math.sin(ang)).Unit
-				trailShard(pos, pos + dir * (1.15 + (i % 2) * 0.45) * scale, c, 0.052 * scale, life * 0.58, (i - 1) * 0.006)
+	-- HIT TIMELINES -----------------------------------------------------------
+	HitStyles['Needlepoint'] = function(s)
+		s:light(0, 0.18, 2)
+		for i = 1, 7 do
+			local dir = polar(i / 7 * TAU + 0.2, 1, noise() * 0.16)
+			s:line(i % 2 == 0 and WHITE or s.A, i % 2 == 0 and 0.024 or 0.045, i * 0.008, 0.68, function(u)
+				local r = out(u) * 1.15
+				return dir * (0.06 + r), dir * (0.52 + r - u * 0.34)
+			end)
+		end
+		s:rayBurst(4, 0.8, s.B, 0.18, 0.7, -0.25)
+	end
+	HitStyles['Glassbite'] = function(s)
+		for i = 1, 5 do
+			local theta = i / 5 * TAU
+			local joint = polar(theta, 0.5)
+			local endp = polar(theta + 0.22, 1.1)
+			s:line(WHITE, 0.016, 0, 0.35, function(u) return ZERO, joint * out(u) end)
+			s:line(s.A, 0.018, 0.06, 0.35, function(u) return joint, joint:Lerp(endp, out(u)) end)
+			local dir = polar(theta, 1.4, noise() * 0.7)
+			s:dot(i % 2 == 0 and s.A or s.B, V(0.22, 0.48, 0.07), 0.17, 0.8, function(u)
+				return joint * 0.5 + dir * out(u) + V(0, -u * u * 0.75, 0), CFrame.Angles(u * 7, theta, u * 3)
+			end, 'Wedge', Enum.Material.Glass, 0.12)
+		end
+	end
+	HitStyles['Redline'] = function(s)
+		for i = 1, 2 do
+			local sign = i == 1 and 1 or -1
+			s:arc(i == 1 and s.A or WHITE, i == 1 and 0.065 or 0.022, (i - 1) * 0.16, 0.58, function(v, u)
+				local a = -1.2 + v * 2.3 + out(u) * 1.7
+				return V(math.cos(a) * 1.15 * sign, math.sin(a) * 0.72, 0.1 * sign)
+			end, false, 18)
+		end
+		s:line(s.B, 0.025, 0.34, 0.5, function(u) return V(-0.4, 0.7, 0), V(0.4, -0.7, 0) * (1 + out(u) * 0.25) end)
+	end
+	HitStyles['Short Circuit'] = function(s)
+		for branch = 1, 3 do
+			local previous = ZERO
+			for step = 1, 5 do
+				local nextPoint = polar(branch / 3 * TAU + (step % 2 == 0 and 0.2 or -0.2), step * 0.26)
+				local a, b = previous, nextPoint
+				s:line(step % 2 == 0 and WHITE or s.A, 0.027, step * 0.035, 0.4, function(u)
+					return a, b, math.floor(u * 8) % 3 == 1 and 0.85 or fade(u)
+				end)
+				previous = nextPoint
 			end
-			ring(pos, 0.1 * scale, 1.0 * scale, 0.035 * scale, white, life * 0.5, CFrame.Angles(math.rad(90), 0, 0), 12)
+			local tip = previous
+			s:dot(s.B, V(0.11, 0.11, 0.11), 0.2, 0.55, function(u) return tip, nil, 1 - u end)
+		end
+		s:light(0.06, 0.24, 2.5)
+	end
+	HitStyles['Inkblot'] = function(s)
+		for i = 1, 9 do
+			local dir = polar(i * 2.399, 0.3 + math.random() * 0.4)
+			local size = 0.2 + math.random() * 0.28
+			s:dot(Color3.fromRGB(12, 8, 20), V(size, size * 1.15, 0.055), i * 0.007, 0.8, function(u)
+				return dir * out(u) + V(0, -u * u * 0.2, 0), nil, math.sin(math.min(u * 2.4, math.pi)) + 0.15
+			end, 'Ball', Enum.Material.SmoothPlastic, 0)
+		end
+		for i = 1, 3 do
+			local p = polar(i * 2.1, 0.48)
+			s:line(s.B, 0.018, 0.06, 0.7, function(u) return p, p + V(0.18, -0.28 - u * 0.35, 0.06) end)
+		end
+	end
+	HitStyles['Hard Reset'] = function(s)
+		for i = 1, 4 do
+			local x = i % 2 == 0 and 1 or -1
+			local y = i <= 2 and 1 or -1
+			s:line(s.A, 0.035, 0, 0.5, function(u)
+				local p = V(x, y, 0) * (0.8 - out(u) * 0.45)
+				return p, p - V(x * 0.24, 0, 0)
+			end)
+			s:line(s.B, 0.035, 0.03, 0.5, function(u)
+				local p = V(x, y, 0) * (0.8 - out(u) * 0.45)
+				return p, p - V(0, y * 0.24, 0)
+			end)
+		end
+		for i = 1, s:count(8) do
+			local row, dir = (i - 4) * 0.13, i % 2 == 0 and 1 or -1
+			s:dot(i % 2 == 0 and s.A or s.B, V(0.28, 0.065, 0.065), 0.28, 0.7, function(u)
+				return V(dir * math.floor(u * 5) * 0.23, row, 0), nil, 1 - u * 0.7
+			end, 'Block')
+		end
+	end
+	HitStyles['Petal Kiss'] = function(s)
+		for i = 1, 5 do
+			local a = i / 5 * TAU
+			local petal = s:dot(i % 2 == 0 and s.A or s.B, V(0.22, 0.49, 0.055), i * 0.018, 0.89, function(u)
+				local open = out(math.min(u * 2, 1))
+				local p = polar(a, 0.24 + open * 0.2) + V(math.sin(u * 6 + a) * u * 0.45, u * u * 0.65, 0)
+				return p, CFrame.Angles(u * 2, u * 1.5, a - math.pi / 2 + u * 0.7), 0.3 + open * 0.7
+			end, 'Ball', Enum.Material.SmoothPlastic)
+			s:trail(petal, 0.025)
+		end
+		s:dot(WHITE, V(0.13, 0.13, 0.13), 0.05, 0.5, function(u) return ZERO, nil, 1 - u end)
+	end
+	HitStyles['Cold Snap'] = function(s)
+		for i = 1, 6 do
+			local a = i / 6 * TAU
+			local dir = polar(a, 1)
+			s:line(s.B, 0.022, 0, 0.64, function(u) return ZERO, dir * (0.18 + out(u) * 0.68) end)
+			for _, sign in ipairs({-1, 1}) do
+				local joint, tip = dir * 0.46, dir * 0.46 + polar(a + sign * 0.8, 0.28)
+				s:line(s.A, 0.02, 0.13, 0.51, function(u) return joint, joint:Lerp(tip, out(u)) end)
+			end
+			s:dot(s.A, V(0.08, 0.25, 0.05), 0.5, 0.5, function(u)
+				return dir * 0.75 + V(0, -u * u * 0.8, 0), CFrame.Angles(0, 0, a + u * 3)
+			end, 'Wedge', Enum.Material.Glass)
+		end
+	end
+	HitStyles['Echo Chamber'] = function(s)
+		for i = 1, 3 do
+			s:arc(i == 2 and s.B or s.A, 0.019, (i - 1) * 0.17, 0.62, function(v, u)
+				return polar(v * TAU, 0.18 + out(u) * (0.65 + i * 0.21), (i - 2) * 0.17)
+			end, false, 24)
+		end
+	end
+	HitStyles['Firecracker'] = function(s)
+		s:dot(WHITE, V(0.22, 0.22, 0.22), 0, 0.13, function(u) return ZERO, nil, 1 - u end)
+		for i = 1, s:count(10) do
+			local velocity = V(noise() * 1.3, 0.3 + math.random() * 1.4, noise() * 0.4)
+			local p = s:dot(i % 3 == 0 and s.B or s.A, V(0.065, 0.065, 0.065), 0.05, 0.88, function(u)
+				return velocity * u + V(0, -1.3 * u * u, 0)
+			end)
+			s:trail(p, 0.026)
+		end
+		for i = 1, 3 do
+			s:dot(Color3.fromRGB(74, 66, 62), V(0.24, 0.24, 0.24), 0.18, 0.78, function(u)
+				return V((i - 2) * 0.12, u * 0.45, -0.15), nil, 0.4 + u * 1.5
+			end, 'Ball', Enum.Material.SmoothPlastic, 0.82)
+		end
+		s:light(0, 0.22, 3)
+	end
+	HitStyles['Star Stitch'] = function(s)
+		for i = 0, 4 do
+			local a = polar(i / 5 * TAU + math.pi / 2, 0.65)
+			local b = polar((i + 2) / 5 * TAU + math.pi / 2, 0.65)
+			s:line(i % 2 == 0 and s.A or s.B, 0.026, i * 0.065, 0.58, function(u) return a, a:Lerp(b, out(u)) end)
+			s:dot(WHITE, V(0.07, 0.07, 0.07), 0.38, 0.6, function(u)
+				return a + V(math.sin(u * 4 + i) * u * 0.3, u * 0.65, 0)
+			end)
+		end
+	end
+	HitStyles['Orbit Trap'] = function(s)
+		for i = 1, 3 do
+			local phase = i / 3 * TAU
+			local p = s:dot(i == 2 and s.B or s.A, V(0.11, 0.11, 0.11), 0, 0.9, function(u)
+				local r = (0.35 + math.sin(u * math.pi) * 0.4) * (1 - u)
+				local a = phase + u * TAU * 1.3
+				return V(math.cos(a) * r, math.sin(a) * r * 0.45, math.sin(a) * r * 0.65)
+			end)
+			s:trail(p, 0.045)
+		end
+		s:dot(WHITE, V(0.16, 0.16, 0.16), 0.74, 0.24, function(u) return ZERO, nil, math.sin(u * math.pi) end)
+	end
 
-		elseif mode == 'Glitch' then
-			glitchBlocks(pos, a, b, scale, life)
-			local up = Vector3.new(0, 1, 0)
-			slash(pos, Vector3.new(1, 0, 0), 2.5 * scale, 0.025 * scale, white, life * 0.36, up * 0.35 * scale)
-			slash(pos, Vector3.new(1, 0, 0), 1.9 * scale, 0.02 * scale, b, life * 0.3, -up * 0.3 * scale)
-
-		elseif mode == 'Sakura' then
-			petals(pos, a, b, scale, life * 1.15)
-			ring(pos, 0.12 * scale, 0.8 * scale, 0.026 * scale, a:Lerp(white, 0.28), life * 0.62, CFrame.Angles(math.rad(90), 0, 0), 12)
-			particleBurst(pos, SPARK, white, a, 4, 2.4 * scale, life * 0.8, 0.045 * scale, Vector3.new(0, 0.8, 0), 4)
-
-		elseif mode == 'Headshot Crown' then
-			local top = pos + Vector3.new(0, 0.42 * scale, 0)
-			ring(top, 0.28 * scale, 0.62 * scale, 0.035 * scale, white, life * 0.68, CFrame.new(), 12)
+	-- KILL TIMELINES ----------------------------------------------------------
+	KillStyles['Event Horizon'] = function(s)
+		s:dot(Color3.fromRGB(5, 2, 12), V(1.7, 1.7, 1.7), 0, 0.86, function(u)
+			return ZERO, nil, math.sin(u * math.pi)^0.55
+		end, 'Ball', Enum.Material.SmoothPlastic, 0)
+		for i = 1, 2 do
+			s:arc(i == 1 and s.A or s.B, i == 1 and 0.055 or 0.022, 0, 0.86, function(v, u)
+				local a = v * TAU + u * TAU * (i == 1 and 1 or -1)
+				local r = (1.2 + v * 0.85) * (1 - u * 0.91)
+				return V(math.cos(a) * r, math.sin(a) * r * 0.35, math.sin(a) * r * 0.5)
+			end, false, 28)
+		end
+		for i = 1, s:count(12) do
+			local a = i * 2.39996
+			local p = s:dot(i % 2 == 0 and s.A or s.B, V(0.1, 0.1, 0.1), 0.05, 0.8, function(u)
+				local r = (2.4 + math.sin(i) * 0.4) * (1 - out(u))
+				return polar(a + u * 4, r, math.sin(a) * r * 0.3)
+			end)
+			s:trail(p, 0.05)
+		end
+		s:line(WHITE, 0.03, 0.83, 0.17, function(u) return V(-0.65 * (1 - u), 0, 0), V(0.65 * (1 - u), 0, 0) end)
+		s:light(0.8, 0.15, 4)
+	end
+	KillStyles['Heavenfall'] = function(s)
+		for i = 1, 3 do
+			local landing = V((i - 2) * 0.85, -1.8, 0)
+			local start = landing + V(2.2, 8 + i, -0.5)
+			s:line(i == 2 and WHITE or s.A, i == 2 and 0.18 or 0.09, (i - 1) * 0.13, 0.45, function(u)
+				local head = start:Lerp(landing, math.min(u * 2.3, 1))
+				return head, head:Lerp(start, (1 - u) * 0.45)
+			end)
+		end
+		s:line(s.B, 0.23, 0.46, 0.42, function(u) return V(0, -1.8, 0), V(0, 7 * (1 - u * 0.3), 0) end)
+		if s.Ground then
+			for i = 1, 8 do
+				local dir = polar(i / 8 * TAU, 1, 0.03)
+				s:line(s.A, 0.045, 0.45, 0.5, function(u) return dir * 0.3, dir * (0.4 + out(u) * 2.6) end, true)
+			end
+		end
+		s:light(0.43, 0.28, 6)
+	end
+	KillStyles['Paper Moon'] = function(s)
+		for i = 1, 2 do
+			s:arc(i == 1 and s.A or s.B, i == 1 and 0.13 or 0.025, (i - 1) * 0.06, 0.74, function(v, u)
+				local a = -1.35 + v * 3.9 + out(u) * 0.9
+				return V(math.cos(a) * (1.65 + i * 0.13), math.sin(a) * 1.95 + u * 0.65, 0)
+			end, false, 28)
+		end
+		for i = 1, s:count(13) do
+			local phase = i * 2.3999
+			s:dot(i % 3 == 0 and s.B or s.A, V(0.28, 0.42, 0.025), 0.12 + (i % 4) * 0.04, 0.72, function(u)
+				return V(math.cos(phase + u * 3) * (0.6 + u * 1.8), -0.8 + u * 3.8, math.sin(phase + u * 3) * 0.8),
+					CFrame.Angles(u * 4 + phase, u * 2, phase)
+			end, 'Block', Enum.Material.SmoothPlastic)
+		end
+	end
+	KillStyles['Dead Channel'] = function(s)
+		for i = 1, 16 do
+			local y, sign = -2.1 + i * 0.26, i % 2 == 0 and 1 or -1
+			s:dot(i % 3 == 0 and WHITE or s.A, V(1.45 - math.abs(y) * 0.12, 0.075, 0.15), i * 0.012, 0.7, function(u)
+				local snap = math.floor(u * 7) / 7
+				return V(sign * snap * snap * 3, y, 0), nil, 1 - u * 0.55
+			end, 'Block')
+		end
+		s:line(s.B, 0.06, 0, 0.6, function(u)
+			local y = -2.4 + u * 5
+			return V(-1.4, y, 0.2), V(1.4, y, 0.2)
+		end)
+		for i = 1, 6 do
+			local x = (i - 3.5) * 0.35
+			s:line(s.A, 0.025, 0.66, 0.28, function(u) return V(x, -0.04, 0), V(x, 0.04 + (1 - u) * (i % 3) * 0.25, 0) end)
+		end
+	end
+	KillStyles['Rose Requiem'] = function(s)
+		for layer = 1, 2 do
+			for i = 1, 7 do
+				local phase = i / 7 * TAU + layer * 0.36
+				s:dot(layer == 1 and s.A or s.B, V(0.48, 0.82, 0.1), layer * 0.045, 0.89, function(u)
+					local r = 0.2 + out(math.min(u * 2.4, 1)) * (0.48 + layer * 0.3) + u * u
+					local a = phase + u * 1.7
+					return V(math.cos(a) * r, -1.5 + u * u * 4.5, math.sin(a) * r), CFrame.Angles(0.5 + u * 2, -a, phase + u)
+				end, 'Ball', Enum.Material.SmoothPlastic)
+			end
+		end
+		s:arc(s.B, 0.025, 0.1, 0.8, function(v, u)
+			local a = v * TAU * 1.5 + u * 2
+			return V(math.cos(a) * (0.5 + v * 0.4), -1.8 + v * 3.4, math.sin(a) * (0.5 + v * 0.4))
+		end, false, 28)
+	end
+	KillStyles['Winterglass'] = function(s)
+		for i = 1, 7 do
+			local a, height = i / 7 * TAU, 1.5 + (i % 3) * 0.65
+			local start = V(math.cos(a) * 0.8, -1.6, math.sin(a) * 0.8)
+			s:dot(i % 2 == 0 and s.A or s.B, V(0.36, height, 0.36), i * 0.015, 0.64, function(u)
+				local growth = out(math.min(u * 3, 1))
+				return start + V(0, height * growth * 0.5, 0), CFrame.Angles(0, a, math.sin(a) * 0.18), growth
+			end, 'Wedge', Enum.Material.Glass, 0.17)
+		end
+		for i = 1, s:count(16) do
+			local velocity = V(noise() * 2.4, math.random() * 2.8, noise() * 2.4)
+			s:dot(i % 2 == 0 and WHITE or s.A, V(0.13, 0.43, 0.1), 0.52, 0.47, function(u)
+				return velocity * u + V(0, -u * u * 2, 0), CFrame.Angles(i, u * 8, u * 4)
+			end, 'Wedge', Enum.Material.Glass)
+		end
+		s:light(0.5, 0.22, 4)
+	end
+	KillStyles['Railbreak'] = function(s)
+		for _, sign in ipairs({-1, 1}) do
+			s:line(s.A, 0.075, 0, 0.38, function(u)
+				local x = sign * (2.3 - out(u) * 1.4)
+				return V(x, -0.8, 0), V(x, 0.8, 0)
+			end)
+			s:line(s.B, 0.045, 0.05, 0.33, function(u)
+				local x = sign * (2.3 - out(u) * 1.4)
+				return V(x, 0.8, 0), V(x - sign * 0.5, 0.8, 0)
+			end)
+		end
+		s:line(WHITE, 0.16, 0.34, 0.24, function(u) return V(-6, 0, 0), V(-6 + out(u) * 13, 0, 0) end)
+		s:line(s.A, 0.04, 0.38, 0.54, function(u) return V(-5, 0, 0), V(7, 0, 0) end)
+		for i = 1, s:count(12) do
+			local y, x, z = noise() * 1.6, 2 + math.random() * 4, noise() * 0.12
+			s:dot(i % 2 == 0 and s.A or s.B, V(0.35, 0.065, 0.07), 0.35, 0.6, function(u)
+				return V(out(u) * x, y * u, z), CFrame.Angles(0, 0, y * 0.3)
+			end, 'Block')
+		end
+		s:light(0.34, 0.22, 6)
+	end
+	KillStyles['Afterimage'] = function(s)
+		local parts = s:ghosts(14)
+		for copy = 1, 3 do
+			for i, data in ipairs(parts) do
+				local p = s:part(copy == 2 and WHITE or (copy == 1 and s.A or s.B), 'Block', Enum.Material.ForceField)
+				s:track(p, (copy - 1) * 0.09, 0.76, function(obj, u)
+					local drift = s.Frame:VectorToWorldSpace(V((copy - 2) * out(u) * 2.3, u * 0.8, -u * copy * 0.4) * s.Scale)
+					obj.CFrame = data.Frame + (data.Frame.Position - s.Position) * (s.Scale - 1) + drift
+					obj.Size = data.Size * s.Scale * (1 + u * 0.05)
+					obj.Transparency = math.clamp(0.5 + u * 0.43 + (i / #parts) * u * 0.16, 0, 1)
+				end)
+			end
+		end
+	end
+	KillStyles['Clockwork'] = function(s)
+		for layer = 1, 2 do
+			s:arc(layer == 1 and s.A or s.B, 0.035, 0, 0.68, function(v, u)
+				return polar(v * TAU, (1.45 + layer * 0.23) * (0.3 + out(math.min(u * 3, 1)) * 0.7))
+			end, false, 28)
+		end
+		for i = 1, 12 do
+			local a = i / 12 * TAU
+			s:line(s.A, i % 3 == 0 and 0.065 or 0.035, 0.06, 0.9, function(u)
+				local fly = math.max(0, u - 0.65) * 4
+				return polar(a + fly * 0.2, 1.48 + fly), polar(a + fly * 0.2, 1.63 + fly)
+			end)
+		end
+		for i = 1, 2 do
+			s:line(i == 1 and WHITE or s.B, 0.035, 0, 0.66, function(u)
+				local a = (1 - math.min(u * 1.6, 1))^2 * TAU * (i == 1 and 2 or -3)
+				return ZERO, polar(a, i == 1 and 1.22 or 0.8)
+			end)
+		end
+	end
+	KillStyles['Wildfire'] = function(s)
+		for i = 1, s:count(11) do
+			local phase = i * 2.3999
+			s:dot(i % 3 == 0 and s.B or s.A, V(0.28, 1.25 + (i % 3) * 0.3, 0.16), (i % 4) * 0.055, 0.72, function(u)
+				local a, r = phase + u * 2.6, 0.3 + math.sin(u * math.pi) * 0.8
+				return V(math.cos(a) * r, -1.8 + u * 3.8, math.sin(a) * r), CFrame.Angles(0.2, a, math.sin(u * 7 + i) * 0.3), math.sin(u * math.pi) + 0.05
+			end, 'Wedge')
+		end
+		for i = 1, s:count(14) do
+			local dir = V(noise(), 1.6 + math.random() * 2, noise())
+			local p = s:dot(s.B, V(0.06, 0.1, 0.06), 0.14, 0.84, function(u)
+				return dir * u + V(math.sin(u * 6 + i) * u * 0.2, -0.5, 0)
+			end)
+			s:trail(p, 0.025)
+		end
+		s:light(0.08, 0.7, 3.5)
+	end
+	KillStyles['Deepwater'] = function(s)
+		for i = 1, 3 do
+			local start = V((i - 2) * 0.6, -1.4 + i * 0.45, 0)
+			s:dot(i == 2 and s.A or s.B, V(0.9, 0.9, 0.9), (i - 1) * 0.08, 0.8, function(u)
+				return start + V(math.sin(u * 5 + i) * 0.3, u * 2.8, 0), nil, 0.6 + u * 0.7
+			end, 'Ball', Enum.Material.ForceField, 0.42)
+		end
+		for i = 1, s:count(14) do
+			local phase = i * 2.3999
+			s:dot(s.B, V(0.11, 0.11, 0.11), (i % 5) * 0.035, 0.8, function(u)
+				return V(math.cos(phase + u * 4) * (0.6 + u * 0.4), -1.9 + u * (3.3 + i % 3), math.sin(phase + u * 4) * 0.7)
+			end, 'Ball', Enum.Material.Glass, 0.28)
+		end
+		if s.Ground then s:arc(s.A, 0.025, 0.08, 0.78, function(v, u) return polar(v * TAU, 0.4 + out(u) * 1.7, 0.04) end, true, 28) end
+	end
+	KillStyles['Faultline'] = function(s)
+		if s.Ground then
 			for i = 1, 6 do
-				local ang = i / 6 * math.pi * 2
-				local base = top + Vector3.new(math.cos(ang), 0, math.sin(ang)) * 0.5 * scale
-				local tip = top + Vector3.new(math.cos(ang), 0.45 + (i % 2) * 0.18, math.sin(ang)) * 0.68 * scale
-				local obj = segment(base, tip, 0.032 * scale, i % 2 == 0 and a or white, 0)
-				fadeSegment(obj, life * 0.62, 0.08, 1.05)
-			end
-			streakBurst(pos, white, a, 8, 1.8 * scale, 0.04 * scale, life * 0.48, 1.0)
-		end
-
-		if hit.Headshot and mode ~= 'Headshot Crown' then
-			task.delay(life * 0.03, function()
-				if HitEffects.Enabled then
-					ring(pos + Vector3.new(0, 0.18 * scale, 0), 0.12 * scale, 0.72 * scale, 0.025 * scale, white, life * 0.46, CFrame.new(), 10)
+				local a = i / 6 * TAU
+				local last = ZERO
+				for j = 1, 3 do
+					local nextp = polar(a + (j % 2 == 0 and 0.16 or -0.12), j * 0.8, 0.035)
+					local p0, p1 = last, nextp
+					s:line(s.A, 0.05, j * 0.025, 0.74, function(u) return p0, p0:Lerp(p1, out(u)) end, true)
+					last = nextp
 				end
+			end
+		end
+		for i = 1, s:count(11) do
+			local a, r = i * 2.3999, 0.5 + (i % 4) * 0.37
+			local p = s:part(i % 4 == 0 and s.A or Color3.fromRGB(52, 46, 44), 'Block', i % 4 == 0 and Enum.Material.Neon or Enum.Material.Slate)
+			s:track(p, 0.06, 0.9, function(obj, u)
+				local height = math.sin(u * math.pi) * (0.5 + (i % 3) * 0.4)
+				local localPoint = polar(a, r + u * 0.5, height + 0.16)
+				obj.CFrame = CFrame.new(s:world(localPoint, true)) * CFrame.Angles(i + u * 2, a, u)
+				obj.Size = V(0.32, 0.24, 0.4) * s.Scale * (1 - u * 0.4)
+				obj.Transparency = fade(u)
+			end)
+		end
+		s:light(0.08, 0.45, 2)
+	end
+	KillStyles['Last Blossom'] = function(s)
+		for i = 1, s:count(19) do
+			local a = i * 2.3999
+			local initial = polar(a, 0.5 + (i % 3) * 0.14, math.sin(i) * 0.3)
+			local dir = V(1.3 + (i % 4) * 0.35, 0.9 + (i % 3) * 0.5, math.sin(i) * 0.7)
+			s:dot(i % 3 == 0 and s.B or s.A, V(0.08, 0.08, 0.08), 0, 0.96, function(u)
+				local drift = math.max(0, u - 0.2) / 0.8
+				return initial + dir * drift + V(0, math.sin(drift * 5 + a) * drift * 0.22, 0)
+			end, 'Ball', Enum.Material.SmoothPlastic)
+			s:line(s.B, 0.012, 0, 0.96, function(u)
+				local drift = math.max(0, u - 0.2) / 0.8
+				local p = initial + dir * drift + V(0, math.sin(drift * 5 + a) * drift * 0.22, 0)
+				return p, p + V(-0.13, -0.19, 0)
 			end)
 		end
 	end
-
-	local function trimPending()
-		local now = tick()
-		for i = #pending, 1, -1 do
-			if now - pending[i].Time > 0.8 then table.remove(pending, i) end
+	KillStyles['Royal Flush'] = function(s)
+		for i = 1, 4 do
+			local sign, angle = i - 2.5, (i - 2.5) * -0.22
+			local function cardPose(u)
+				local spread = out(math.min(u * 3, 1))
+				local fold = math.max(0, u - 0.55) / 0.45
+				return V(sign * 0.62 * spread * (1 - fold), 0.3 + math.abs(sign) * -0.16 + u * 0.6, i * 0.06),
+					CFrame.Angles(0, fold * math.pi, angle * spread), 1 - fold * 0.88
+			end
+			s:dot(i % 2 == 0 and Color3.fromRGB(27, 19, 32) or Color3.fromRGB(247, 233, 220), V(0.65, 1.0, 0.035), i * 0.025, 0.81, cardPose, 'Block', Enum.Material.SmoothPlastic)
+			s:dot(i % 2 == 0 and s.B or s.A, V(0.18, 0.18, 0.025), i * 0.025, 0.81, function(u)
+				local p, rotation, scale = cardPose(u)
+				return p + rotation:VectorToWorldSpace(V(0, 0, 0.035)), rotation * CFrame.Angles(0, 0, math.pi / 4), scale
+			end, 'Block')
+		end
+		for i = 1, s:count(12) do
+			local direction = V(noise() * 2.4, 1 + math.random() * 1.6, noise() * 0.7)
+			s:dot(i % 2 == 0 and s.A or s.B, V(0.13, 0.18, 0.025), 0.65, 0.34, function(u)
+				return direction * u + V(0, -u * u * 1.3, 0), CFrame.Angles(u * 6, i, u * 3)
+			end, 'Block')
 		end
 	end
 
-	HitEffects = vape.Categories.Render:CreateModule({
-		Name = 'HitEffects',
-		Function = function(callback)
-			if callback then
-				table.clear(pending)
-				table.clear(healthCache)
-				for _, ent in pairs(entitylib.List) do
-					if ent and ent.Id then healthCache[ent.Id] = ent.Health or 100 end
+	local function getColors(c, name, data)
+		local style = palettes[name]
+		local a, b = rgb(style[1]), rgb(style[2])
+		local mode = c.ColorMode.Value
+		if mode == 'Custom' then
+			a = Color3.fromHSV(c.Primary.Hue, c.Primary.Sat, c.Primary.Value)
+			b = Color3.fromHSV(c.Secondary.Hue, c.Secondary.Sat, c.Secondary.Value)
+		elseif mode == 'Theme' then
+			local ok, color = pcall(function() return vape:GetGUIColorRGB() end)
+			if ok and typeof(color) == 'Color3' then a, b = color, color:Lerp(WHITE, 0.65) end
+		elseif mode == 'Target' then
+			local color = data.Color
+			if not color and data.Entity then
+				local ok, result = pcall(entitylib.getEntityColor, data.Entity)
+				if ok then color = result end
+			end
+			if typeof(color) == 'Color3' then a, b = color, color:Lerp(WHITE, 0.65) end
+		elseif mode == 'Pastel' then
+			a, b = a:Lerp(WHITE, 0.45), b:Lerp(WHITE, 0.45)
+		elseif mode == 'Rainbow' then
+			local hue = (os.clock() * 0.14) % 1
+			a, b = Color3.fromHSV(hue, 0.7, 1), Color3.fromHSV((hue + 0.28) % 1, 0.65, 1)
+		end
+		return a, b
+	end
+	local function playSound(c, folder)
+		if not c.Sound or not c.Sound.Enabled then return end
+		local input = tostring(c.SoundFile.Value or ''):gsub('^%s+', ''):gsub('%s+$', '')
+		if input == '' then return end
+		if c.SoundInput ~= input then
+			c.SoundInput, c.SoundAsset = input, nil
+			if input:match('^%d+$') then c.SoundAsset = 'rbxassetid://'..input
+			elseif input:match('^rbxassetid://') or input:match('^rbxasset://') then c.SoundAsset = input
+			else
+				local register = getcustomasset or getsynasset or getasset
+				if register then
+					local ok, asset = pcall(register, input:gsub('^file://', ''):gsub('\\', '/'))
+					if ok and type(asset) == 'string' then c.SoundAsset = asset end
 				end
+			end
+		end
+		if not c.SoundAsset then return end
+		local sound = Instance.new('Sound')
+		sound.SoundId, sound.Volume = c.SoundAsset, limit(c.SoundVolume.Value, 0.7, 0, 2)
+		sound.Parent = folder
+		sound:Play()
+	end
+	local function makeScene(c, data)
+		if not c.Active or typeof(data.Position) ~= 'Vector3' then return end
+		local pos = data.Position
+		if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z or pos.Magnitude > 1e7 then return end
+		local names, styles = c.Kill and KillNames or HitNames, c.Kill and KillStyles or HitStyles
+		local name = c.Mode.Value
+		if name == 'Random' then
+			local pick = math.random(1, #names)
+			if names[pick] == c.LastStyle then pick = pick % #names + 1 end
+			name = names[pick]
+		end
+		-- Old saved modes deliberately resolve to the new default, never to aliases in the menu.
+		if not styles[name] then name = names[1] end
+		c.LastStyle = name
+		local count, total = 0, 0
+		for _, scene in ipairs(scenes) do if scene.Owner == c then count = count + 1 end end
+		local maxScenes = math.floor(limit(c.Limit.Value, c.Kill and 3 or 6, 1, 10))
+		while count >= maxScenes do
+			for i, scene in ipairs(scenes) do
+				if scene.Owner == c then removeScene(i); count = count - 1; break end
+			end
+		end
+		local q = c.Quality.Value == 'Low' and 0.65 or (c.Quality.Value == 'High' and 1.2 or 1)
+		local budget = c.Kill and (q < 1 and 100 or (q > 1 and 210 or 170)) or (q < 1 and 60 or (q > 1 and 125 or 100))
+		for _, scene in ipairs(scenes) do total = total + scene.Parts end
+		while #scenes > 0 and total + budget > 900 do total = total - scenes[1].Parts; removeScene(1) end
+		local camera = workspace.CurrentCamera or gameCamera
+		local target = camera and camera.CFrame.Position or (pos + V(0, 0, 5))
+		if c.Kill then target = V(target.X, pos.Y, target.Z) end
+		if (target - pos).Magnitude < 0.01 then target = pos + V(0, 0, 5) end
+		local basis = CFrame.lookAt(pos, target)
+		local groundPos, normal = pos - V(0, 2.4, 0), V(0, 1, 0)
+		if c.Kill then
+			local params = RaycastParams.new()
+			params.FilterType, params.IgnoreWater = Enum.RaycastFilterType.Exclude, true
+			local filter = {root}
+			if data.Character then filter[#filter + 1] = data.Character end
+			if camera then filter[#filter + 1] = camera end
+			if lplr.Character then filter[#filter + 1] = lplr.Character end
+			params.FilterDescendantsInstances = filter
+			local ray = workspace:Raycast(pos + V(0, 1, 0), V(0, -16, 0), params)
+			if ray then groundPos, normal = ray.Position + ray.Normal * 0.06, ray.Normal end
+		end
+		local right = normal:Cross(V(0, 0, 1))
+		if right.Magnitude < 0.01 then right = V(1, 0, 0) else right = right.Unit end
+		local folder = Instance.new('Folder')
+		folder.Name, folder.Parent = (c.Kill and 'Kill_' or 'Hit_')..name, root
+		local a, b = getColors(c, name, data)
+		local s = setmetatable({
+			Name = name, Owner = c, Kill = c.Kill, Data = data, Position = pos, Frame = basis,
+			GroundFrame = CFrame.fromMatrix(groundPos, right, normal:Cross(right), normal),
+			Ground = c.Ground and c.Ground.Enabled or false,
+			Scale = limit(c.Size.Value, 1, 0.25, 3) * (not c.Kill and data.Headshot and 1.08 or 1),
+			Life = limit(c.Life.Value, c.Kill and 1.6 or 0.46, c.Kill and 0.35 or 0.1, c.Kill and 3.5 or 1.5),
+			Quality = q, Intensity = c.Intensity and limit(c.Intensity.Value, 1, 0.5, 2) or 1,
+			Glow = c.Glow.Enabled, Trails = c.Trails.Enabled, A = a, B = b,
+			Folder = folder, Started = os.clock(), Items = {}, TrailObjects = {}, TrailCount = 0,
+			Parts = 0, Budget = budget, Alive = true, EndTime = 1
+		}, Scene)
+		scenes[#scenes + 1] = s
+		local ok, err = pcall(styles[name], s)
+		if not ok then
+			for i = #scenes, 1, -1 do if scenes[i] == s then removeScene(i); break end end
+			warn('[illusionHD] '..name..' effect: '..tostring(err))
+			return
+		end
+		for _, item in ipairs(s.Items) do s.EndTime = math.max(s.EndTime, item.Start + item.Duration) end
+		if c.Kill then pcall(playSound, c, folder) end
+	end
 
-				HitEffects:Clean(frontlines.LocalHitEvent.Event:Connect(function(ent, pos, headshot)
-					if not ent or not ent.Id or not pos then return end
-					if HeadshotsOnly.Enabled and not headshot then return end
-					local data = {Id = ent.Id, Entity = ent, Position = pos, Headshot = headshot, Health = ent.Health or healthCache[ent.Id] or 100, Time = tick()}
-					if not ConfirmedHits.Enabled then runEffect(data); return end
-					trimPending()
-					table.insert(pending, data)
+	local function trimHits(c)
+		local now = os.clock()
+		for i = #c.Pending, 1, -1 do if now - c.Pending[i].Time > 0.8 then table.remove(c.Pending, i) end end
+		while #c.Pending > 48 do table.remove(c.Pending, 1) end
+	end
+	local function rememberDeath(c, ent)
+		if not ent or ent.Id == nil then return end
+		local previous, health = c.Health[ent.Id], tonumber(ent.Health) or 0
+		c.Health[ent.Id] = health
+		if previous and previous > 0 and health <= 0 then
+			local hit = c.Hits[ent.Id]
+			local part = ent.RootPart
+			if hit and os.clock() - hit.Time <= 1.8 then
+				local color
+				pcall(function() color = entitylib.getEntityColor(ent) end)
+				c.Deaths[#c.Deaths + 1] = {Id = ent.Id, Position = part and part.Position or hit.Position,
+					Character = ent.Character, Entity = ent, Color = color, Headshot = hit.Headshot,
+					Time = os.clock(), HitTime = hit.Time}
+			end
+		end
+		while #c.Deaths > 24 do table.remove(c.Deaths, 1) end
+	end
+	local function consumeDeath(c)
+		local now = os.clock()
+		for i = #c.Deaths, 1, -1 do if now - c.Deaths[i].Time > 1.5 then table.remove(c.Deaths, i) end end
+		local preferred = frontlines.LastLocalHit
+		if preferred then
+			for i, death in ipairs(c.Deaths) do if death.Id == preferred.Id then table.remove(c.Deaths, i); return death end end
+		end
+		-- Every cached death already requires a recent local hit; unrelated deaths are excluded.
+		if #c.Deaths > 0 then return table.remove(c.Deaths, 1) end
+	end
+	local function reset(c)
+		c.Generation = c.Generation + 1
+		clearController(c)
+		table.clear(c.Pending); table.clear(c.Health); table.clear(c.Hits)
+		table.clear(c.Deaths); table.clear(c.Credits)
+	end
+	local function createController(kill)
+		local c = {Kill = kill, Active = false, Generation = 0, Pending = {}, Health = {}, Hits = {}, Deaths = {}, Credits = {}}
+		controllers[#controllers + 1] = c
+		local names = kill and KillNames or HitNames
+		local menu = {}
+		for _, name in ipairs(names) do menu[#menu + 1] = name end
+		menu[#menu + 1] = 'Random'
+		c.Module = vape.Categories.Render:CreateModule({
+			Name = kill and 'KillEffects' or 'HitEffects',
+			Tooltip = kill and '14 distinct finishers with staged animation, authored palettes and bounded cleanup.'
+				or '12 distinct hit reactions: fractures, ink, cuts, petals, circuitry, frost and more.',
+			Function = function(enabled)
+				c.Active = enabled
+				reset(c)
+				if not enabled then return end
+				for _, ent in pairs(entitylib.List) do if ent and ent.Id ~= nil then c.Health[ent.Id] = ent.Health or 100 end end
+				c.Module:Clean(frontlines.LocalHitEvent.Event:Connect(function(ent, pos, headshot)
+					if not c.Active or not ent or ent.Id == nil or typeof(pos) ~= 'Vector3' then return end
+					if kill then
+						c.Hits[ent.Id] = {Time = os.clock(), Position = pos, Headshot = headshot}
+						return
+					end
+					if c.Headshots.Enabled and not headshot then return end
+					local hit = {Id = ent.Id, Entity = ent, Position = pos, Headshot = headshot,
+						Health = ent.Health or c.Health[ent.Id] or 100, Time = os.clock()}
+					if not c.Confirmed.Enabled then makeScene(c, hit) else
+						trimHits(c); c.Pending[#c.Pending + 1] = hit
+					end
 				end))
-
-				HitEffects:Clean(entitylib.Events.EntityUpdated:Connect(function(ent)
-					if not ent or not ent.Id then return end
-					local current = ent.Health or 0
-					local previous = healthCache[ent.Id]
-					healthCache[ent.Id] = current
-					trimPending()
-					for i = #pending, 1, -1 do
-						local hit = pending[i]
-						if hit.Id == ent.Id then
-							if current < hit.Health or (previous and current < previous) then
-								table.remove(pending, i)
-								runEffect(hit)
-								break
-							elseif tick() - hit.Time > 0.65 then
-								table.remove(pending, i)
-							end
+				c.Module:Clean(entitylib.Events.EntityUpdated:Connect(function(ent)
+					if not c.Active or not ent or ent.Id == nil then return end
+					if kill then rememberDeath(c, ent); return end
+					local health, previous = tonumber(ent.Health) or 0, c.Health[ent.Id]
+					c.Health[ent.Id] = health
+					trimHits(c)
+					for i = #c.Pending, 1, -1 do
+						local hit = c.Pending[i]
+						if hit.Id == ent.Id and (health < hit.Health or (previous and health < previous)) then
+							table.remove(c.Pending, i); makeScene(c, hit); break
 						end
 					end
 				end))
+				c.Module:Clean(entitylib.Events.EntityAdded:Connect(function(ent)
+					if ent and ent.Id ~= nil then c.Health[ent.Id] = ent.Health or 100; c.Hits[ent.Id] = nil end
+				end))
+				c.Module:Clean(entitylib.Events.EntityRemoved:Connect(function(ent)
+					if ent and ent.Id ~= nil then
+						if kill and (ent.Health or 0) <= 0 then rememberDeath(c, ent) end
+						c.Health[ent.Id], c.Hits[ent.Id] = nil, nil
+					end
+				end))
+				if kill then
+					c.Module:Clean(frontlines.KillEffectEvent.Event:Connect(function()
+						if not c.Active then return end
+						c.Credits[#c.Credits + 1] = os.clock() + 0.5
+						while #c.Credits > 8 do table.remove(c.Credits, 1) end
+					end))
+				end
+			end
+		})
+		local module = c.Module
+		c.Mode = module:CreateDropdown({Name = 'Mode', List = menu, Default = names[1]})
+		c.ColorMode = module:CreateDropdown({Name = 'Color Mode', List = {'Style', 'Custom', 'Theme', 'Pastel', 'Target', 'Rainbow'}, Default = 'Style'})
+		c.Primary = module:CreateColorSlider({Name = 'Primary Color', DefaultHue = 0.78, DefaultSat = 0.75, DefaultValue = 1})
+		c.Secondary = module:CreateColorSlider({Name = 'Secondary Color', DefaultHue = 0.55, DefaultSat = 0.6, DefaultValue = 1})
+		c.Size = module:CreateSlider({Name = 'Size', Min = kill and 0.5 or 0.25, Max = kill and 3 or 2.5, Default = 1, Decimal = 100})
+		c.Life = module:CreateSlider({Name = 'Lifetime', Min = kill and 0.35 or 0.1, Max = kill and 3.5 or 1.5, Default = kill and 1.6 or 0.46, Decimal = 100, Suffix = 's'})
+		c.Quality = module:CreateDropdown({Name = 'Quality', List = {'Low', 'Normal', 'High'}, Default = 'Normal'})
+		c.Limit = module:CreateSlider({Name = 'Effect Limit', Min = 1, Max = kill and 5 or 10, Default = kill and 3 or 6})
+		c.Glow = module:CreateToggle({Name = 'Dynamic Glow', Default = true})
+		c.Trails = module:CreateToggle({Name = 'Motion Trails', Default = true})
+		if kill then
+			c.Intensity = module:CreateSlider({Name = 'Intensity', Min = 0.5, Max = 2, Default = 1, Decimal = 100})
+			c.Ground = module:CreateToggle({Name = 'Ground Sigils', Default = true})
+			c.Sound = module:CreateToggle({Name = 'Kill Sound', Function = function(enabled)
+				if c.SoundFile then c.SoundFile.Object.Visible = enabled end
+				if c.SoundVolume then c.SoundVolume.Object.Visible = enabled end
+			end})
+			c.SoundFile = module:CreateTextBox({Name = 'Kill Sound File / ID', Default = 'rbxassetid://9118823106', Visible = false, Darker = true,
+				Function = function() c.SoundInput, c.SoundAsset = nil, nil end})
+			c.SoundVolume = module:CreateSlider({Name = 'Kill Sound Volume', Min = 0, Max = 2, Default = 0.7, Decimal = 100, Visible = false, Darker = true})
+		else
+			c.Headshots = module:CreateToggle({Name = 'Headshots only'})
+			c.Confirmed = module:CreateToggle({Name = 'Confirmed hits', Default = true})
+		end
+		return c
+	end
+	createController(false)
+	createController(true)
 
-				HitEffects:Clean(entitylib.Events.EntityAdded:Connect(function(ent)
-					if ent and ent.Id then healthCache[ent.Id] = ent.Health or 100 end
-				end))
-				HitEffects:Clean(entitylib.Events.EntityRemoved:Connect(function(ent)
-					if ent and ent.Id then healthCache[ent.Id] = nil end
-				end))
+	-- One shared update connection. Delayed stages live in their scene, not in orphaned tasks.
+	local connection = runService.Heartbeat:Connect(function()
+		local now = os.clock()
+		for _, c in ipairs(controllers) do
+			if c.Active and c.Kill then
+				for id, hit in pairs(c.Hits) do if now - hit.Time > 2 then c.Hits[id] = nil end end
+				local i = 1
+				while i <= #c.Credits do
+					if now > c.Credits[i] then table.remove(c.Credits, i)
+					else
+						local death = consumeDeath(c)
+						if death then table.remove(c.Credits, i); makeScene(c, death) else i = i + 1 end
+					end
+				end
+			end
+		end
+		for i = #scenes, 1, -1 do
+			local s = scenes[i]
+			local t = (now - s.Started) / s.Life
+			if not s.Owner.Active or not s.Folder.Parent or t > s.EndTime + 0.23 / s.Life then
+				removeScene(i)
 			else
-				Folder:ClearAllChildren()
-				table.clear(pending)
-				table.clear(healthCache)
-			end
-		end,
-		Tooltip = 'Clean, high-contrast impact VFX with deliberate timing instead of particle spam.'
-	})
-
-	Mode = HitEffects:CreateDropdown({Name = 'Mode', List = modes, Default = 'Impact'})
-	ColorMode = HitEffects:CreateDropdown({Name = 'Color Mode', List = {'Custom', 'Theme', 'Pastel', 'Target', 'Rainbow'}, Default = 'Custom'})
-	PrimaryColor = HitEffects:CreateColorSlider({Name = 'Primary Color', DefaultHue = 0.78, DefaultSat = 0.82, DefaultValue = 1})
-	SecondaryColor = HitEffects:CreateColorSlider({Name = 'Secondary Color', DefaultHue = 0.58, DefaultSat = 0.78, DefaultValue = 1})
-	EffectSize = HitEffects:CreateSlider({Name = 'Size', Min = 0.25, Max = 2.5, Default = 1, Decimal = 100})
-	Lifetime = HitEffects:CreateSlider({Name = 'Lifetime', Min = 0.08, Max = 1.5, Default = 0.38, Decimal = 100, Suffix = 's'})
-	Quality = HitEffects:CreateDropdown({Name = 'Quality', List = {'Low', 'Normal', 'High'}, Default = 'Normal'})
-	DynamicGlow = HitEffects:CreateToggle({Name = 'Dynamic Glow', Default = true})
-	MotionTrails = HitEffects:CreateToggle({Name = 'Motion Trails', Default = true})
-	HeadshotsOnly = HitEffects:CreateToggle({Name = 'Headshots only'})
-	ConfirmedHits = HitEffects:CreateToggle({Name = 'Confirmed hits', Default = true})
-
-	vape:Clean(function() if Folder then Folder:Destroy() end end)
-end)
--- ILLUSIONHD_HITEFFECTS_END
-
--- ILLUSIONHD_KILLEFFECTS_V3
-run(function()
-	local KillEffects
-	local Mode
-	local ColorMode
-	local PrimaryColor
-	local SecondaryColor
-	local EffectSize
-	local Lifetime
-	local Quality
-	local Intensity
-	local DynamicGlow
-	local MotionTrails
-	local GroundSigils
-	local KillSound
-	local KillSoundFile
-	local KillSoundVolume
-
-	local Folder = Instance.new('Folder')
-	Folder.Name = 'VapeKillEffects'
-	Folder.Parent = workspace
-
-	local healthCache = {}
-	local recentDeaths = {}
-	local recentHits = {}
-	local cachedSoundInput
-	local cachedSoundAsset
-	local customAsset = getcustomasset or getsynasset or getasset
-	local SPARK = 'rbxasset://textures/particles/sparkles_main.dds'
-	local SMOKE = 'rbxasset://textures/particles/smoke_main.dds'
-	local FIRE = 'rbxasset://textures/particles/fire_main.dds'
-
-	local modes = {
-		'Supernova', 'Singularity', 'Divine Judgment', 'Soul Ascension', 'Astral Gate',
-		'Thunder God', 'Execution Slash', 'Crystal Cataclysm', 'Sakura Funeral', 'Inferno',
-		'Frost Nova', 'Prism Funeral', 'Galaxy Collapse', 'Cyber Execution', 'Reaper',
-		'Celestial Vortex', 'Starfall',
-		'Astral Bloom', 'Prism Break', 'Aurora', 'Nova', 'Explosion', 'Lightning', 'Soul',
-		'Rings', 'Spiral', 'Firework', 'Tornado', 'Shatter', 'Slash', 'Beam', 'Pulse',
-		'Shockwave', 'Confetti', 'Rainbow', 'Galaxy', 'Freeze', 'Void', 'Ghost', 'Hearts',
-		'Skull', 'Black Hole', 'Disintegrate', 'Crystal', 'Orbit', 'Pixel Burst', 'Kitty Pop',
-		'Love Burst', 'Sakura', 'Heartstorm', 'Random'
-	}
-
-	local aliases = {
-		['Astral Bloom'] = 'Supernova', ['Nova'] = 'Supernova', ['Explosion'] = 'Supernova', ['Pulse'] = 'Supernova', ['Shockwave'] = 'Supernova',
-		['Void'] = 'Singularity', ['Black Hole'] = 'Singularity',
-		['Beam'] = 'Divine Judgment',
-		['Soul'] = 'Soul Ascension', ['Ghost'] = 'Soul Ascension', ['Disintegrate'] = 'Soul Ascension',
-		['Aurora'] = 'Astral Gate', ['Rings'] = 'Astral Gate', ['Orbit'] = 'Astral Gate',
-		['Lightning'] = 'Thunder God',
-		['Slash'] = 'Execution Slash',
-		['Shatter'] = 'Crystal Cataclysm', ['Crystal'] = 'Crystal Cataclysm',
-		['Sakura'] = 'Sakura Funeral', ['Hearts'] = 'Sakura Funeral', ['Heartstorm'] = 'Sakura Funeral', ['Love Burst'] = 'Sakura Funeral', ['Kitty Pop'] = 'Sakura Funeral',
-		['Freeze'] = 'Frost Nova',
-		['Prism Break'] = 'Prism Funeral', ['Rainbow'] = 'Prism Funeral', ['Confetti'] = 'Prism Funeral',
-		['Galaxy'] = 'Galaxy Collapse',
-		['Pixel Burst'] = 'Cyber Execution',
-		['Skull'] = 'Reaper',
-		['Spiral'] = 'Celestial Vortex', ['Tornado'] = 'Celestial Vortex',
-		['Firework'] = 'Starfall'
-	}
-
-	local randomModes = {
-		'Supernova', 'Singularity', 'Divine Judgment', 'Soul Ascension', 'Astral Gate',
-		'Thunder God', 'Execution Slash', 'Crystal Cataclysm', 'Sakura Funeral', 'Inferno',
-		'Frost Nova', 'Prism Funeral', 'Galaxy Collapse', 'Cyber Execution', 'Reaper',
-		'Celestial Vortex', 'Starfall'
-	}
-
-	local function resolveSound(value)
-		value = tostring(value or ''):gsub('^%s+', ''):gsub('%s+$', '')
-		if value == '' then return end
-		if cachedSoundInput == value then return cachedSoundAsset end
-		cachedSoundInput = value
-		cachedSoundAsset = nil
-		if value:match('^%d+$') then
-			cachedSoundAsset = 'rbxassetid://'..value
-		elseif value:match('^rbxassetid://') or value:match('^rbxasset://') then
-			cachedSoundAsset = value
-		elseif customAsset then
-			local path = value:gsub('^file://', ''):gsub('\\', '/')
-			local ok, asset = pcall(customAsset, path)
-			if ok and asset then cachedSoundAsset = asset end
-		end
-		return cachedSoundAsset
-	end
-
-	local function qualityScale()
-		local q = 1
-		if Quality.Value == 'Low' then q = 0.72 elseif Quality.Value == 'High' then q = 1.3 end
-		local intensity = math.clamp(Intensity.Value or 1, 0.5, 2)
-		return q * (0.78 + intensity * 0.22)
-	end
-
-	local function amount(base)
-		return math.clamp(math.floor(base * qualityScale() + 0.5), 1, 80)
-	end
-
-	local function colors(death)
-		if ColorMode.Value == 'Theme' then
-			local c = vape:GetGUIColorRGB()
-			return c, c:Lerp(Color3.new(1, 1, 1), 0.58)
-		elseif ColorMode.Value == 'Pastel' then
-			return Color3.fromRGB(255, 139, 203), Color3.fromRGB(112, 197, 255)
-		elseif ColorMode.Value == 'Target' and death and death.Color then
-			return death.Color, death.Color:Lerp(Color3.new(1, 1, 1), 0.62)
-		elseif ColorMode.Value == 'Rainbow' then
-			local h = (tick() * 0.16) % 1
-			return Color3.fromHSV(h, 0.9, 1), Color3.fromHSV((h + 0.42) % 1, 0.84, 1)
-		end
-		return Color3.fromHSV(PrimaryColor.Hue, PrimaryColor.Sat, PrimaryColor.Value),
-			Color3.fromHSV(SecondaryColor.Hue, SecondaryColor.Sat, SecondaryColor.Value)
-	end
-
-	local function cleanup(obj, life)
-		if obj then debrisService:AddItem(obj, math.max(life or 0.2, 0.05) + 0.25) end
-		return obj
-	end
-
-	local function tween(obj, life, props, style, direction)
-		if not obj or not obj.Parent then return end
-		local tw = tweenService:Create(obj, TweenInfo.new(
-			math.max(life or 0.1, 0.03),
-			style or Enum.EasingStyle.Quart,
-			direction or Enum.EasingDirection.Out
-		), props)
-		tw:Play()
-		tw.Completed:Connect(function()
-			pcall(function() tw:Destroy() end)
-		end)
-		return tw
-	end
-
-	local function makePart(size, cf, color, transparency, material, shape)
-		local obj = Instance.new('Part')
-		obj.Size = size
-		obj.CFrame = cf
-		obj.Anchored = true
-		obj.CanCollide = false
-		obj.CanTouch = false
-		obj.CanQuery = false
-		obj.CastShadow = false
-		obj.Color = color
-		obj.Transparency = transparency or 0
-		obj.Material = material or Enum.Material.Neon
-		if shape then obj.Shape = shape end
-		obj.Parent = Folder
-		return obj
-	end
-
-	local function segment(a, b, width, color, transparency)
-		local dist = (b - a).Magnitude
-		if dist < 0.002 then return end
-		return makePart(Vector3.new(width, width, dist), CFrame.lookAt((a + b) / 2, b), color, transparency or 0, Enum.Material.Neon)
-	end
-
-	local function fadeSegment(obj, life, widthMul, lengthMul)
-		if not obj then return end
-		local size = obj.Size
-		tween(obj, life, {
-			Transparency = 1,
-			Size = Vector3.new(math.max(size.X * (widthMul or 0.16), 0.01), math.max(size.Y * (widthMul or 0.16), 0.01), size.Z * (lengthMul or 1.08))
-		}, Enum.EasingStyle.Quint)
-		cleanup(obj, life)
-	end
-
-	local function sphere(pos, startSize, endSize, color, life, transparency)
-		local obj = makePart(Vector3.one * math.max(startSize, 0.03), CFrame.new(pos), color, transparency or 0, Enum.Material.Neon, Enum.PartType.Ball)
-		tween(obj, life, {Size = Vector3.one * math.max(endSize, 0.03), Transparency = 1}, Enum.EasingStyle.Quint)
-		cleanup(obj, life)
-		return obj
-	end
-
-	local function lightFlash(pos, color, brightness, range, life)
-		if not DynamicGlow.Enabled then return end
-		local anchor = makePart(Vector3.one * 0.03, CFrame.new(pos), color, 1, Enum.Material.Neon)
-		local light = Instance.new('PointLight')
-		light.Color = color
-		light.Brightness = brightness
-		light.Range = range
-		light.Shadows = false
-		light.Parent = anchor
-		tween(light, life, {Brightness = 0, Range = range * 1.12}, Enum.EasingStyle.Quint)
-		cleanup(anchor, life)
-	end
-
-	local function particleBurst(pos, texture, c1, c2, count, speed, life, size, acceleration, drag)
-		local anchor = makePart(Vector3.one * 0.03, CFrame.new(pos), c1, 1, Enum.Material.Neon)
-		local emitter = Instance.new('ParticleEmitter')
-		emitter.Rate = 0
-		emitter.Texture = texture
-		emitter.Color = ColorSequence.new(c1, c2 or c1)
-		emitter.LightEmission = 0.72
-		emitter.Lifetime = NumberRange.new(life * 0.62, life)
-		emitter.Speed = NumberRange.new(speed * 0.72, speed)
-		emitter.Drag = drag or 2
-		emitter.SpreadAngle = Vector2.new(180, 180)
-		emitter.Rotation = NumberRange.new(0, 360)
-		emitter.RotSpeed = NumberRange.new(-160, 160)
-		emitter.Size = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, size),
-			NumberSequenceKeypoint.new(0.18, size * 0.78),
-			NumberSequenceKeypoint.new(1, 0)
-		})
-		emitter.Transparency = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 0.03),
-			NumberSequenceKeypoint.new(0.72, 0.2),
-			NumberSequenceKeypoint.new(1, 1)
-		})
-		if acceleration then emitter.Acceleration = acceleration end
-		emitter.Parent = anchor
-		emitter:Emit(amount(count))
-		cleanup(anchor, life + 0.2)
-	end
-
-	local function ring(pos, startRadius, endRadius, width, color, life, rotation, segments)
-		local total = math.max(8, math.floor((segments or 16) * qualityScale()))
-		local base = CFrame.new(pos) * (rotation or CFrame.new())
-		for i = 1, total do
-			local a0 = ((i - 1) / total) * math.pi * 2
-			local a1 = (i / total) * math.pi * 2
-			local s1 = base:PointToWorldSpace(Vector3.new(math.cos(a0) * startRadius, 0, math.sin(a0) * startRadius))
-			local s2 = base:PointToWorldSpace(Vector3.new(math.cos(a1) * startRadius, 0, math.sin(a1) * startRadius))
-			local e1 = base:PointToWorldSpace(Vector3.new(math.cos(a0) * endRadius, 0, math.sin(a0) * endRadius))
-			local e2 = base:PointToWorldSpace(Vector3.new(math.cos(a1) * endRadius, 0, math.sin(a1) * endRadius))
-			local obj = segment(s1, s2, width, color, 0.04)
-			if obj then
-				tween(obj, life, {
-					CFrame = CFrame.lookAt((e1 + e2) / 2, e2),
-					Size = Vector3.new(width * 0.18, width * 0.18, (e2 - e1).Magnitude),
-					Transparency = 1
-				}, Enum.EasingStyle.Quint)
-				cleanup(obj, life)
-			end
-		end
-	end
-
-	local function streakBurst(pos, c1, c2, count, radius, width, life, verticalBias)
-		local total = amount(count)
-		for i = 1, total do
-			local theta = i / total * math.pi * 2 + math.random() * 0.3
-			local y = (math.random() - 0.5) * (verticalBias or 0.8)
-			local dir = Vector3.new(math.cos(theta), y, math.sin(theta)).Unit
-			local obj = segment(pos + dir * radius * 0.08, pos + dir * radius * (0.68 + math.random() * 0.32), width * (0.72 + math.random() * 0.45), i % 2 == 0 and c1 or c2, 0.03)
-			fadeSegment(obj, life * (0.72 + math.random() * 0.2), 0.06, 1.08)
-		end
-	end
-
-	local function trailShard(startPos, endPos, color, size, life, delayTime)
-		local function spawnShard()
-			if not KillEffects.Enabled then return end
-			local obj = makePart(Vector3.one * size, CFrame.new(startPos), color, 0, Enum.Material.Neon, Enum.PartType.Ball)
-			if MotionTrails.Enabled then
-				local a0 = Instance.new('Attachment')
-				local a1 = Instance.new('Attachment')
-				a0.Position = Vector3.new(0, size * 0.6, 0)
-				a1.Position = Vector3.new(0, -size * 0.6, 0)
-				a0.Parent = obj
-				a1.Parent = obj
-				local trail = Instance.new('Trail')
-				trail.Attachment0 = a0
-				trail.Attachment1 = a1
-				trail.FaceCamera = true
-				trail.LightEmission = 1
-				trail.Lifetime = math.max(life * 0.35, 0.06)
-				trail.MinLength = 0.01
-				trail.Color = ColorSequence.new(color, color:Lerp(Color3.new(1, 1, 1), 0.55))
-				trail.Transparency = NumberSequence.new({
-					NumberSequenceKeypoint.new(0, 0.02),
-					NumberSequenceKeypoint.new(1, 1)
-				})
-				trail.WidthScale = NumberSequence.new({
-					NumberSequenceKeypoint.new(0, 1),
-					NumberSequenceKeypoint.new(1, 0)
-				})
-				trail.Parent = obj
-			end
-			tween(obj, life, {CFrame = CFrame.new(endPos), Transparency = 1, Size = Vector3.one * size * 0.2}, Enum.EasingStyle.Quint)
-			cleanup(obj, life + 0.12)
-		end
-		if delayTime and delayTime > 0 then task.delay(delayTime, spawnShard) else spawnShard() end
-	end
-
-	local function lightning(startPos, endPos, color, width, life, bends)
-		local points = {startPos}
-		local count = bends or 5
-		local delta = endPos - startPos
-		local right = delta:Cross(Vector3.new(0, 1, 0))
-		if right.Magnitude < 0.05 then right = Vector3.new(1, 0, 0) else right = right.Unit end
-		local up = right:Cross(delta.Unit)
-		for i = 1, count - 1 do
-			local t = i / count
-			local amp = 0.65 * (1 - math.abs(t - 0.5) * 0.4)
-			local jitter = right * ((math.random() - 0.5) * amp) + up * ((math.random() - 0.5) * amp)
-			table.insert(points, startPos + delta * t + jitter)
-		end
-		table.insert(points, endPos)
-		for i = 1, #points - 1 do
-			local obj = segment(points[i], points[i + 1], width * (1 - (i - 1) / #points * 0.25), color, 0)
-			fadeSegment(obj, life * (0.82 + i * 0.025), 0.06, 1)
-		end
-	end
-
-	local function slash(pos, dir, length, width, color, life, offset)
-		local center = pos + (offset or Vector3.zero)
-		local obj = segment(center - dir.Unit * length * 0.5, center + dir.Unit * length * 0.5, width, color, 0)
-		fadeSegment(obj, life, 0.04, 1.14)
-		return obj
-	end
-
-	local function pillar(basePos, color, width, height, life)
-		local obj = makePart(Vector3.new(width, height, width), CFrame.new(basePos + Vector3.new(0, height * 0.5, 0)), color, 0.12, Enum.Material.Neon)
-		tween(obj, life, {Size = Vector3.new(width * 1.6, height * 1.02, width * 1.6), Transparency = 1}, Enum.EasingStyle.Quint)
-		cleanup(obj, life)
-		return obj
-	end
-
-	local function groundPoint(death, fallback)
-		if not GroundSigils.Enabled then return fallback end
-		local params = RaycastParams.new()
-		params.FilterType = Enum.RaycastFilterType.Exclude
-		params.IgnoreWater = true
-		local filter = {Folder}
-		if death and death.Character then table.insert(filter, death.Character) end
-		if gameCamera then table.insert(filter, gameCamera) end
-		params.FilterDescendantsInstances = filter
-		local ray = workspace:Raycast(fallback + Vector3.new(0, 2, 0), Vector3.new(0, -12, 0), params)
-		if ray then return ray.Position + Vector3.new(0, 0.04, 0) end
-		return fallback - Vector3.new(0, 2.5, 0)
-	end
-
-	local function ghost(death, color, life, rise, material)
-		local char = death and death.Character
-		if not char or not char.Parent then return end
-		local archivable = char.Archivable
-		char.Archivable = true
-		local ok, clone = pcall(function() return char:Clone() end)
-		char.Archivable = archivable
-		if not ok or not clone then return end
-		clone.Name = 'KillEffectGhost'
-		clone.Parent = Folder
-		for _, obj in pairs(clone:GetDescendants()) do
-			if obj:IsA('BasePart') then
-				obj.Anchored = true
-				obj.CanCollide = false
-				obj.CanTouch = false
-				obj.CanQuery = false
-				obj.CastShadow = false
-				obj.Material = material or Enum.Material.ForceField
-				obj.Color = color
-				obj.Transparency = math.max(obj.Transparency, 0.28)
-				tween(obj, life, {CFrame = obj.CFrame + Vector3.new(0, rise or 5, 0), Transparency = 1}, Enum.EasingStyle.Sine)
-			elseif obj:IsA('Decal') or obj:IsA('Texture') then
-				tween(obj, life, {Transparency = 1}, Enum.EasingStyle.Sine)
-			elseif obj:IsA('Script') or obj:IsA('LocalScript') then
-				obj:Destroy()
-			end
-		end
-		cleanup(clone, life)
-	end
-
-	local function petals(pos, c1, c2, scale, life, count)
-		for i = 1, amount(count or 20) do
-			local start = pos + Vector3.new((math.random() - 0.5) * 1.8, (math.random() - 0.35) * 2.6, (math.random() - 0.5) * 1.8) * scale
-			local finish = start + Vector3.new((math.random() - 0.5) * 4.2, 2.2 + math.random() * 3.5, (math.random() - 0.5) * 4.2) * scale
-			local obj = makePart(Vector3.new(0.2, 0.035, 0.1) * scale, CFrame.new(start) * CFrame.Angles(math.random() * 3, math.random() * 3, math.random() * 3), i % 2 == 0 and c1 or c2, 0.03, Enum.Material.Neon)
-			tween(obj, life * (0.72 + math.random() * 0.3), {CFrame = CFrame.new(finish) * CFrame.Angles(math.random() * 8, math.random() * 8, math.random() * 8), Transparency = 1}, Enum.EasingStyle.Sine)
-			cleanup(obj, life + 0.15)
-		end
-	end
-
-	local function glitchBurst(pos, c1, c2, scale, life, count)
-		for i = 1, amount(count or 18) do
-			local sx = (0.16 + math.random() * 0.55) * scale
-			local sy = (0.035 + math.random() * 0.09) * scale
-			local start = pos + Vector3.new((math.random() - 0.5) * 1.4, (math.random() - 0.5) * 3.2, (math.random() - 0.5) * 1.4) * scale
-			local finish = start + Vector3.new((math.random() - 0.5) * 5.5, (math.random() - 0.5) * 0.8, (math.random() - 0.5) * 0.9) * scale
-			local obj = makePart(Vector3.new(sx, sy, sy), CFrame.new(start), i % 3 == 0 and Color3.new(1, 1, 1) or (i % 2 == 0 and c1 or c2), 0.03, Enum.Material.Neon)
-			tween(obj, life * (0.46 + math.random() * 0.35), {CFrame = CFrame.new(finish), Transparency = 1, Size = Vector3.new(sx * 0.18, sy * 0.18, sy * 0.18)}, Enum.EasingStyle.Quint)
-			cleanup(obj, life)
-		end
-	end
-
-	local function playKillSound()
-		if not KillSound.Enabled then return end
-		local asset = resolveSound(KillSoundFile.Value)
-		if not asset then return end
-		local sound = Instance.new('Sound')
-		sound.SoundId = asset
-		sound.Volume = KillSoundVolume.Value
-		sound.Parent = gameCamera
-		sound:Play()
-		debrisService:AddItem(sound, 6)
-	end
-
-	local function runEffect(death)
-		if not death or not death.Position then return end
-
-		local mode = aliases[Mode.Value] or Mode.Value
-		if mode == 'Random' then mode = randomModes[math.random(1, #randomModes)] end
-
-		local scale = EffectSize.Value
-		local life = math.max(Lifetime.Value, 0.3)
-		local intensity = math.clamp(Intensity.Value or 1, 0.5, 2)
-		local a, b = colors(death)
-		local white = Color3.new(1, 1, 1)
-		local dark = Color3.fromRGB(7, 7, 12)
-		local pos = death.Position + Vector3.new(0, 1.15 * scale, 0)
-		local ground = groundPoint(death, death.Position)
-
-		playKillSound()
-
-		if mode == 'Supernova' then
-			-- Stage 1: brief implosion. Stage 2: one clean detonation with two shock rings.
-			sphere(pos, 0.08 * scale, 0.85 * scale, dark, life * 0.24, 0.12)
-			for i = 1, amount(8) do
-				local ang = i / amount(8) * math.pi * 2
-				local start = pos + Vector3.new(math.cos(ang), (math.random() - 0.5) * 1.4, math.sin(ang)) * 2.5 * scale
-				trailShard(start, pos, i % 2 == 0 and a or b, 0.065 * scale, life * 0.22, (i - 1) * life * 0.008)
-			end
-			task.delay(life * 0.16, function()
-				if not KillEffects.Enabled then return end
-				lightFlash(pos, white, 8 * intensity, 14 * scale, life * 0.28)
-				sphere(pos, 0.05 * scale, 2.0 * scale, white, life * 0.26, 0.02)
-				ring(pos, 0.16 * scale, 3.0 * scale, 0.075 * scale, a, life * 0.5, CFrame.Angles(math.rad(90), 0, 0), 18)
-				ring(pos, 0.2 * scale, 2.35 * scale, 0.045 * scale, b, life * 0.42, CFrame.Angles(math.rad(90), 0, math.rad(35)), 14)
-				streakBurst(pos, white, a, 12, 3.8 * scale, 0.055 * scale, life * 0.52, 1.1)
-				particleBurst(pos, SPARK, white, b, 18, 9 * scale, life * 0.7, 0.075 * scale, Vector3.new(0, -4, 0), 3.4)
-			end)
-
-		elseif mode == 'Singularity' then
-			sphere(pos, 0.06 * scale, 1.25 * scale, dark, life * 0.48, 0.02)
-			lightFlash(pos, a, 4.5 * intensity, 9 * scale, life * 0.42)
-			ring(pos, 2.4 * scale, 0.45 * scale, 0.055 * scale, a, life * 0.55, CFrame.Angles(math.rad(90), 0, 0), 18)
-			ring(pos, 1.9 * scale, 0.32 * scale, 0.035 * scale, b, life * 0.46, CFrame.Angles(math.rad(35), math.rad(20), 0), 14)
-			for i = 1, amount(12) do
-				local ang = i / amount(12) * math.pi * 2
-				local start = pos + Vector3.new(math.cos(ang) * (2.1 + math.random() * 0.65), (math.random() - 0.5) * 2.7, math.sin(ang) * (2.1 + math.random() * 0.65)) * scale
-				trailShard(start, pos, i % 2 == 0 and a or b, 0.07 * scale, life * (0.42 + math.random() * 0.12), (i - 1) * 0.012)
-			end
-			particleBurst(pos, SMOKE, dark, a, 8, 1.8 * scale, life * 0.95, 0.38 * scale, Vector3.new(0, 0.3, 0), 3)
-			task.delay(life * 0.43, function()
-				if KillEffects.Enabled then sphere(pos, 0.05 * scale, 1.7 * scale, white, life * 0.18, 0.02) end
-			end)
-
-		elseif mode == 'Divine Judgment' then
-			if GroundSigils.Enabled then
-				ring(ground, 0.2 * scale, 2.6 * scale, 0.055 * scale, a, life * 0.7, CFrame.new(), 20)
-				ring(ground + Vector3.new(0, 0.04, 0), 1.15 * scale, 2.0 * scale, 0.028 * scale, white, life * 0.8, CFrame.new(), 16)
-			end
-			task.delay(life * 0.08, function()
-				if not KillEffects.Enabled then return end
-				pillar(ground, white, 0.22 * scale, 14 * scale, life * 0.42)
-				pillar(ground, a, 0.48 * scale, 10 * scale, life * 0.55)
-				lightFlash(pos, white, 10 * intensity, 16 * scale, life * 0.28)
-				ring(pos, 0.18 * scale, 2.5 * scale, 0.06 * scale, b, life * 0.45, CFrame.Angles(math.rad(90), 0, 0), 16)
-				particleBurst(ground + Vector3.new(0, 0.15, 0), SPARK, white, a, 14, 7.5 * scale, life * 0.65, 0.07 * scale, Vector3.new(0, 2, 0), 3)
-			end)
-
-		elseif mode == 'Soul Ascension' then
-			ghost(death, a:Lerp(white, 0.28), life * 1.05, 5.8 * scale, Enum.Material.ForceField)
-			ring(ground, 0.18 * scale, 2.0 * scale, 0.04 * scale, a, life * 0.8, CFrame.new(), 16)
-			particleBurst(pos, SMOKE, a, b, 10, 1.6 * scale, life * 1.05, 0.3 * scale, Vector3.new(0, 2.2, 0), 2.4)
-			for i = 1, amount(6) do
-				local ang = i / amount(6) * math.pi * 2
-				local start = pos + Vector3.new(math.cos(ang), -0.45, math.sin(ang)) * 0.7 * scale
-				local finish = pos + Vector3.new(math.cos(ang + 1.5) * 1.2, 4.3 + math.random() * 1.7, math.sin(ang + 1.5) * 1.2) * scale
-				trailShard(start, finish, i % 2 == 0 and a or white, 0.06 * scale, life * 0.85, (i - 1) * 0.035)
-			end
-
-		elseif mode == 'Astral Gate' then
-			-- Vertical portal rings; intentionally sparse so the silhouette reads from a distance.
-			ring(pos, 0.35 * scale, 2.35 * scale, 0.055 * scale, a, life * 0.9, CFrame.Angles(0, 0, math.rad(90)), 20)
-			ring(pos, 0.28 * scale, 1.8 * scale, 0.036 * scale, b, life * 0.78, CFrame.Angles(0, math.rad(24), math.rad(90)), 16)
-			ring(pos, 0.22 * scale, 1.25 * scale, 0.026 * scale, white, life * 0.66, CFrame.Angles(math.rad(20), 0, math.rad(90)), 14)
-			for i = 1, amount(8) do
-				local ang = i / amount(8) * math.pi * 2
-				local start = pos + Vector3.new(0, math.cos(ang) * 1.2, math.sin(ang) * 1.2) * scale
-				local finish = pos + Vector3.new((math.random() - 0.5) * 1.1, math.cos(ang + 1.3) * 2.4, math.sin(ang + 1.3) * 2.4) * scale
-				trailShard(start, finish, i % 2 == 0 and a or b, 0.052 * scale, life * 0.78, (i - 1) * 0.02)
-			end
-			lightFlash(pos, a, 5 * intensity, 10 * scale, life * 0.55)
-
-		elseif mode == 'Thunder God' then
-			local sky = pos + Vector3.new(0, 8 * scale, 0)
-			lightning(sky + Vector3.new(-2.3, 1.2, 1.4) * scale, pos, white, 0.09 * scale, life * 0.36, 6)
-			task.delay(life * 0.07, function()
-				if KillEffects.Enabled then lightning(sky + Vector3.new(2.1, 0.6, -1.5) * scale, pos, a, 0.07 * scale, life * 0.4, 6) end
-			end)
-			task.delay(life * 0.13, function()
-				if not KillEffects.Enabled then return end
-				lightning(sky + Vector3.new(0.7, 1.6, 2.3) * scale, pos, b, 0.06 * scale, life * 0.38, 5)
-				lightFlash(pos, white, 11 * intensity, 16 * scale, life * 0.24)
-				ring(ground, 0.2 * scale, 3.0 * scale, 0.065 * scale, white, life * 0.46, CFrame.new(), 18)
-				particleBurst(pos, SPARK, white, a, 20, 10 * scale, life * 0.62, 0.065 * scale, Vector3.new(0, -5, 0), 4)
-			end)
-
-		elseif mode == 'Execution Slash' then
-			local d1 = Vector3.new(1, 0.64, 0.14).Unit
-			local d2 = Vector3.new(-0.78, 0.82, -0.1).Unit
-			slash(pos, d1, 7.0 * scale, 0.16 * scale, white, life * 0.42)
-			slash(pos, d1, 6.6 * scale, 0.055 * scale, a, life * 0.64, Vector3.new(0, 0.12 * scale, 0))
-			task.delay(life * 0.085, function()
-				if not KillEffects.Enabled then return end
-				slash(pos, d2, 5.7 * scale, 0.11 * scale, b, life * 0.48)
-				lightFlash(pos, white, 7 * intensity, 12 * scale, life * 0.24)
-				streakBurst(pos, white, a, 13, 3.5 * scale, 0.05 * scale, life * 0.48, 1.0)
-			end)
-
-		elseif mode == 'Crystal Cataclysm' then
-			ring(pos, 0.16 * scale, 2.4 * scale, 0.05 * scale, b, life * 0.64, CFrame.Angles(math.rad(90), 0, 0), 18)
-			for i = 1, amount(14) do
-				local ang = i / amount(14) * math.pi * 2
-				local dir = Vector3.new(math.cos(ang), 0.15 + math.random() * 1.05, math.sin(ang)).Unit
-				local size = Vector3.new(0.08, 0.42 + math.random() * 0.38, 0.08) * scale
-				local obj = makePart(size, CFrame.new(pos) * CFrame.Angles(math.random() * 3, math.random() * 3, math.random() * 3), i % 3 == 0 and white or (i % 2 == 0 and a or b), 0.02, Enum.Material.Neon)
-				local finish = pos + dir * (2.2 + math.random() * 1.7) * scale
-				tween(obj, life * (0.58 + math.random() * 0.18), {CFrame = CFrame.new(finish) * CFrame.Angles(math.random() * 8, math.random() * 8, math.random() * 8), Transparency = 1, Size = size * 0.35}, Enum.EasingStyle.Quint)
-				cleanup(obj, life)
-			end
-			particleBurst(pos, SPARK, white, b, 12, 6.5 * scale, life * 0.72, 0.06 * scale, Vector3.new(0, -2, 0), 3)
-
-		elseif mode == 'Sakura Funeral' then
-			ghost(death, a:Lerp(white, 0.22), life * 0.95, 3.7 * scale, Enum.Material.ForceField)
-			petals(pos, a, b, scale, life * 1.15, 24)
-			ring(ground, 0.18 * scale, 2.35 * scale, 0.04 * scale, a:Lerp(white, 0.3), life * 0.82, CFrame.new(), 18)
-			lightFlash(pos, a, 3.8 * intensity, 9 * scale, life * 0.62)
-
-		elseif mode == 'Inferno' then
-			particleBurst(pos, FIRE, a, Color3.fromRGB(255, 205, 80), 20, 5.5 * scale, life * 0.9, 0.28 * scale, Vector3.new(0, 4.2, 0), 2.4)
-			particleBurst(pos, SPARK, Color3.new(1, 1, 1), b, 18, 9 * scale, life * 0.7, 0.07 * scale, Vector3.new(0, 2.5, 0), 3.4)
-			particleBurst(pos, SMOKE, Color3.fromRGB(45, 39, 45), a, 8, 1.6 * scale, life * 1.15, 0.5 * scale, Vector3.new(0, 1.9, 0), 2)
-			ring(ground, 0.2 * scale, 2.8 * scale, 0.055 * scale, a, life * 0.62, CFrame.new(), 18)
-			lightFlash(pos, a, 7 * intensity, 12 * scale, life * 0.42)
-
-		elseif mode == 'Frost Nova' then
-			ring(ground, 0.2 * scale, 3.0 * scale, 0.055 * scale, b, life * 0.7, CFrame.new(), 20)
-			ring(pos, 0.16 * scale, 2.2 * scale, 0.04 * scale, white, life * 0.58, CFrame.Angles(math.rad(90), 0, 0), 16)
-			for i = 1, amount(16) do
-				local ang = i / amount(16) * math.pi * 2
-				local dir = Vector3.new(math.cos(ang), 0.05 + math.random() * 0.9, math.sin(ang)).Unit
-				local obj = makePart(Vector3.new(0.07, 0.5, 0.07) * scale, CFrame.new(pos) * CFrame.Angles(math.random() * 3, math.random() * 3, math.random() * 3), i % 2 == 0 and b or white, 0.02, Enum.Material.Neon)
-				tween(obj, life * 0.72, {CFrame = CFrame.new(pos + dir * (2.1 + math.random() * 1.3) * scale) * CFrame.Angles(math.random() * 6, math.random() * 6, math.random() * 6), Transparency = 1, Size = Vector3.new(0.025, 0.68, 0.025) * scale}, Enum.EasingStyle.Quint)
-				cleanup(obj, life)
-			end
-			particleBurst(pos, SMOKE, b:Lerp(white, 0.42), white, 9, 1.5 * scale, life, 0.34 * scale, Vector3.new(0, 1, 0), 2.4)
-
-		elseif mode == 'Prism Funeral' then
-			local total = math.max(10, amount(14))
-			for i = 1, total do
-				local c = Color3.fromHSV((i - 1) / total, 0.84, 1)
-				local ang = i / total * math.pi * 2
-				local dir = Vector3.new(math.cos(ang), (math.random() - 0.2) * 0.75, math.sin(ang)).Unit
-				trailShard(pos, pos + dir * (2.4 + (i % 3) * 0.55) * scale, c, 0.07 * scale, life * 0.65, (i - 1) * 0.008)
-			end
-			ring(pos, 0.16 * scale, 2.7 * scale, 0.055 * scale, white, life * 0.58, CFrame.Angles(math.rad(90), 0, 0), 18)
-			lightFlash(pos, white, 7.5 * intensity, 13 * scale, life * 0.34)
-			particleBurst(pos, SPARK, white, a, 14, 7.5 * scale, life * 0.75, 0.065 * scale, Vector3.new(0, -3, 0), 3)
-
-		elseif mode == 'Galaxy Collapse' then
-			sphere(pos, 0.06 * scale, 0.9 * scale, dark, life * 0.58, 0.1)
-			for i = 1, amount(14) do
-				local ang = i / amount(14) * math.pi * 2
-				local radius = (1.6 + (i % 3) * 0.38) * scale
-				local start = pos + Vector3.new(math.cos(ang) * radius, (math.random() - 0.5) * 2.5 * scale, math.sin(ang) * radius)
-				local endPos = pos + Vector3.new(math.cos(ang + 1.7) * 0.18, (math.random() - 0.5) * 0.3, math.sin(ang + 1.7) * 0.18) * scale
-				trailShard(start, endPos, i % 2 == 0 and a or b, 0.055 * scale, life * (0.55 + math.random() * 0.12), (i - 1) * 0.016)
-			end
-			ring(pos, 2.25 * scale, 0.35 * scale, 0.04 * scale, a, life * 0.62, CFrame.Angles(math.rad(55), math.rad(20), 0), 18)
-			task.delay(life * 0.48, function()
-				if not KillEffects.Enabled then return end
-				lightFlash(pos, white, 8 * intensity, 13 * scale, life * 0.22)
-				sphere(pos, 0.04 * scale, 1.6 * scale, white, life * 0.18, 0.02)
-			end)
-
-		elseif mode == 'Cyber Execution' then
-			glitchBurst(pos, a, b, scale, life, 24)
-			pillar(ground, b, 0.14 * scale, 7.5 * scale, life * 0.5)
-			ring(pos, 0.16 * scale, 2.25 * scale, 0.045 * scale, a, life * 0.56, CFrame.Angles(math.rad(90), 0, 0), 16)
-			task.delay(life * 0.12, function()
-				if not KillEffects.Enabled then return end
-				slash(pos, Vector3.new(1, 0, 0), 5.2 * scale, 0.055 * scale, white, life * 0.34, Vector3.new(0, 0.55 * scale, 0))
-				slash(pos, Vector3.new(1, 0, 0), 4.1 * scale, 0.035 * scale, b, life * 0.32, Vector3.new(0, -0.45 * scale, 0))
-			end)
-
-		elseif mode == 'Reaper' then
-			ghost(death, dark, life * 0.85, 2.7 * scale, Enum.Material.ForceField)
-			particleBurst(pos, SMOKE, dark, a, 12, 1.7 * scale, life * 1.05, 0.42 * scale, Vector3.new(0, 1.2, 0), 2.1)
-			slash(pos, Vector3.new(1, 0.58, 0.12), 7.2 * scale, 0.13 * scale, a, life * 0.5)
-			task.delay(life * 0.08, function()
-				if KillEffects.Enabled then slash(pos, Vector3.new(-0.8, 0.82, -0.08), 5.5 * scale, 0.065 * scale, dark:Lerp(a, 0.3), life * 0.5) end
-			end)
-			ring(ground, 0.18 * scale, 2.5 * scale, 0.045 * scale, a, life * 0.72, CFrame.new(), 18)
-			lightFlash(pos, a, 4.5 * intensity, 10 * scale, life * 0.42)
-
-		elseif mode == 'Celestial Vortex' then
-			ring(ground, 0.2 * scale, 2.3 * scale, 0.042 * scale, a, life * 0.8, CFrame.new(), 18)
-			for i = 1, amount(10) do
-				local ang = i / amount(10) * math.pi * 2
-				local start = pos + Vector3.new(math.cos(ang) * 1.6, -1.2 + (i % 3) * 0.45, math.sin(ang) * 1.6) * scale
-				local finish = pos + Vector3.new(math.cos(ang + 2.4) * 0.55, 4.5 + (i % 3) * 0.6, math.sin(ang + 2.4) * 0.55) * scale
-				trailShard(start, finish, i % 3 == 0 and white or (i % 2 == 0 and a or b), 0.065 * scale, life * 0.9, (i - 1) * 0.025)
-			end
-			lightFlash(pos, a, 4.5 * intensity, 11 * scale, life * 0.7)
-			particleBurst(pos, SPARK, white, b, 10, 3.3 * scale, life * 0.95, 0.055 * scale, Vector3.new(0, 2, 0), 3)
-
-		elseif mode == 'Starfall' then
-			for i = 1, amount(6) do
-				local offset = Vector3.new((math.random() - 0.5) * 5.5, 7 + math.random() * 3, (math.random() - 0.5) * 5.5) * scale
-				local start = pos + offset
-				local finish = pos + Vector3.new((math.random() - 0.5) * 1.0, (math.random() - 0.5) * 0.5, (math.random() - 0.5) * 1.0) * scale
-				trailShard(start, finish, i % 2 == 0 and white or a, 0.085 * scale, life * 0.42, (i - 1) * life * 0.045)
-			end
-			task.delay(life * 0.28, function()
-				if not KillEffects.Enabled then return end
-				lightFlash(pos, white, 8 * intensity, 13 * scale, life * 0.25)
-				ring(pos, 0.16 * scale, 2.7 * scale, 0.055 * scale, a, life * 0.5, CFrame.Angles(math.rad(90), 0, 0), 18)
-				streakBurst(pos, white, b, 12, 3.2 * scale, 0.048 * scale, life * 0.5, 1.1)
-				particleBurst(pos, SPARK, white, a, 16, 8 * scale, life * 0.7, 0.065 * scale, Vector3.new(0, -3, 0), 3)
-			end)
-		end
-	end
-
-	local function rememberDeath(ent)
-		if not ent or not ent.Id then return end
-		local old = healthCache[ent.Id]
-		local current = ent.Health or 0
-		healthCache[ent.Id] = current
-		if old and old > 0 and current <= 0 then
-			local hit = recentHits[ent.Id]
-			table.insert(recentDeaths, {
-				Id = ent.Id,
-				Position = ent.RootPart and ent.RootPart.Position or (hit and hit.Position),
-				CFrame = ent.RootPart and ent.RootPart.CFrame or CFrame.new(hit and hit.Position or Vector3.zero),
-				Character = ent.Character,
-				Color = entitylib.getEntityColor(ent),
-				Time = tick(),
-				LocalHitTime = hit and hit.Time,
-				Headshot = hit and hit.Headshot or false,
-				Used = false
-			})
-			while #recentDeaths > 16 do table.remove(recentDeaths, 1) end
-		end
-	end
-
-	local function consumeDeath()
-		local now = tick()
-		local preferred = frontlines.LastLocalHit
-		if preferred and now - preferred.Time <= 1.5 then
-			for _, death in pairs(recentDeaths) do
-				if not death.Used and death.Id == preferred.Id and now - death.Time <= 1.5 then
-					death.Used = true
-					return death
-				end
-			end
-		end
-		for _, death in pairs(recentDeaths) do
-			if not death.Used and death.LocalHitTime and now - death.LocalHitTime <= 1.6 and now - death.Time <= 1.5 then
-				death.Used = true
-				return death
-			end
-		end
-		for _, death in pairs(recentDeaths) do
-			if not death.Used and now - death.Time <= 0.7 then
-				death.Used = true
-				return death
-			end
-		end
-	end
-
-	KillEffects = vape.Categories.Render:CreateModule({
-		Name = 'KillEffects',
-		Function = function(callback)
-			if callback then
-				table.clear(healthCache)
-				table.clear(recentDeaths)
-				table.clear(recentHits)
-				for _, ent in pairs(entitylib.List) do
-					if ent and ent.Id then healthCache[ent.Id] = ent.Health or 100 end
-				end
-				KillEffects:Clean(frontlines.LocalHitEvent.Event:Connect(function(ent, pos, headshot)
-					if ent and ent.Id then recentHits[ent.Id] = {Time = tick(), Position = pos, Headshot = headshot} end
-				end))
-				KillEffects:Clean(entitylib.Events.EntityUpdated:Connect(rememberDeath))
-				KillEffects:Clean(entitylib.Events.EntityAdded:Connect(function(ent)
-					if ent and ent.Id then healthCache[ent.Id] = ent.Health or 100 end
-				end))
-				KillEffects:Clean(entitylib.Events.EntityRemoved:Connect(function(ent)
-					if ent and ent.Id then healthCache[ent.Id] = nil end
-				end))
-				KillEffects:Clean(frontlines.KillEffectEvent.Event:Connect(function()
-					task.spawn(function()
-						for _ = 1, 9 do
-							if not KillEffects.Enabled then return end
-							local death = consumeDeath()
-							if death then runEffect(death); return end
-							task.wait(0.035)
+				local ok, err = pcall(function()
+					for _, item in ipairs(s.Items) do
+						local u = (t - item.Start) / item.Duration
+						local obj, trail = item.Object, s.TrailObjects[item.Object]
+						if u >= 0 and u < 1 then
+							item.Update(obj, u)
+							if trail and not item.Seen then trail:Clear(); trail.Enabled = true end
+							item.Seen = true
+						elseif u >= 1 and not item.Done then
+							if trail then trail.Enabled = false end
+							item.Update(obj, 1)
+							obj.Transparency = 1
+							item.Done = true
 						end
-					end)
-				end))
-			else
-				Folder:ClearAllChildren()
-				table.clear(healthCache)
-				table.clear(recentDeaths)
-				table.clear(recentHits)
+					end
+				end)
+				if not ok then warn('[illusionHD] '..s.Name..' animation: '..tostring(err)); removeScene(i) end
 			end
-		end,
-		Tooltip = 'Cinematic finishers built around readable silhouettes, staged timing and restrained particles.'
-	})
-
-	Mode = KillEffects:CreateDropdown({Name = 'Mode', List = modes, Default = 'Supernova'})
-	ColorMode = KillEffects:CreateDropdown({Name = 'Color Mode', List = {'Custom', 'Theme', 'Pastel', 'Target', 'Rainbow'}, Default = 'Custom'})
-	PrimaryColor = KillEffects:CreateColorSlider({Name = 'Primary Color', DefaultHue = 0.78, DefaultSat = 0.78, DefaultValue = 1})
-	SecondaryColor = KillEffects:CreateColorSlider({Name = 'Secondary Color', DefaultHue = 0.58, DefaultSat = 0.72, DefaultValue = 1})
-	EffectSize = KillEffects:CreateSlider({Name = 'Size', Min = 0.5, Max = 2.75, Default = 1, Decimal = 100})
-	Lifetime = KillEffects:CreateSlider({Name = 'Lifetime', Min = 0.3, Max = 3, Default = 1.05, Decimal = 100, Suffix = 's'})
-	Quality = KillEffects:CreateDropdown({Name = 'Quality', List = {'Low', 'Normal', 'High'}, Default = 'Normal'})
-	Intensity = KillEffects:CreateSlider({Name = 'Intensity', Min = 0.5, Max = 2, Default = 1, Decimal = 100})
-	DynamicGlow = KillEffects:CreateToggle({Name = 'Dynamic Glow', Default = true})
-	MotionTrails = KillEffects:CreateToggle({Name = 'Motion Trails', Default = true})
-	GroundSigils = KillEffects:CreateToggle({Name = 'Ground Sigils', Default = true})
-	KillSound = KillEffects:CreateToggle({
-		Name = 'Kill Sound',
-		Function = function(callback)
-			KillSoundFile.Object.Visible = callback
-			KillSoundVolume.Object.Visible = callback
 		end
-	})
-	KillSoundFile = KillEffects:CreateTextBox({
-		Name = 'Kill Sound File / ID',
-		Default = 'rbxassetid://9118823106',
-		Darker = true,
-		Visible = false,
-		Function = function() cachedSoundInput = nil; cachedSoundAsset = nil end
-	})
-	KillSoundVolume = KillEffects:CreateSlider({Name = 'Kill Sound Volume', Min = 0, Max = 2, Default = 0.7, Decimal = 100, Darker = true, Visible = false})
-
-	vape:Clean(function() if Folder then Folder:Destroy() end end)
+	end)
+	vape:Clean(function()
+		connection:Disconnect()
+		for _, c in ipairs(controllers) do c.Active = false; reset(c) end
+		root:Destroy()
+	end)
 end)
--- ILLUSIONHD_KILLEFFECTS_END
+-- ILLUSIONHD_EFFECTS_V4_END
 
 -- ILLUSIONHD_FAKEPLAYER_V1
 run(function()
