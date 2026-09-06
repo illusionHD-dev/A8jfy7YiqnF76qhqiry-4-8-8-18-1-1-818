@@ -1456,81 +1456,84 @@ run(function()
 end)
 -- RTXSHADERS_BEGIN
 run(function()
-	-- Minecraft shader-inspired Roblox lighting; this does not add ray tracing.
+	-- High-end shader-pack inspired lighting. Roblox cannot provide hardware ray tracing here,
+	-- so this builds the look from physically-inspired lighting, atmosphere and post processing.
 	local lighting = game:GetService('Lighting')
 	local tweens = game:GetService('TweenService')
+	local runService = game:GetService('RunService')
 	local rgb = Color3.fromRGB
-	local RTXShaders, Preset, Strength, Exposure, Bloom, Rays, Haze, DOF, Smooth, CustomTime, Time, ShadowDepth, Sunlight
+
+	local RTXShaders, Preset, Strength, Exposure, Bloom, Rays, Haze, DOF, Smooth, CustomTime, Time
+	local ShadowDepth, Sunlight, SaturationBoost, Vibrance, FogPower, Motion
 	local active, ready = false, false
 	local original, effects, owned, suppressed, atmospheres, connections, animations = {}, {}, {}, {}, {}, {}, {}
-	local cameraConnection
-	local holding = Instance.new('Folder') -- Unparented: stored atmospheres do not render.
+	local cameraConnection, motionConnection
+	local holding = Instance.new('Folder')
 	holding.Name = 'RTXShaders_OriginalAtmospheres'
-	local names = {'SEUS Inspired', 'BSL Inspired', 'Complementary Inspired', 'Golden Hour', 'Midnight', 'Cinematic'}
+
+	local names = {
+		'Complementary Reimagined', 'SEUS PTGI', 'BSL Ultra', 'Sildurs Vibrant', 'Continuum',
+		'Photon', 'Rethinking Voxels', 'Insanity', 'AstraLex', 'Super Duper Vanilla',
+		'Golden Hour', 'Dreamy Sunset', 'Blue Hour', 'Crystal Day', 'Overcast',
+		'Rainy Film', 'Midnight', 'Moonlit', 'Cyberpunk', 'Blood Moon',
+		'Emerald Night', 'Arctic', 'Desert Heat', 'Cotton Candy', 'Cinematic',
+		'Noir', 'Vintage Film', 'Dark Fantasy', 'Heaven', 'Void'
+	}
+
+	-- Every preset intentionally changes more than tint: direct light, ambient fill, shadow feel,
+	-- specular response, atmospheric scattering, bloom profile, DOF and fog are all independent.
 	local presets = {
-		['SEUS Inspired'] = {
-			Time = 16.05, Sun = 3.8, Exposure = -0.22, Ambient = rgb(43, 51, 69), Outdoor = rgb(100, 116, 140),
-			Top = rgb(255, 225, 174), Bottom = rgb(0, 0, 0), Softness = 0.32, Diffuse = 0.62,
-			Contrast = 0.24, Saturation = 0.19, Tint = rgb(255, 246, 229), Grade = 0.012,
-			Bloom = 0.44, Threshold = 1.25, Size = 24, Halo = 0.13, HaloThreshold = 1.65, Rays = 0.11, Spread = 0.84,
-			Density = 0.27, Offset = 0.18, Air = rgb(210, 224, 240), Decay = rgb(107, 124, 153), Glare = 0.42, Haze = 1.7
-		},
-		['BSL Inspired'] = {
-			Time = 16.65, Sun = 3.35, Exposure = -0.13, Ambient = rgb(61, 57, 78), Outdoor = rgb(126, 115, 139),
-			Top = rgb(255, 206, 161), Bottom = rgb(0, 0, 0), Softness = 0.75, Diffuse = 0.72,
-			Contrast = 0.18, Saturation = 0.15, Tint = rgb(255, 239, 223), Grade = 0.02,
-			Bloom = 0.56, Threshold = 1.12, Size = 32, Halo = 0.19, HaloThreshold = 1.4, Rays = 0.095, Spread = 0.92,
-			Density = 0.3, Offset = 0.16, Air = rgb(241, 217, 203), Decay = rgb(138, 116, 150), Glare = 0.52, Haze = 2.1
-		},
-		['Complementary Inspired'] = {
-			Time = 14.65, Sun = 4.1, Exposure = -0.2, Ambient = rgb(40, 54, 73), Outdoor = rgb(98, 131, 155),
-			Top = rgb(255, 238, 201), Bottom = rgb(0, 0, 0), Softness = 0.28, Diffuse = 0.72,
-			Contrast = 0.23, Saturation = 0.3, Tint = rgb(247, 252, 255), Grade = 0.008,
-			Bloom = 0.34, Threshold = 1.4, Size = 20, Halo = 0.1, HaloThreshold = 1.8, Rays = 0.075, Spread = 0.82,
-			Density = 0.23, Offset = 0.22, Air = rgb(179, 217, 248), Decay = rgb(87, 125, 165), Glare = 0.27, Haze = 1.25
-		},
-		['Golden Hour'] = {
-			Time = 17.35, Sun = 4, Exposure = -0.19, Ambient = rgb(60, 45, 76), Outdoor = rgb(139, 102, 111),
-			Top = rgb(255, 168, 85), Bottom = rgb(0, 0, 0), Softness = 0.55, Diffuse = 0.61,
-			Contrast = 0.25, Saturation = 0.23, Tint = rgb(255, 231, 203), Grade = 0.015,
-			Bloom = 0.64, Threshold = 1.08, Size = 32, Halo = 0.22, HaloThreshold = 1.4, Rays = 0.16, Spread = 0.9,
-			Density = 0.32, Offset = 0.14, Air = rgb(255, 210, 160), Decay = rgb(137, 91, 131), Glare = 0.9, Haze = 2.5
-		},
-		['Midnight'] = {
-			Time = 0.3, Sun = 1.9, Exposure = 0.22, Ambient = rgb(37, 44, 73), Outdoor = rgb(71, 90, 138),
-			Top = rgb(152, 188, 255), Bottom = rgb(0, 0, 0), Softness = 0.65, Diffuse = 0.7,
-			Contrast = 0.2, Saturation = 0.02, Tint = rgb(213, 231, 255), Grade = 0.025,
-			Bloom = 0.68, Threshold = 1.03, Size = 26, Halo = 0.2, HaloThreshold = 1.3, Rays = 0.025, Spread = 0.95,
-			Density = 0.29, Offset = 0.18, Air = rgb(115, 146, 217), Decay = rgb(45, 52, 104), Glare = 0, Haze = 2.15
-		},
-		['Cinematic'] = {
-			Time = 16.85, Sun = 3.55, Exposure = -0.25, Ambient = rgb(34, 54, 65), Outdoor = rgb(91, 119, 131),
-			Top = rgb(255, 196, 142), Bottom = rgb(0, 0, 0), Softness = 0.48, Diffuse = 0.59,
-			Contrast = 0.3, Saturation = -0.06, Tint = rgb(244, 249, 241), Grade = 0.005,
-			Bloom = 0.4, Threshold = 1.25, Size = 22, Halo = 0.15, HaloThreshold = 1.55, Rays = 0.1, Spread = 0.88,
-			Density = 0.29, Offset = 0.17, Air = rgb(189, 212, 214), Decay = rgb(77, 111, 126), Glare = 0.4, Haze = 2
-		}
+		['Complementary Reimagined'] = {Time=14.7,Sun=4.3,Exposure=-0.16,Ambient=rgb(31,45,63),Outdoor=rgb(105,137,160),Top=rgb(255,242,211),Bottom=rgb(10,15,24),Softness=.25,Diffuse=.72,Specular=.96,Contrast=.27,Saturation=.28,Tint=rgb(247,252,255),Grade=.008,Bloom=.34,Threshold=1.42,Size=20,Halo=.08,HaloThreshold=1.8,Rays=.08,Spread=.82,Density=.22,Offset=.21,Air=rgb(184,220,248),Decay=rgb(83,120,164),Glare=.3,Haze=1.15,Fog=rgb(178,213,238),FogStart=550,FogEnd=5000,DOFFar=.07,Focus=105,Radius=90},
+		['SEUS PTGI'] = {Time=16.1,Sun=4.7,Exposure=-.25,Ambient=rgb(24,31,43),Outdoor=rgb(92,108,127),Top=rgb(255,219,161),Bottom=rgb(5,8,14),Softness=.18,Diffuse=.58,Specular=1,Contrast=.33,Saturation=.2,Tint=rgb(255,244,224),Grade=.006,Bloom=.43,Threshold=1.3,Size=24,Halo=.12,HaloThreshold=1.62,Rays=.14,Spread=.78,Density=.25,Offset=.17,Air=rgb(217,229,240),Decay=rgb(101,116,145),Glare=.58,Haze=1.55,Fog=rgb(205,220,234),FogStart=500,FogEnd=4300,DOFFar=.09,Focus=95,Radius=78},
+		['BSL Ultra'] = {Time=16.75,Sun=3.7,Exposure=-.10,Ambient=rgb(50,45,68),Outdoor=rgb(132,112,139),Top=rgb(255,201,151),Bottom=rgb(15,8,22),Softness=.78,Diffuse=.75,Specular=.92,Contrast=.2,Saturation=.18,Tint=rgb(255,236,220),Grade=.018,Bloom=.58,Threshold=1.08,Size=34,Halo=.2,HaloThreshold=1.35,Rays=.095,Spread=.93,Density=.30,Offset=.14,Air=rgb(242,214,201),Decay=rgb(138,108,148),Glare=.58,Haze=2.15,Fog=rgb(222,196,198),FogStart=350,FogEnd=3500,DOFFar=.11,Focus=82,Radius=70},
+		['Sildurs Vibrant'] = {Time=15.5,Sun=4.5,Exposure=-.04,Ambient=rgb(37,47,62),Outdoor=rgb(112,146,166),Top=rgb(255,230,181),Bottom=rgb(7,13,18),Softness=.35,Diffuse=.78,Specular=1,Contrast=.25,Saturation=.48,Tint=rgb(255,246,227),Grade=.018,Bloom=.72,Threshold=1.0,Size=38,Halo=.27,HaloThreshold=1.24,Rays=.19,Spread=.9,Density=.25,Offset=.18,Air=rgb(189,225,255),Decay=rgb(94,125,165),Glare=.8,Haze=1.5,Fog=rgb(187,220,240),FogStart=500,FogEnd=4200,DOFFar=.08,Focus=95,Radius=85},
+		['Continuum'] = {Time=15.8,Sun=4.1,Exposure=-.23,Ambient=rgb(26,32,40),Outdoor=rgb(95,108,118),Top=rgb(255,225,187),Bottom=rgb(4,5,7),Softness=.12,Diffuse=.55,Specular=1,Contrast=.38,Saturation=.06,Tint=rgb(251,245,235),Grade=-.005,Bloom=.26,Threshold=1.52,Size=18,Halo=.07,HaloThreshold=1.95,Rays=.07,Spread=.74,Density=.20,Offset=.24,Air=rgb(205,218,228),Decay=rgb(102,112,122),Glare=.28,Haze=.9,Fog=rgb(194,205,212),FogStart=700,FogEnd=6000,DOFFar=.12,Focus=115,Radius=75},
+		['Photon'] = {Time=13.85,Sun=4.8,Exposure=-.08,Ambient=rgb(39,50,64),Outdoor=rgb(120,151,171),Top=rgb(255,247,220),Bottom=rgb(10,13,20),Softness=.3,Diffuse=.82,Specular=1,Contrast=.23,Saturation=.35,Tint=rgb(244,250,255),Grade=.012,Bloom=.41,Threshold=1.28,Size=26,Halo=.13,HaloThreshold=1.58,Rays=.105,Spread=.86,Density=.21,Offset=.23,Air=rgb(177,221,250),Decay=rgb(80,122,164),Glare=.36,Haze=1.05,Fog=rgb(177,214,237),FogStart=600,FogEnd=5200,DOFFar=.065,Focus=115,Radius=100},
+		['Rethinking Voxels'] = {Time=15.15,Sun=4.6,Exposure=-.18,Ambient=rgb(29,38,50),Outdoor=rgb(104,128,146),Top=rgb(255,232,195),Bottom=rgb(6,9,15),Softness=.08,Diffuse=.62,Specular=1,Contrast=.34,Saturation=.27,Tint=rgb(252,248,239),Grade=.004,Bloom=.31,Threshold=1.4,Size=22,Halo=.09,HaloThreshold=1.75,Rays=.115,Spread=.8,Density=.22,Offset=.2,Air=rgb(194,221,239),Decay=rgb(86,112,143),Glare=.45,Haze=1.25,Fog=rgb(187,210,226),FogStart=600,FogEnd=5200,DOFFar=.08,Focus=105,Radius=90},
+		['Insanity'] = {Time=0.15,Sun=1.3,Exposure=-.05,Ambient=rgb(20,16,31),Outdoor=rgb(50,56,84),Top=rgb(122,96,176),Bottom=rgb(0,0,0),Softness=.9,Diffuse=.45,Specular=.72,Contrast=.46,Saturation=-.18,Tint=rgb(197,207,236),Grade=-.04,Bloom=.42,Threshold=.95,Size=42,Halo=.24,HaloThreshold=1.1,Rays=.012,Spread=1,Density=.43,Offset=.05,Air=rgb(82,89,126),Decay=rgb(25,18,45),Glare=0,Haze=4.4,Fog=rgb(49,46,69),FogStart=80,FogEnd=900,DOFFar=.24,Focus=55,Radius=38},
+		['AstraLex'] = {Time=17.6,Sun=4.2,Exposure=-.06,Ambient=rgb(56,38,76),Outdoor=rgb(144,99,138),Top=rgb(255,148,111),Bottom=rgb(13,5,28),Softness=.68,Diffuse=.68,Specular=1,Contrast=.25,Saturation=.43,Tint=rgb(255,221,225),Grade=.025,Bloom=.83,Threshold=.92,Size=48,Halo=.34,HaloThreshold=1.08,Rays=.21,Spread=.95,Density=.33,Offset=.12,Air=rgb(255,183,171),Decay=rgb(116,69,145),Glare=.95,Haze=2.8,Fog=rgb(213,145,168),FogStart=250,FogEnd=2600,DOFFar=.13,Focus=72,Radius=62},
+		['Super Duper Vanilla'] = {Time=13.4,Sun=3.5,Exposure=.02,Ambient=rgb(60,64,72),Outdoor=rgb(137,153,165),Top=rgb(255,244,221),Bottom=rgb(24,25,28),Softness=.55,Diffuse=.86,Specular=.82,Contrast=.12,Saturation=.2,Tint=rgb(255,253,247),Grade=.01,Bloom=.24,Threshold=1.48,Size=18,Halo=.06,HaloThreshold=1.85,Rays=.055,Spread=.84,Density=.18,Offset=.28,Air=rgb(207,229,244),Decay=rgb(118,137,154),Glare=.18,Haze=.7,Fog=rgb(205,222,232),FogStart=900,FogEnd=7000,DOFFar=.045,Focus=130,Radius=115},
+		['Golden Hour'] = {Time=17.35,Sun=4.4,Exposure=-.17,Ambient=rgb(52,35,64),Outdoor=rgb(148,99,101),Top=rgb(255,158,70),Bottom=rgb(17,5,16),Softness=.55,Diffuse=.62,Specular=1,Contrast=.29,Saturation=.3,Tint=rgb(255,226,194),Grade=.018,Bloom=.67,Threshold=1.02,Size=36,Halo=.24,HaloThreshold=1.28,Rays=.18,Spread=.9,Density=.33,Offset=.12,Air=rgb(255,199,143),Decay=rgb(135,79,120),Glare=1,Haze=2.65,Fog=rgb(232,166,138),FogStart=260,FogEnd=2800,DOFFar=.12,Focus=78,Radius=60},
+		['Dreamy Sunset'] = {Time=18.15,Sun=3.15,Exposure=.01,Ambient=rgb(73,44,91),Outdoor=rgb(161,102,155),Top=rgb(255,133,135),Bottom=rgb(22,7,45),Softness=.82,Diffuse=.72,Specular=.88,Contrast=.16,Saturation=.37,Tint=rgb(255,218,238),Grade=.035,Bloom=.92,Threshold=.8,Size=52,Halo=.42,HaloThreshold=.95,Rays=.16,Spread=.98,Density=.37,Offset=.09,Air=rgb(255,174,205),Decay=rgb(124,81,167),Glare=.92,Haze=3.1,Fog=rgb(220,147,190),FogStart=180,FogEnd=2200,DOFFar=.19,Focus=65,Radius=48},
+		['Blue Hour'] = {Time=19.1,Sun=2.15,Exposure=.08,Ambient=rgb(33,45,76),Outdoor=rgb(76,109,155),Top=rgb(159,189,255),Bottom=rgb(8,12,31),Softness=.72,Diffuse=.7,Specular=.91,Contrast=.23,Saturation=.1,Tint=rgb(218,232,255),Grade=.015,Bloom=.55,Threshold=1.02,Size=33,Halo=.19,HaloThreshold=1.28,Rays=.03,Spread=.96,Density=.31,Offset=.16,Air=rgb(128,162,218),Decay=rgb(48,64,117),Glare=.08,Haze=2.15,Fog=rgb(106,137,184),FogStart=300,FogEnd=3200,DOFFar=.12,Focus=85,Radius=66},
+		['Crystal Day'] = {Time=12.5,Sun=5,Exposure=-.11,Ambient=rgb(45,59,73),Outdoor=rgb(139,176,196),Top=rgb(255,252,234),Bottom=rgb(13,20,28),Softness=.18,Diffuse=.9,Specular=1,Contrast=.29,Saturation=.24,Tint=rgb(236,250,255),Grade=.006,Bloom=.21,Threshold=1.65,Size=15,Halo=.04,HaloThreshold=2.1,Rays=.1,Spread=.72,Density=.13,Offset=.32,Air=rgb(192,230,255),Decay=rgb(104,151,183),Glare=.26,Haze=.42,Fog=rgb(201,230,246),FogStart=1200,FogEnd=9000,DOFFar=.035,Focus=150,Radius=130},
+		['Overcast'] = {Time=12.9,Sun=1.9,Exposure=-.01,Ambient=rgb(71,74,79),Outdoor=rgb(137,141,145),Top=rgb(183,190,198),Bottom=rgb(36,38,41),Softness=1,Diffuse=.92,Specular=.55,Contrast=.08,Saturation=-.28,Tint=rgb(227,232,236),Grade=-.01,Bloom=.12,Threshold=1.75,Size=22,Halo=.03,HaloThreshold=2,Rays=0,Spread=1,Density=.36,Offset=.08,Air=rgb(168,176,184),Decay=rgb(99,104,111),Glare=0,Haze=3.2,Fog=rgb(159,166,172),FogStart=180,FogEnd=1800,DOFFar=.1,Focus=90,Radius=75},
+		['Rainy Film'] = {Time=14.2,Sun=1.55,Exposure=-.18,Ambient=rgb(49,58,62),Outdoor=rgb(101,119,124),Top=rgb(178,195,197),Bottom=rgb(20,29,31),Softness=.95,Diffuse=.8,Specular=.72,Contrast=.27,Saturation=-.35,Tint=rgb(209,225,221),Grade=-.025,Bloom=.27,Threshold=1.2,Size=31,Halo=.11,HaloThreshold=1.48,Rays=0,Spread=1,Density=.42,Offset=.04,Air=rgb(130,155,159),Decay=rgb(61,80,82),Glare=0,Haze=4,Fog=rgb(112,133,136),FogStart=95,FogEnd=1150,DOFFar=.18,Focus=65,Radius=50},
+		['Midnight'] = {Time=.25,Sun=1.75,Exposure=.16,Ambient=rgb(23,30,57),Outdoor=rgb(60,81,129),Top=rgb(142,179,255),Bottom=rgb(0,1,9),Softness=.68,Diffuse=.68,Specular=.88,Contrast=.27,Saturation=.05,Tint=rgb(207,225,255),Grade=.018,Bloom=.66,Threshold=1.0,Size=31,Halo=.21,HaloThreshold=1.25,Rays=.018,Spread=.98,Density=.29,Offset=.18,Air=rgb(103,135,205),Decay=rgb(37,45,94),Glare=0,Haze=2.1,Fog=rgb(74,97,149),FogStart=300,FogEnd=3200,DOFFar=.12,Focus=82,Radius=65},
+		['Moonlit'] = {Time=23.1,Sun=2.35,Exposure=.1,Ambient=rgb(32,39,65),Outdoor=rgb(80,98,139),Top=rgb(186,207,255),Bottom=rgb(4,6,17),Softness=.38,Diffuse=.64,Specular=1,Contrast=.31,Saturation=-.08,Tint=rgb(217,229,255),Grade=.008,Bloom=.4,Threshold=1.28,Size=22,Halo=.11,HaloThreshold=1.55,Rays=.012,Spread=.9,Density=.21,Offset=.23,Air=rgb(133,155,204),Decay=rgb(54,63,103),Glare=0,Haze=1.2,Fog=rgb(111,130,169),FogStart=520,FogEnd=4600,DOFFar=.07,Focus=110,Radius=90},
+		['Cyberpunk'] = {Time=1.05,Sun=1.2,Exposure=.13,Ambient=rgb(31,13,54),Outdoor=rgb(72,54,109),Top=rgb(255,48,184),Bottom=rgb(0,13,31),Softness=.52,Diffuse=.56,Specular=1,Contrast=.42,Saturation=.48,Tint=rgb(226,203,255),Grade=.02,Bloom=1.05,Threshold=.7,Size=56,Halo=.55,HaloThreshold=.82,Rays=.025,Spread=1,Density=.34,Offset=.12,Air=rgb(93,73,162),Decay=rgb(18,52,85),Glare=.05,Haze=2.8,Fog=rgb(57,42,98),FogStart=180,FogEnd=1900,DOFFar=.18,Focus=67,Radius=47},
+		['Blood Moon'] = {Time=0.6,Sun=1.35,Exposure=-.18,Ambient=rgb(52,16,18),Outdoor=rgb(104,44,44),Top=rgb(255,71,49),Bottom=rgb(8,0,0),Softness=.72,Diffuse=.48,Specular=.76,Contrast=.48,Saturation=.12,Tint=rgb(255,181,170),Grade=-.035,Bloom=.62,Threshold=.88,Size=43,Halo=.29,HaloThreshold=1.02,Rays=.018,Spread=.96,Density=.39,Offset=.08,Air=rgb(133,56,52),Decay=rgb(45,9,13),Glare=.03,Haze=3.7,Fog=rgb(83,30,31),FogStart=110,FogEnd=1200,DOFFar=.22,Focus=55,Radius=38},
+		['Emerald Night'] = {Time=22.7,Sun=1.6,Exposure=.04,Ambient=rgb(12,39,34),Outdoor=rgb(44,94,82),Top=rgb(89,224,175),Bottom=rgb(0,10,12),Softness=.62,Diffuse=.62,Specular=.9,Contrast=.35,Saturation=.22,Tint=rgb(200,255,231),Grade=.006,Bloom=.68,Threshold=.86,Size=46,Halo=.31,HaloThreshold=1.05,Rays=.02,Spread=.98,Density=.34,Offset=.11,Air=rgb(65,145,123),Decay=rgb(16,64,65),Glare=.02,Haze=2.7,Fog=rgb(42,105,91),FogStart=180,FogEnd=1900,DOFFar=.16,Focus=72,Radius=54},
+		['Arctic'] = {Time=11.7,Sun=4.35,Exposure=.04,Ambient=rgb(75,94,112),Outdoor=rgb(173,205,222),Top=rgb(239,250,255),Bottom=rgb(31,50,66),Softness=.78,Diffuse=.9,Specular=1,Contrast=.14,Saturation=-.08,Tint=rgb(225,247,255),Grade=.035,Bloom=.54,Threshold=1.12,Size=34,Halo=.14,HaloThreshold=1.4,Rays=.08,Spread=.88,Density=.29,Offset=.16,Air=rgb(210,242,255),Decay=rgb(121,164,190),Glare=.4,Haze=1.8,Fog=rgb(210,234,245),FogStart=340,FogEnd=3400,DOFFar=.08,Focus=95,Radius=80},
+		['Desert Heat'] = {Time=14.3,Sun=5,Exposure=-.14,Ambient=rgb(74,54,38),Outdoor=rgb(173,132,91),Top=rgb(255,226,161),Bottom=rgb(28,15,5),Softness=.2,Diffuse=.75,Specular=.92,Contrast=.3,Saturation=.24,Tint=rgb(255,234,194),Grade=.012,Bloom=.44,Threshold=1.25,Size=27,Halo=.13,HaloThreshold=1.5,Rays=.2,Spread=.8,Density=.31,Offset=.1,Air=rgb(239,193,132),Decay=rgb(142,94,58),Glare=.92,Haze=3.1,Fog=rgb(224,181,124),FogStart=230,FogEnd=2200,DOFFar=.1,Focus=85,Radius=70},
+		['Cotton Candy'] = {Time=18.45,Sun=2.95,Exposure=.11,Ambient=rgb(74,57,99),Outdoor=rgb(162,128,187),Top=rgb(255,174,214),Bottom=rgb(32,18,63),Softness=.9,Diffuse=.78,Specular=.86,Contrast=.12,Saturation=.38,Tint=rgb(246,224,255),Grade=.04,Bloom=.86,Threshold=.8,Size=52,Halo=.39,HaloThreshold=.92,Rays=.12,Spread=.98,Density=.35,Offset=.1,Air=rgb(224,173,235),Decay=rgb(112,92,170),Glare=.65,Haze=2.7,Fog=rgb(192,150,216),FogStart=220,FogEnd=2400,DOFFar=.17,Focus=66,Radius=50},
+		['Cinematic'] = {Time=16.85,Sun=3.6,Exposure=-.27,Ambient=rgb(27,44,50),Outdoor=rgb(86,111,117),Top=rgb(255,190,133),Bottom=rgb(3,9,11),Softness=.42,Diffuse=.58,Specular=.9,Contrast=.36,Saturation=-.12,Tint=rgb(236,246,239),Grade=-.006,Bloom=.35,Threshold=1.3,Size=22,Halo=.12,HaloThreshold=1.58,Rays=.1,Spread=.86,Density=.27,Offset=.18,Air=rgb(179,203,202),Decay=rgb(71,102,112),Glare=.38,Haze=1.75,Fog=rgb(166,190,188),FogStart=420,FogEnd=3900,DOFFar=.16,Focus=72,Radius=50},
+		['Noir'] = {Time=15.2,Sun=2.7,Exposure=-.32,Ambient=rgb(36,36,36),Outdoor=rgb(91,91,91),Top=rgb(205,205,205),Bottom=rgb(0,0,0),Softness=.35,Diffuse=.58,Specular=.78,Contrast=.62,Saturation=-1,Tint=rgb(238,238,238),Grade=-.05,Bloom=.16,Threshold=1.52,Size=19,Halo=.05,HaloThreshold=1.8,Rays=.035,Spread=.75,Density=.29,Offset=.14,Air=rgb(162,162,162),Decay=rgb(65,65,65),Glare=.05,Haze=2,Fog=rgb(133,133,133),FogStart=350,FogEnd=3000,DOFFar=.17,Focus=68,Radius=48},
+		['Vintage Film'] = {Time=16.2,Sun=3.2,Exposure=-.08,Ambient=rgb(67,57,46),Outdoor=rgb(139,122,96),Top=rgb(255,222,167),Bottom=rgb(27,18,10),Softness=.72,Diffuse=.74,Specular=.68,Contrast=.18,Saturation=-.22,Tint=rgb(255,230,184),Grade=.028,Bloom=.32,Threshold=1.18,Size=30,Halo=.13,HaloThreshold=1.42,Rays=.06,Spread=.9,Density=.3,Offset=.13,Air=rgb(220,193,154),Decay=rgb(120,96,70),Glare=.25,Haze=2.2,Fog=rgb(199,175,141),FogStart=300,FogEnd=3000,DOFFar=.14,Focus=74,Radius=54},
+		['Dark Fantasy'] = {Time=20.4,Sun=1.45,Exposure=-.27,Ambient=rgb(18,23,31),Outdoor=rgb(46,63,72),Top=rgb(88,111,125),Bottom=rgb(0,4,5),Softness=.83,Diffuse=.47,Specular=.62,Contrast=.5,Saturation=-.34,Tint=rgb(186,208,201),Grade=-.04,Bloom=.3,Threshold=1.05,Size=34,Halo=.14,HaloThreshold=1.28,Rays=.01,Spread=1,Density=.44,Offset=.03,Air=rgb(81,104,106),Decay=rgb(27,42,44),Glare=0,Haze=4.6,Fog=rgb(56,73,74),FogStart=75,FogEnd=850,DOFFar=.25,Focus=52,Radius=35},
+		['Heaven'] = {Time=10.8,Sun=5,Exposure=.19,Ambient=rgb(103,114,127),Outdoor=rgb(211,224,232),Top=rgb(255,252,233),Bottom=rgb(91,111,128),Softness=1,Diffuse=1,Specular=1,Contrast=-.04,Saturation=-.04,Tint=rgb(255,250,234),Grade=.075,Bloom=1.1,Threshold=.72,Size=56,Halo=.56,HaloThreshold=.78,Rays=.24,Spread=1,Density=.34,Offset=.1,Air=rgb(238,245,248),Decay=rgb(176,194,206),Glare=1,Haze=3.3,Fog=rgb(234,241,245),FogStart=180,FogEnd=2100,DOFFar=.18,Focus=72,Radius=58},
+		['Void'] = {Time=0,Sun=.75,Exposure=-.42,Ambient=rgb(4,2,11),Outdoor=rgb(17,11,33),Top=rgb(42,18,81),Bottom=rgb(0,0,0),Softness=.2,Diffuse=.22,Specular=.46,Contrast=.58,Saturation=-.28,Tint=rgb(186,170,225),Grade=-.065,Bloom=.52,Threshold=.72,Size=50,Halo=.31,HaloThreshold=.88,Rays=0,Spread=1,Density=.48,Offset=-.04,Air=rgb(45,30,75),Decay=rgb(9,4,22),Glare=0,Haze=5.2,Fog=rgb(20,12,39),FogStart=45,FogEnd=600,DOFFar=.3,Focus=45,Radius=28}
 	}
+
 	local properties = {
-		'Ambient', 'OutdoorAmbient', 'Brightness', 'ExposureCompensation', 'ClockTime',
-		'ColorShift_Top', 'ColorShift_Bottom', 'GlobalShadows', 'ShadowSoftness',
-		'EnvironmentDiffuseScale', 'EnvironmentSpecularScale', 'GeographicLatitude', 'FogStart', 'FogEnd'
+		'Ambient','OutdoorAmbient','Brightness','ExposureCompensation','ClockTime','ColorShift_Top','ColorShift_Bottom',
+		'GlobalShadows','ShadowSoftness','EnvironmentDiffuseScale','EnvironmentSpecularScale','GeographicLatitude',
+		'FogColor','FogStart','FogEnd'
 	}
-	local replaceClasses = {BloomEffect = true, ColorCorrectionEffect = true, SunRaysEffect = true, DepthOfFieldEffect = true}
-	local function safeSet(object, key, value)
-		return pcall(function() object[key] = value end)
-	end
+	local replaceClasses = {BloomEffect=true, ColorCorrectionEffect=true, SunRaysEffect=true, DepthOfFieldEffect=true, BlurEffect=true}
+
+	local function safeSet(object, key, value) return pcall(function() object[key] = value end) end
 	local function cancelTweens()
-		for _, animation in ipairs(animations) do animation:Cancel() end
-		animations = {}
+		for _, animation in ipairs(animations) do pcall(function() animation:Cancel() end) end
+		table.clear(animations)
 	end
 	local function setProperties(object, values, animate)
 		if animate then
-			local animation = tweens:Create(object, TweenInfo.new(0.65, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), values)
+			local animation = tweens:Create(object, TweenInfo.new(.72, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), values)
 			animations[#animations + 1] = animation
 			animation:Play()
 		else
-			for key, value in pairs(values) do object[key] = value end
+			for key, value in pairs(values) do safeSet(object, key, value) end
 		end
 	end
 	local function capture(object)
@@ -1555,72 +1558,123 @@ run(function()
 		local object = Instance.new(class)
 		object.Name = 'RTXShaders_'..(key or class)
 		owned[object] = true
-		for key, value in pairs(values) do object[key] = value end
+		for k, value in pairs(values) do safeSet(object, k, value) end
 		object.Parent = lighting
 		effects[key or class] = object
 		return object
 	end
+	local function stopMotion()
+		if motionConnection then motionConnection:Disconnect(); motionConnection = nil end
+	end
 	local function restore()
 		active = false
+		stopMotion()
 		cancelTweens()
 		for _, connection in ipairs(connections) do connection:Disconnect() end
-		connections = {}
+		table.clear(connections)
 		if cameraConnection then cameraConnection:Disconnect(); cameraConnection = nil end
-		for object in pairs(owned) do object:Destroy() end
+		for object in pairs(owned) do pcall(function() object:Destroy() end) end
 		owned, effects = {}, {}
 		for key, value in pairs(original) do safeSet(lighting, key, value) end
 		original = {}
-		for object, enabled in pairs(suppressed) do
-			pcall(function() object.Enabled = enabled end)
-		end
+		for object, enabled in pairs(suppressed) do pcall(function() object.Enabled = enabled end) end
 		suppressed = {}
-		for object in pairs(atmospheres) do
-			if object.Parent == holding then safeSet(object, 'Parent', lighting) end
-		end
+		for object in pairs(atmospheres) do if object.Parent == holding then safeSet(object, 'Parent', lighting) end end
 		atmospheres = {}
 	end
+
 	local function apply()
 		if not active or not ready then return end
 		cancelTweens()
+		stopMotion()
 		local p = presets[Preset.Value] or presets[names[1]]
 		local amount = Strength.Value / 100
-		local animate = Smooth.Enabled
 		local depth = ShadowDepth.Value / 100
-		-- Cool, darker ambient fill against brighter direct light gives surfaces more shape.
-		-- Midnight keeps more fill so its shadows remain navigable.
-		local night = Preset.Value == 'Midnight'
-		local shadowColor = p.Ambient:Lerp(rgb(20, 29, 46), depth * (night and 0.25 or 0.6))
-		local outdoorColor = p.Outdoor:Lerp(rgb(60, 79, 108), depth * (night and 0.15 or 0.45))
-		local values = {
-			Brightness = p.Sun * Sunlight.Value / 100, ExposureCompensation = p.Exposure + Exposure.Value / 100,
-			Ambient = shadowColor, OutdoorAmbient = outdoorColor, ColorShift_Top = p.Top, ColorShift_Bottom = p.Bottom,
-			ShadowSoftness = p.Softness, EnvironmentDiffuseScale = p.Diffuse * (1 - depth * 0.16), EnvironmentSpecularScale = 1,
-			GeographicLatitude = 35, FogStart = 0, FogEnd = 100000
-		}
-		setProperties(lighting, values, animate)
+		local animate = Smooth.Enabled
+		local timeValue = CustomTime.Enabled and Time.Value or p.Time
+		local night = timeValue < 6 or timeValue > 19
+		local shadowTarget = night and rgb(11,16,32) or rgb(13,19,27)
+		local outdoorTarget = night and rgb(37,53,88) or rgb(51,69,87)
+		local ambient = p.Ambient:Lerp(shadowTarget, depth * (night and .34 or .64))
+		local outdoor = p.Outdoor:Lerp(outdoorTarget, depth * (night and .2 or .48))
+		local fogScale = FogPower.Value / 100
+
+		setProperties(lighting, {
+			Brightness = p.Sun * Sunlight.Value / 100,
+			ExposureCompensation = p.Exposure + Exposure.Value / 100,
+			Ambient = ambient,
+			OutdoorAmbient = outdoor,
+			ColorShift_Top = p.Top,
+			ColorShift_Bottom = p.Bottom,
+			ShadowSoftness = p.Softness,
+			EnvironmentDiffuseScale = math.clamp(p.Diffuse * (1 - depth * .12), 0, 1),
+			EnvironmentSpecularScale = math.clamp(p.Specular, 0, 1),
+			GeographicLatitude = 35,
+			FogColor = p.Fog,
+			FogStart = p.FogStart / math.max(fogScale, .05),
+			FogEnd = p.FogEnd / math.max(fogScale, .05)
+		}, animate)
 		lighting.GlobalShadows = true
-		-- Set time directly: tweening through 12 hours causes a daylight flash at midnight.
-		lighting.ClockTime = CustomTime.Enabled and Time.Value or p.Time
+		lighting.ClockTime = timeValue
+
+		local sat = math.clamp((p.Saturation + SaturationBoost.Value / 100) * amount, -1, 1)
+		local contrast = math.clamp(p.Contrast * amount, -1, 1)
+		local vibranceAmount = Vibrance.Value / 100
 		setProperties(effects.ColorCorrectionEffect, {
-			Brightness = p.Grade * amount, Contrast = math.clamp(p.Contrast * amount, -1, 1),
-			Saturation = math.clamp(p.Saturation * amount, -1, 1), TintColor = rgb(255, 255, 255):Lerp(p.Tint, math.min(amount, 1))
+			Brightness = p.Grade * amount,
+			Contrast = contrast,
+			Saturation = sat,
+			TintColor = rgb(255,255,255):Lerp(p.Tint, math.min(amount, 1.35) * .72)
+		}, animate)
+		setProperties(effects.Vibrance, {
+			Brightness = 0,
+			Contrast = .035 * vibranceAmount * amount,
+			Saturation = .12 * vibranceAmount * amount,
+			TintColor = rgb(255,255,255):Lerp(p.Air, .035 * vibranceAmount)
 		}, animate)
 		setProperties(effects.BloomEffect, {
-			Intensity = p.Bloom * Bloom.Value / 100 * amount, Threshold = p.Threshold, Size = p.Size
+			Intensity = p.Bloom * Bloom.Value / 100 * amount,
+			Threshold = p.Threshold,
+			Size = p.Size
 		}, animate)
-		-- A restrained wide halo surrounds a tighter highlight bloom.
 		setProperties(effects.HighlightHalo, {
-			Intensity = p.Halo * Bloom.Value / 100 * amount, Threshold = p.HaloThreshold, Size = 56
+			Intensity = p.Halo * Bloom.Value / 100 * amount,
+			Threshold = p.HaloThreshold,
+			Size = 56
 		}, animate)
 		setProperties(effects.SunRaysEffect, {
-			Intensity = p.Rays * Rays.Value / 100 * amount, Spread = p.Spread
+			Intensity = p.Rays * Rays.Value / 100 * amount,
+			Spread = p.Spread
 		}, animate)
 		setProperties(effects.Atmosphere, {
-			Density = math.clamp(p.Density * Haze.Value / 100, 0, 0.6), Offset = p.Offset,
-			Color = p.Air, Decay = p.Decay, Glare = p.Glare * Haze.Value / 100, Haze = p.Haze * Haze.Value / 100
+			Density = math.clamp(p.Density * Haze.Value / 100, 0, .65),
+			Offset = p.Offset,
+			Color = p.Air,
+			Decay = p.Decay,
+			Glare = math.clamp(p.Glare * Haze.Value / 100, 0, 10),
+			Haze = math.clamp(p.Haze * Haze.Value / 100, 0, 10)
+		}, animate)
+		setProperties(effects.DepthOfFieldEffect, {
+			FarIntensity = p.DOFFar,
+			FocusDistance = p.Focus,
+			InFocusRadius = p.Radius,
+			NearIntensity = .035
 		}, animate)
 		effects.DepthOfFieldEffect.Enabled = DOF.Enabled
+
+		if Motion.Enabled then
+			local baseExposure = p.Exposure + Exposure.Value / 100
+			local baseHaze = math.clamp(p.Haze * Haze.Value / 100, 0, 10)
+			local started = tick()
+			motionConnection = runService.RenderStepped:Connect(function()
+				if not active or not Motion.Enabled then return end
+				local wave = math.sin((tick() - started) * .42)
+				lighting.ExposureCompensation = baseExposure + wave * .018
+				effects.Atmosphere.Haze = math.clamp(baseHaze + wave * .08, 0, 10)
+			end)
+		end
 	end
+
 	local function start()
 		if active or not ready then return end
 		active = true
@@ -1630,56 +1684,53 @@ run(function()
 			connections[#connections + 1] = lighting.ChildAdded:Connect(capture)
 			connections[#connections + 1] = workspace:GetPropertyChangedSignal('CurrentCamera'):Connect(watchCamera)
 			watchCamera()
-			make('ColorCorrectionEffect', {Brightness = 0, Contrast = 0, Saturation = 0})
-			make('BloomEffect', {Intensity = 0})
-			make('BloomEffect', {Intensity = 0}, 'HighlightHalo')
-			make('SunRaysEffect', {Intensity = 0})
-			make('Atmosphere', {Density = 0, Haze = 0, Glare = 0})
-			make('DepthOfFieldEffect', {Enabled = false, NearIntensity = 0, FarIntensity = 0.12, FocusDistance = 80, InFocusRadius = 65})
+			make('ColorCorrectionEffect', {Brightness=0,Contrast=0,Saturation=0,TintColor=rgb(255,255,255)})
+			make('ColorCorrectionEffect', {Brightness=0,Contrast=0,Saturation=0,TintColor=rgb(255,255,255)}, 'Vibrance')
+			make('BloomEffect', {Intensity=0})
+			make('BloomEffect', {Intensity=0}, 'HighlightHalo')
+			make('SunRaysEffect', {Intensity=0})
+			make('Atmosphere', {Density=0,Haze=0,Glare=0})
+			make('DepthOfFieldEffect', {Enabled=false,NearIntensity=0,FarIntensity=.1,FocusDistance=80,InFocusRadius=65})
 			apply()
 		end)
 		if not ok then
 			restore()
 			warn('[RTXShaders] '..tostring(message))
-			task.defer(function()
-				if RTXShaders and RTXShaders.Enabled then RTXShaders:Toggle() end
-			end)
+			task.defer(function() if RTXShaders and RTXShaders.Enabled then RTXShaders:Toggle() end end)
 		end
 	end
 	local function changed()
-		-- UI callbacks can run before CreateSlider/CreateToggle returns its option object.
 		task.defer(function() if active and ready then apply() end end)
 	end
+
 	RTXShaders = vape.Categories.Render:CreateModule({
 		Name = 'RTXShaders',
-		Tooltip = 'Minecraft-inspired sunlight, soft shadows, bloom and atmosphere. Visual presets, not hardware ray tracing.',
+		Tooltip = 'Shader-pack inspired lighting with 30 visual presets, cinematic grading, atmosphere and bloom.',
 		Function = function(enabled)
-			if enabled then
-				task.defer(function() if RTXShaders and RTXShaders.Enabled then start() end end)
-			else
-				restore()
-			end
+			if enabled then task.defer(function() if RTXShaders and RTXShaders.Enabled then start() end end) else restore() end
 		end
 	})
-	Preset = RTXShaders:CreateDropdown({Name = 'Preset', List = names, Default = names[1], Function = changed})
-	Strength = RTXShaders:CreateSlider({Name = 'Grade Strength', Min = 0, Max = 150, Default = 100, Suffix = '%', Function = changed})
-	ShadowDepth = RTXShaders:CreateSlider({Name = 'Shadow Depth', Min = 0, Max = 100, Default = 50, Suffix = '%', Function = changed})
-	Sunlight = RTXShaders:CreateSlider({Name = 'Sunlight', Min = 50, Max = 150, Default = 100, Suffix = '%', Function = changed})
-	Exposure = RTXShaders:CreateSlider({Name = 'Exposure', Min = -100, Max = 100, Default = 0, Function = changed})
-	Bloom = RTXShaders:CreateSlider({Name = 'Bloom', Min = 0, Max = 200, Default = 100, Suffix = '%', Function = changed})
-	Rays = RTXShaders:CreateSlider({Name = 'Sun Rays', Min = 0, Max = 200, Default = 100, Suffix = '%', Function = changed})
-	Haze = RTXShaders:CreateSlider({Name = 'Atmosphere', Min = 0, Max = 150, Default = 100, Suffix = '%', Function = changed})
-	DOF = RTXShaders:CreateToggle({Name = 'Depth of Field', Default = false, Function = changed})
-	Smooth = RTXShaders:CreateToggle({Name = 'Smooth Transitions', Default = true, Function = changed})
-	CustomTime = RTXShaders:CreateToggle({Name = 'Custom Time', Default = false, Function = changed})
-	Time = RTXShaders:CreateSlider({Name = 'Time', Min = 0, Max = 24, Default = 15, Decimal = 10, Function = changed})
+	Preset = RTXShaders:CreateDropdown({Name='Shader Pack',List=names,Default=names[1],Function=changed})
+	Strength = RTXShaders:CreateSlider({Name='Shader Strength',Min=0,Max=150,Default=100,Suffix='%',Function=changed})
+	ShadowDepth = RTXShaders:CreateSlider({Name='Shadow Depth',Min=0,Max=100,Default=58,Suffix='%',Function=changed})
+	Sunlight = RTXShaders:CreateSlider({Name='Direct Light',Min=25,Max=175,Default=100,Suffix='%',Function=changed})
+	Exposure = RTXShaders:CreateSlider({Name='Exposure',Min=-100,Max=100,Default=0,Function=changed})
+	SaturationBoost = RTXShaders:CreateSlider({Name='Saturation',Min=-100,Max=100,Default=0,Suffix='%',Function=changed})
+	Vibrance = RTXShaders:CreateSlider({Name='Vibrance',Min=0,Max=200,Default=100,Suffix='%',Function=changed})
+	Bloom = RTXShaders:CreateSlider({Name='Bloom',Min=0,Max=200,Default=100,Suffix='%',Function=changed})
+	Rays = RTXShaders:CreateSlider({Name='God Rays',Min=0,Max=200,Default=100,Suffix='%',Function=changed})
+	Haze = RTXShaders:CreateSlider({Name='Atmosphere',Min=0,Max=175,Default=100,Suffix='%',Function=changed})
+	FogPower = RTXShaders:CreateSlider({Name='Distance Fog',Min=25,Max=200,Default=100,Suffix='%',Function=changed})
+	DOF = RTXShaders:CreateToggle({Name='Cinematic DOF',Default=false,Function=changed})
+	Motion = RTXShaders:CreateToggle({Name='Living Atmosphere',Default=false,Function=changed})
+	Smooth = RTXShaders:CreateToggle({Name='Smooth Transitions',Default=true,Function=changed})
+	CustomTime = RTXShaders:CreateToggle({Name='Custom Time',Default=false,Function=changed})
+	Time = RTXShaders:CreateSlider({Name='Time',Min=0,Max=24,Default=15,Decimal=10,Function=changed})
 	ready = true
-	vape:Clean(function()
-		restore()
-		holding:Destroy()
-	end)
+	vape:Clean(function() restore(); holding:Destroy() end)
 end)
 -- RTXSHADERS_END
+
 run(function()
 	local SpinBot
 	local Speed
