@@ -5589,7 +5589,144 @@ run(function()
 		end
 	})
 end)
+run(function()
+	local BulletTP
+	local Targets
+	local Range
+	local Head
+	local old
 
+	BulletTP = vape.Categories.Blatant:CreateModule({
+		Name = 'BulletTP',
+
+		Function = function(callback)
+			if callback then
+				old = hookfunction(frontlines.ShootFunction, function(shootid, fire, pos, dir, ...)
+					if not frontlines.Main then
+						return old(shootid, fire, pos, dir, ...)
+					end
+
+					local cstate = frontlines.Main.globals.cli_state
+
+					-- Only modify OUR bullets.
+					if cstate.state == frontlines.Main.cli_state_t.COMBAT
+						and (shootid % frontlines.Main.globals.cli_id_alloc.m) == cstate.id
+						and typeof(pos) == 'Vector3'
+						and typeof(dir) == 'Vector3'
+						and dir.Magnitude > 0.001 then
+
+						local ent = entitylib.EntityPosition({
+							Range = Range.Value,
+							Part = 'RootPart',
+							Origin = pos,
+							Players = Targets.Players.Enabled,
+							NPCs = Targets.NPCs.Enabled
+						})
+
+						if ent and ent.RootPart then
+							local targetpos
+
+							if Head.Enabled then
+								local root = ent.RootPart
+
+								local head =
+									root:FindFirstChild('Root_M')
+									and root.Root_M:FindFirstChild('Spine1_M')
+									and root.Root_M.Spine1_M:FindFirstChild('Spine2_M')
+									and root.Root_M.Spine1_M.Spine2_M:FindFirstChild('Chest_M')
+									and root.Root_M.Spine1_M.Spine2_M.Chest_M:FindFirstChild('Neck_M')
+									and root.Root_M.Spine1_M.Spine2_M.Chest_M.Neck_M:FindFirstChild('Head_M')
+
+								targetpos =
+									head and head.WorldPosition
+									or (ent.Head and ent.Head.Position)
+									or (root.Position + Vector3.new(0, 2.5, 0))
+							else
+								targetpos =
+									ent.RootPart.Position
+							end
+
+							local delta =
+								targetpos - pos
+
+							if delta.Magnitude > 0.001 then
+								local direction =
+									delta.Unit
+
+								local velocity =
+									dir.Magnitude
+
+								--------------------------------------------------
+								-- BULLET TP
+								--------------------------------------------------
+
+								-- Put the bullet a tiny distance BEFORE the enemy
+								-- instead of directly inside their hitbox.
+								--
+								-- Starting inside a hitbox can sometimes cause
+								-- raycasts to miss it entirely.
+
+								local distanceFromTarget = 2
+
+								pos =
+									targetpos
+									- direction * distanceFromTarget
+
+								-- Aim the teleported projectile directly through
+								-- the target while preserving bullet velocity.
+
+								dir =
+									direction * velocity
+
+								targetinfo.Targets[ent] =
+									tick() + 1
+							end
+						end
+					end
+
+					return old(
+						shootid,
+						fire,
+						pos,
+						dir,
+						...
+					)
+				end)
+
+			else
+				if old then
+					hookfunction(
+						frontlines.ShootFunction,
+						old
+					)
+
+					old = nil
+				end
+			end
+		end,
+
+		Tooltip = 'Teleports your spawned bullets next to the target.'
+	})
+
+	Targets = BulletTP:CreateTargets({
+		Players = true
+	})
+
+	Range = BulletTP:CreateSlider({
+		Name = 'Range',
+		Min = 1,
+		Max = 1000,
+		Default = 1000,
+		Suffix = function(val)
+			return val == 1 and 'stud' or 'studs'
+		end
+	})
+
+	Head = BulletTP:CreateToggle({
+		Name = 'Head',
+		Default = true
+	})
+end)
 -- CuteVisuals.java port: Frontlines kills replace Minecraft bed-break packets.
 run(function()
  local createCuteVisuals = assert(loadstring(downloadFile('newvape/libraries/cutevisuals.lua'), 'CuteVisuals'))()
