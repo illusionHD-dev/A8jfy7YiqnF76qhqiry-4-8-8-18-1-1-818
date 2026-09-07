@@ -5593,107 +5593,275 @@ run(function()
 	local BulletTP
 	local Targets
 	local Range
-	local Head
+	local HitDistance
+	local HoldTime
 	local old
+
+	-- Tracks temporarily relocated hitboxes so rapid-fire guns
+	-- don't restore an older position over a newer shot.
+	local moved = {}
+	local token = 0
+
+	--------------------------------------------------
+	-- FIND ONE OF FRONTLINES' HITBOXES FOR ENTITY
+	--------------------------------------------------
+
+	local function getHitbox(ent)
+		if not ent or not ent.RootPart then
+			return
+		end
+
+		local hash =
+			frontlines.Main
+			and frontlines.Main.globals
+			and frontlines.Main.globals.soldier_hitbox_hash
+
+		if not hash then
+			return
+		end
+
+		local fallback
+
+		for hitbox, id in hash do
+			if typeof(hitbox) ~= 'Instance' then
+				continue
+			end
+
+			local weld = hitbox:FindFirstChild('Weld')
+
+			if
+				weld
+				and weld:IsA('Weld')
+				and weld.Part0 == ent.RootPart
+				and weld.Part1
+			then
+				-- Prefer something that looks head-ish if available.
+				local lower = tostring(hitbox.Name):lower()
+
+				if lower:find('head', 1, true) then
+					return hitbox, weld
+				end
+
+				fallback = fallback or {
+					hitbox,
+					weld
+				}
+			end
+		end
+
+		if fallback then
+			return fallback[1], fallback[2]
+		end
+	end
+
+	--------------------------------------------------
+	-- MOVE ONLY HITBOX VIA WELD OFFSET
+	--------------------------------------------------
+
+	local function moveHitbox(hitbox, weld, position)
+		if
+			not hitbox
+			or not hitbox.Parent
+			or not weld
+			or not weld.Parent
+			or not weld.Part0
+			or not weld.Part1
+		then
+			return
+		end
+
+		token += 1
+		local myToken = token
+
+		local data = moved[weld]
+
+		if not data then
+			data = {
+				C0 = weld.C0,
+				Token = myToken
+			}
+
+			moved[weld] = data
+		else
+			data.Token = myToken
+		end
+
+		--------------------------------------------------
+		-- KEEP ORIGINAL HITBOX ROTATION
+		--------------------------------------------------
+
+		local part1 = weld.Part1
+
+		local rotation =
+			part1.CFrame - part1.Position
+
+		local desired =
+			CFrame.new(position) * rotation
+
+		-- Weld relation:
+		--
+		-- Part1.CFrame * C1 = Part0.CFrame * C0
+		--
+		-- Therefore:
+		-- C0 = Part0^-1 * desired * C1
+
+		weld.C0 =
+			weld.Part0.CFrame:ToObjectSpace(
+				desired * weld.C1
+			)
+
+		--------------------------------------------------
+		-- RESTORE AFTER BULLET HAS HAD TIME TO HIT
+		--------------------------------------------------
+
+		task.delay(HoldTime.Value, function()
+			local current = moved[weld]
+
+			if
+				current
+				and current.Token == myToken
+			then
+				pcall(function()
+					weld.C0 = current.C0
+				end)
+
+				moved[weld] = nil
+			end
+		end)
+
+		return true
+	end
+
+	--------------------------------------------------
+	-- RESTORE EVERYTHING
+	--------------------------------------------------
+
+	local function restoreAll()
+		for weld, data in moved do
+			pcall(function()
+				if weld and weld.Parent then
+					weld.C0 = data.C0
+				end
+			end)
+		end
+
+		table.clear(moved)
+	end
+
+	--------------------------------------------------
+	-- MODULE
+	--------------------------------------------------
 
 	BulletTP = vape.Categories.Blatant:CreateModule({
 		Name = 'BulletTP',
 
 		Function = function(callback)
 			if callback then
-				old = hookfunction(frontlines.ShootFunction, function(shootid, fire, pos, dir, ...)
-					if not frontlines.Main then
-						return old(shootid, fire, pos, dir, ...)
-					end
+				old = hookfunction(
+					frontlines.ShootFunction,
 
-					local cstate = frontlines.Main.globals.cli_state
+					function(shootid, fire, pos, dir, ...)
+						if not frontlines.Main then
+							return old(
+								shootid,
+								fire,
+								pos,
+								dir,
+								...
+							)
+						end
 
-					-- Only modify OUR bullets.
-					if cstate.state == frontlines.Main.cli_state_t.COMBAT
-						and (shootid % frontlines.Main.globals.cli_id_alloc.m) == cstate.id
-						and typeof(pos) == 'Vector3'
-						and typeof(dir) == 'Vector3'
-						and dir.Magnitude > 0.001 then
+						local cstate =
+							frontlines.Main.globals.cli_state
 
-						local ent = entitylib.EntityPosition({
-							Range = Range.Value,
-							Part = 'RootPart',
-							Origin = pos,
-							Players = Targets.Players.Enabled,
-							NPCs = Targets.NPCs.Enabled
-						})
+						--------------------------------------------------
+						-- ONLY OUR BULLETS
+						--------------------------------------------------
 
-						if ent and ent.RootPart then
-							local targetpos
+						if
+							cstate.state
+								== frontlines.Main.cli_state_t.COMBAT
+							and (
+								shootid
+								% frontlines.Main.globals.cli_id_alloc.m
+							) == cstate.id
+							and typeof(pos) == 'Vector3'
+							and typeof(dir) == 'Vector3'
+							and dir.Magnitude > 0.001
+						then
 
-							if Head.Enabled then
-								local root = ent.RootPart
+							--------------------------------------------------
+							-- PICK TARGET
+							--------------------------------------------------
 
-								local head =
-									root:FindFirstChild('Root_M')
-									and root.Root_M:FindFirstChild('Spine1_M')
-									and root.Root_M.Spine1_M:FindFirstChild('Spine2_M')
-									and root.Root_M.Spine1_M.Spine2_M:FindFirstChild('Chest_M')
-									and root.Root_M.Spine1_M.Spine2_M.Chest_M:FindFirstChild('Neck_M')
-									and root.Root_M.Spine1_M.Spine2_M.Chest_M.Neck_M:FindFirstChild('Head_M')
+							local ent =
+								entitylib.EntityPosition({
+									Range = Range.Value,
 
-								targetpos =
-									head and head.WorldPosition
-									or (ent.Head and ent.Head.Position)
-									or (root.Position + Vector3.new(0, 2.5, 0))
-							else
-								targetpos =
-									ent.RootPart.Position
-							end
+									Part = 'RootPart',
 
-							local delta =
-								targetpos - pos
+									Origin = pos,
 
-							if delta.Magnitude > 0.001 then
-								local direction =
-									delta.Unit
+									Players =
+										Targets.Players.Enabled,
 
-								local velocity =
-									dir.Magnitude
+									NPCs =
+										Targets.NPCs.Enabled
+								})
 
-								--------------------------------------------------
-								-- BULLET TP
-								--------------------------------------------------
+							if ent then
+								local hitbox, weld =
+									getHitbox(ent)
 
-								-- Put the bullet a tiny distance BEFORE the enemy
-								-- instead of directly inside their hitbox.
-								--
-								-- Starting inside a hitbox can sometimes cause
-								-- raycasts to miss it entirely.
+								if hitbox and weld then
+									--------------------------------------------------
+									-- DON'T TELEPORT BULLET.
+									--
+									-- Keep its REAL:
+									--   pos
+									--   dir
+									--
+									-- Instead put the invisible target
+									-- hitbox directly into its trajectory.
+									--------------------------------------------------
 
-								local distanceFromTarget = 2
+									local direction =
+										dir.Unit
 
-								pos =
-									targetpos
-									- direction * distanceFromTarget
+									local fakeHitPosition =
+										pos
+										+ direction
+										* HitDistance.Value
 
-								-- Aim the teleported projectile directly through
-								-- the target while preserving bullet velocity.
-
-								dir =
-									direction * velocity
-
-								targetinfo.Targets[ent] =
-									tick() + 1
+									if moveHitbox(
+										hitbox,
+										weld,
+										fakeHitPosition
+									) then
+										targetinfo.Targets[ent] =
+											tick() + 1
+									end
+								end
 							end
 						end
-					end
 
-					return old(
-						shootid,
-						fire,
-						pos,
-						dir,
-						...
-					)
-				end)
+						--------------------------------------------------
+						-- ORIGINAL BULLET, ORIGINAL ORIGIN/DIRECTION
+						--------------------------------------------------
+
+						return old(
+							shootid,
+							fire,
+							pos,
+							dir,
+							...
+						)
+					end
+				)
 
 			else
+				restoreAll()
+
 				if old then
 					hookfunction(
 						frontlines.ShootFunction,
@@ -5705,27 +5873,73 @@ run(function()
 			end
 		end,
 
-		Tooltip = 'Teleports your spawned bullets next to the target.'
+		Tooltip = 'Relocates target hitboxes into the local bullet path without changing the bullet origin.'
 	})
+
+	--------------------------------------------------
+	-- TARGETS
+	--------------------------------------------------
 
 	Targets = BulletTP:CreateTargets({
 		Players = true
 	})
+
+	--------------------------------------------------
+	-- RANGE
+	--------------------------------------------------
 
 	Range = BulletTP:CreateSlider({
 		Name = 'Range',
 		Min = 1,
 		Max = 1000,
 		Default = 1000,
+
 		Suffix = function(val)
-			return val == 1 and 'stud' or 'studs'
+			return val == 1
+				and 'stud'
+				or 'studs'
 		end
 	})
 
-	Head = BulletTP:CreateToggle({
-		Name = 'Head',
-		Default = true
+	--------------------------------------------------
+	-- DISTANCE FROM MUZZLE
+	--------------------------------------------------
+
+	HitDistance = BulletTP:CreateSlider({
+		Name = 'Hit Distance',
+
+		Min = 2,
+		Max = 12,
+
+		Default = 5,
+
+		Suffix = function(val)
+			return val == 1
+				and 'stud'
+				or 'studs'
+		end
 	})
+
+	--------------------------------------------------
+	-- HITBOX HOLD TIME
+	--------------------------------------------------
+
+	HoldTime = BulletTP:CreateSlider({
+		Name = 'Hold Time',
+
+		Min = 0.01,
+		Max = 0.15,
+
+		Default = 0.06,
+
+		Decimal = 100,
+
+		Suffix = 's'
+	})
+
+	BulletTP:Clean(function()
+		restoreAll()
+	end)
 end)
 -- CuteVisuals.java port: Frontlines kills replace Minecraft bed-break packets.
 run(function()
