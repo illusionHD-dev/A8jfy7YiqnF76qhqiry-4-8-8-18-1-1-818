@@ -1816,90 +1816,118 @@ run(function()
 	local Yaw
 	local Pitch
 	local spinYaw = 0
-	local renderName = 'VapeFrontlinesSpinBotVisual'
-	local currentBone
-	local originalBoneCFrame
+	local spinConnection
+	local hookedFunction
+	local originalFunction
+	local reportedError = false
+	local maxPitch = frontlines.Main.consts.fpv_sol_movement.MAX_ATT_X
 
-	local function getRootBone()
-		local main = frontlines.Main
-		local globals = main and main.globals
-		local state = globals and globals.cli_state
-		local id = state and state.fpv_sol_id
-		if id == nil or not globals then return end
-
-		local holder = globals.sol_root_parts and globals.sol_root_parts[id]
-		local bone = holder and holder:FindFirstChild('Root_M')
-		if not bone then
-			local model = globals.soldier_models and globals.soldier_models[id]
-			bone = model and model:FindFirstChild('Root_M', true)
-		end
-
-		if bone and pcall(function() return bone.CFrame end) then
-			return bone
-		end
-	end
-
-	local function pitchRadians()
+	local function getPitch(yawRadians)
 		local mode = Pitch.Value
 		if mode == 'Up' then
-			return math.rad(70)
+			return maxPitch
 		elseif mode == 'Down' then
-			return math.rad(-70)
+			return -maxPitch
 		elseif mode == 'Sine' then
-			return math.sin(spinYaw) * math.rad(70)
+			return math.sin(yawRadians) * maxPitch
 		end
 		return 0
 	end
 
-	local function releaseBone()
-		if currentBone and currentBone.Parent and originalBoneCFrame then
+	local function restoreHook()
+		if spinConnection then
+			spinConnection:Disconnect()
+			spinConnection = nil
+		end
+
+		if hookedFunction and originalFunction then
 			pcall(function()
-				currentBone.CFrame = originalBoneCFrame
+				-- Only restore our own hook. Never overwrite another module's hook.
+				if not frontlines.Functions or frontlines.Functions[hookedFunction] == originalFunction then
+					hookfunction(hookedFunction, originalFunction)
+					if frontlines.Functions then
+						frontlines.Functions[hookedFunction] = nil
+					end
+				end
 			end)
 		end
-		currentBone = nil
-		originalBoneCFrame = nil
-	end
 
-	local function stopVisual()
-		pcall(function()
-			runService:UnbindFromRenderStep(renderName)
-		end)
-		releaseBone()
+		hookedFunction = nil
+		originalFunction = nil
 		spinYaw = 0
 	end
 
-	local function startVisual()
-		stopVisual()
+	local function disableFromError(err)
+		if reportedError then return end
+		reportedError = true
+		task.defer(function()
+			restoreHook()
+			if SpinBot.Enabled then SpinBot:Toggle() end
+			notif('SpinBot', 'Disabled safely: '..tostring(err), 8, 'alert')
+		end)
+	end
 
-		-- Render-only: this never edits sol_attitudes, the camera, network egress,
-		-- movement state, STEP_SOL_CFRAME, or any Frontlines simulation upvalues.
-		-- Applying the pose after the game's own render work prevents the game and
-		-- SpinBot from fighting over the same bone each frame (the old jitter).
-		runService:BindToRenderStep(renderName, Enum.RenderPriority.Last.Value + 100, function(dt)
-			if not SpinBot.Enabled then return end
+	local function installHook()
+		restoreHook()
+		reportedError = false
 
-			dt = math.clamp(dt or 0, 0, 0.05)
-			local direction = Yaw.Value == 'Counter Clockwise' and -1 or 1
-			spinYaw = (spinYaw + direction * (Speed.Value or 0) * math.pi * 2 * dt) % (math.pi * 2)
-
-			local bone = getRootBone()
-			if not bone then
-				releaseBone()
-				return
+		local main = frontlines.Main
+		if not (main and main.globals and frontlines.Events and main.exe_func_t) then
+			error('Frontlines network state is unavailable')
 		end
 
-			if bone ~= currentBone then
-				releaseBone()
-				currentBone = bone
-				originalBoneCFrame = bone.CFrame
+		local egress = frontlines.Events[main.exe_func_t.STEP_FPV_SOL_NET_EGRESS]
+		if type(egress) ~= 'function' then
+			error('Could not locate STEP_FPV_SOL_NET_EGRESS')
+		end
+
+		hookedFunction = egress
+		local original
+		original = hookfunction(egress, function(...)
+			if not SpinBot.Enabled then
+				return original(...)
 			end
 
-			-- Root_M's normal Frontlines basis is approximately yaw +90°, roll -90°.
-			-- We only alter the rendered TPV root bone; the FPV camera/body simulation
-			-- remains exactly where the game put it.
-			local pitch = pitchRadians()
-			bone.CFrame = CFrame.Angles(pitch, spinYaw + math.rad(90), math.rad(-90))
+			local globals = main.globals
+			local state = globals and globals.cli_state
+			local id = state and state.fpv_sol_id
+			local attitudes = globals and globals.sol_attitudes
+			if id == nil or type(attitudes) ~= 'table' then
+				return original(...)
+			end
+
+			local real = attitudes[id]
+			if typeof(real) ~= 'Vector3' then
+				return original(...)
+			end
+
+			-- IMPORTANT: do not replace Frontlines' attitude table or TPV joint table.
+			-- We only swap our own value while the outgoing network packet is built,
+			-- then restore it before control returns to the rest of the client.
+			local spoof = Vector3.new(getPitch(spinYaw), spinYaw, real.Z)
+			local args = table.pack(...)
+			attitudes[id] = spoof
+
+			local results = table.pack(pcall(original, table.unpack(args, 1, args.n)))
+			if attitudes[id] == spoof then
+				attitudes[id] = real
+			end
+
+			if not results[1] then
+				disableFromError(results[2])
+				return
+			end
+			return table.unpack(results, 2, results.n)
+		end)
+
+		originalFunction = original
+		frontlines.Functions[egress] = original
+
+		spinConnection = runService.Heartbeat:Connect(function(dt)
+			if not SpinBot.Enabled then return end
+			local direction = Yaw.Value == 'Counter Clockwise' and -1 or 1
+			local rotationsPerSecond = Speed.Value or 0
+			spinYaw = (spinYaw + direction * rotationsPerSecond * math.pi * 2 * math.min(dt, 0.1)) % (math.pi * 2)
 		end)
 	end
 
@@ -1907,13 +1935,21 @@ run(function()
 		Name = 'SpinBot',
 		Function = function(callback)
 			if callback then
-				startVisual()
-				SpinBot:Clean(stopVisual)
+				local ok, err = pcall(installHook)
+				if not ok then
+					restoreHook()
+					task.defer(function()
+						if SpinBot.Enabled then SpinBot:Toggle() end
+						notif('SpinBot', tostring(err), 8, 'alert')
+					end)
+					return
+				end
+				SpinBot:Clean(restoreHook)
 			else
-				stopVisual()
+				restoreHook()
 			end
 		end,
-		Tooltip = 'Smooth local visual spin. Does not touch camera, movement, simulation, or network aim data.'
+		Tooltip = 'Network-only anti-aim. Does not rotate the local camera, root joint, TPV joints, or simulation state.'
 	})
 
 	Speed = SpinBot:CreateSlider({
@@ -1934,6 +1970,7 @@ run(function()
 		Default = 'Forward'
 	})
 end)
+
 
 -- ILLUSIONHD_GUNCHANGER_V5
 run(function()
