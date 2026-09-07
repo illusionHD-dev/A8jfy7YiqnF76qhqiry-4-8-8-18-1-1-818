@@ -568,77 +568,243 @@ run(function()
 	local AimAssist
 	local FOV
 	local Speed
+	local JitterSpeed
+	local JitterAmount
 	local CircleColor
 	local CircleTransparency
 	local CircleFilled
 	local CircleObject
 	local rayCheck = RaycastParams.new()
 	rayCheck.RespectCanCollide = true
-	
+	local rand = Random.new()
+
+	-- AimAssist keeps the physically closest valid player inside the FOV, then walks
+	-- through torso -> head regions in a shuffled order instead of locking one bone.
+	local trackedEntity
+	local pointOrder = {}
+	local pointIndex = 1
+	local nextPointSwitch = 0
+	local pointOffset = Vector3.zero
+
+	local function getMousePosition()
+		return inputService.TouchEnabled and gameCamera.ViewportSize / 2 or inputService:GetMouseLocation()
+	end
+
+	local function bonePosition(ent, names, fallback)
+		local root = ent and ent.RootPart
+		local character = ent and ent.Character
+		if not root then return fallback end
+
+		for _, name in ipairs(names) do
+			local node = root:FindFirstChild(name, true) or (character and character:FindFirstChild(name, true))
+			if node then
+				if node:IsA('Bone') then
+					return node.TransformedWorldCFrame.Position
+				elseif node:IsA('Attachment') then
+					return node.WorldPosition
+				elseif node:IsA('BasePart') then
+					return node.Position
+				end
+			end
+		end
+
+		return fallback
+	end
+
+	local function getBodyPoints(ent)
+		local root = ent.RootPart
+		if not root then return {} end
+		local base = root.Position
+		local headFallback = ent.Head and ent.Head.Position or (base + Vector3.new(0, 3, 0))
+		return {
+			bonePosition(ent, {'Spine2_M', 'UpperTorso', 'Torso'}, base:Lerp(headFallback, 0.52)),
+			bonePosition(ent, {'Chest_M', 'Spine2_M', 'UpperTorso'}, base:Lerp(headFallback, 0.68)),
+			bonePosition(ent, {'Neck_M', 'Neck', 'Chest_M'}, base:Lerp(headFallback, 0.84)),
+			bonePosition(ent, {'Head_M', 'Head'}, headFallback)
+		}
+	end
+
+	local function shufflePoints()
+		pointOrder = {1, 2, 3, 4}
+		for i = #pointOrder, 2, -1 do
+			local j = rand:NextInteger(1, i)
+			pointOrder[i], pointOrder[j] = pointOrder[j], pointOrder[i]
+		end
+		pointIndex = 1
+	end
+
+	local function resetJitter(ent)
+		trackedEntity = ent
+		nextPointSwitch = 0
+		pointOffset = Vector3.zero
+		shufflePoints()
+	end
+
+	local function getJitterPoint(ent)
+		if trackedEntity ~= ent then
+			resetJitter(ent)
+		end
+
+		local now = os.clock()
+		if now >= nextPointSwitch then
+			if pointIndex > #pointOrder then
+				shufflePoints()
+			end
+
+			local amount = JitterAmount.Value / 100
+			pointOffset = Vector3.new(
+				rand:NextNumber(-amount, amount),
+				rand:NextNumber(-amount * 0.6, amount * 0.6),
+				rand:NextNumber(-amount, amount)
+			)
+
+			local rate = math.max(JitterSpeed.Value, 1)
+			nextPointSwitch = now + (1 / rate) * rand:NextNumber(0.72, 1.28)
+			pointIndex += 1
+		end
+
+		local points = getBodyPoints(ent)
+		local orderIndex = math.clamp(pointIndex - 1, 1, #pointOrder)
+		local bodyIndex = pointOrder[orderIndex] or 2
+		return points[bodyIndex] and (points[bodyIndex] + pointOffset) or ent.RootPart.Position
+	end
+
+	local function getClosestTarget(origin)
+		if not entitylib.isAlive or not gameCamera then return end
+		local mouse = getMousePosition()
+		local best, bestDistance
+
+		for _, ent in ipairs(entitylib.List) do
+			local root = ent.RootPart
+			if not ent.Player or ent.Targetable == false or not root or not root.Parent or not ent.Character then
+				continue
+			end
+
+			local worldDistance = (root.Position - origin).Magnitude
+			local screen, visible = gameCamera:WorldToViewportPoint(root.Position + Vector3.new(0, 1.5, 0))
+			if not visible or screen.Z <= 0 then continue end
+			if (Vector2.new(screen.X, screen.Y) - mouse).Magnitude > FOV.Value then continue end
+
+			-- Ignore the target itself while checking for walls, so only geometry between
+			-- the camera and player can reject the candidate.
+			rayCheck.FilterDescendantsInstances = {
+				gameCamera,
+				ent.Character,
+				entitylib.character and entitylib.character.Character or nil
+			}
+			rayCheck.CollisionGroup = root.CollisionGroup
+			local obstruction = workspace:Raycast(origin, root.Position - origin, rayCheck)
+			if obstruction then continue end
+
+			if not bestDistance or worldDistance < bestDistance then
+				best = ent
+				bestDistance = worldDistance
+			end
+		end
+
+		return best
+	end
+
 	AimAssist = vape.Categories.Combat:CreateModule({
 		Name = 'AimAssist',
 		Function = function(callback)
 			if CircleObject then
 				CircleObject.Visible = callback
 			end
-			if callback then 
-				repeat
-					local dt = task.wait()
-					if not AimAssist.Enabled then break end
-					if CircleObject then 
-						CircleObject.Position = inputService:GetMouseLocation() 
-					end
-	
-					if inputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then 
-						local origin = entitylib.isAlive and frontlines.Main.globals.fpv_sol_instances.camera_bone.WorldPosition or Vector3.zero
-						local ent = entitylib.EntityMouse({
-							Range = FOV.Value,
-							Players = true,
-							Wallcheck = true,
-							Part = 'RootPart',
-							Origin = origin
-						})
-	
-						if ent then 
-							local gun = frontlines.Main.globals.fpv_sol_equipment.curr_equipment
-							if gun and gun.fire_params then
-								rayCheck.FilterDescendantsInstances = {gameCamera, ent.Character}
-								rayCheck.CollisionGroup = ent.RootPart.CollisionGroup
-								local velo = gun.fire_params.muzzle_velocity
-								local targetpos = ent.RootPart.Root_M.Spine1_M.Spine2_M.Chest_M.Neck_M.Head_M.WorldCFrame.Position
-								local calc = prediction.SolveTrajectory(origin, velo, workspace.Gravity, targetpos, Vector3.zero, workspace.Gravity, ent.HipHeight, nil, rayCheck)
-								
-								if calc then 
-									local pos = gameCamera:WorldToViewportPoint(calc)
-									local localmouse = (inputService:GetMouseLocation() - Vector2.new(pos.X, pos.Y)) * dt * (Speed.Value / 10000)
-									targetinfo.Targets[ent] = tick() + 1
-									frontlines.Main.exe_set(frontlines.Main.exe_set_t.CTRL_SOL_ATT_ROT, localmouse.Y, localmouse.X)
-								end
-							end
-						end
-					end
-				until not AimAssist.Enabled
+
+			if not callback then
+				trackedEntity = nil
+				return
 			end
+
+			AimAssist:Clean(runService.RenderStepped:Connect(function(dt)
+				if not AimAssist.Enabled or not gameCamera then return end
+				if CircleObject then CircleObject.Position = getMousePosition() end
+				if not inputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+					trackedEntity = nil
+					return
+				end
+
+				local instances = frontlines.Main.globals.fpv_sol_instances
+				local bone = instances and instances.camera_bone
+				local origin = bone and bone.WorldPosition
+				if not origin then return end
+
+				local ent = getClosestTarget(origin)
+				if not ent then
+					trackedEntity = nil
+					return
+				end
+
+				local gun = frontlines.Main.globals.fpv_sol_equipment.curr_equipment
+				if not (gun and gun.fire_params) then return end
+
+				local targetpos = getJitterPoint(ent)
+				rayCheck.FilterDescendantsInstances = {
+					gameCamera,
+					ent.Character,
+					entitylib.character and entitylib.character.Character or nil
+				}
+				rayCheck.CollisionGroup = ent.RootPart.CollisionGroup
+
+				local velo = gun.fire_params.muzzle_velocity
+				local calc = prediction.SolveTrajectory(
+					origin,
+					velo,
+					workspace.Gravity,
+					targetpos,
+					Vector3.zero,
+					workspace.Gravity,
+					ent.HipHeight,
+					nil,
+					rayCheck
+				)
+
+				if calc then
+					local screen = gameCamera:WorldToViewportPoint(calc)
+					local delta = getMousePosition() - Vector2.new(screen.X, screen.Y)
+					local localmouse = delta * dt * (Speed.Value / 10000)
+					targetinfo.Targets[ent] = tick() + 1
+					frontlines.Main.exe_set(frontlines.Main.exe_set_t.CTRL_SOL_ATT_ROT, localmouse.Y, localmouse.X)
+				end
+			end))
 		end,
-		Tooltip = 'Uses game functions to move the camera towards players'
+		Tooltip = 'Targets the closest player in your FOV and jitters through torso-to-head aim points.'
 	})
+
 	FOV = AimAssist:CreateSlider({
 		Name = 'FOV',
 		Min = 1,
 		Max = 1000,
 		Default = 300,
 		Function = function(val)
-			if CircleObject then
-				CircleObject.Radius = val
-			end
+			if CircleObject then CircleObject.Radius = val end
 		end
 	})
+
 	Speed = AimAssist:CreateSlider({
 		Name = 'Speed',
 		Min = 1,
 		Max = 100,
 		Default = 10
 	})
+
+	JitterSpeed = AimAssist:CreateSlider({
+		Name = 'Jitter Speed',
+		Min = 2,
+		Max = 30,
+		Default = 12,
+		Suffix = '/s'
+	})
+
+	JitterAmount = AimAssist:CreateSlider({
+		Name = 'Jitter Amount',
+		Min = 0,
+		Max = 35,
+		Default = 8,
+		Suffix = '%'
+	})
+
 	AimAssist:CreateToggle({
 		Name = 'Range Circle',
 		Function = function(callback)
@@ -646,7 +812,7 @@ run(function()
 				CircleObject = Drawing.new('Circle')
 				CircleObject.Filled = CircleFilled.Enabled
 				CircleObject.Color = Color3.fromHSV(CircleColor.Hue, CircleColor.Sat, CircleColor.Value)
-				CircleObject.Position = vape.gui.AbsoluteSize / 2
+				CircleObject.Position = getMousePosition()
 				CircleObject.Radius = FOV.Value
 				CircleObject.NumSides = 100
 				CircleObject.Transparency = 1 - CircleTransparency.Value
@@ -656,22 +822,23 @@ run(function()
 					CircleObject.Visible = false
 					CircleObject:Remove()
 				end)
+				CircleObject = nil
 			end
 			CircleColor.Object.Visible = callback
 			CircleTransparency.Object.Visible = callback
 			CircleFilled.Object.Visible = callback
 		end
 	})
+
 	CircleColor = AimAssist:CreateColorSlider({
-		Name = 'Circle Color', 
+		Name = 'Circle Color',
 		Function = function(hue, sat, val)
-			if CircleObject then
-				CircleObject.Color = Color3.fromHSV(hue, sat, val)
-			end
-		end, 
-		Darker = true, 
+			if CircleObject then CircleObject.Color = Color3.fromHSV(hue, sat, val) end
+		end,
+		Darker = true,
 		Visible = false
 	})
+
 	CircleTransparency = AimAssist:CreateSlider({
 		Name = 'Transparency',
 		Min = 0,
@@ -679,24 +846,20 @@ run(function()
 		Decimal = 10,
 		Default = 0.5,
 		Function = function(val)
-			if CircleObject then
-				CircleObject.Transparency = 1 - val
-			end
+			if CircleObject then CircleObject.Transparency = 1 - val end
 		end,
 		Darker = true,
 		Visible = false
 	})
+
 	CircleFilled = AimAssist:CreateToggle({
-		Name = 'Circle Filled', 
+		Name = 'Circle Filled',
 		Function = function(callback)
-			if CircleObject then
-				CircleObject.Filled = callback
-			end
-		end, 
-		Darker = true, 
+			if CircleObject then CircleObject.Filled = callback end
+		end,
+		Darker = true,
 		Visible = false
 	})
-	
 end)
 
 run(function()
@@ -1038,50 +1201,120 @@ run(function()
 	})
 end)
 
-local GrenadeTP
-local Range
+run(function()
+	local GrenadeTP
+	local Range
+	local targetCache = setmetatable({}, {__mode = 'k'})
 
-GrenadeTP = vape.Categories.Blatant:CreateModule({
-	Name = 'GrenadeTP',
-	Function = function(callback)
-		if callback then
-			repeat
-				for _, v in frontlines.Throwables do
-					if v.model and v.network_ownership then
-						local ent = entitylib.EntityPosition({
-							Range = Range.Value,
-							Part = 'RootPart',
-							Origin = v.model.PrimaryPart.Position,
-							Players = true
-						})
+	local function validTarget(ent)
+		return ent
+			and ent.Targetable ~= false
+			and ent.RootPart
+			and ent.RootPart.Parent
+			and ent.Health ~= 0
+	end
 
-						if ent then
-							local id
-							for i, hash in frontlines.Main.globals.soldier_hitbox_hash do
-								if i.Weld.Part0 == v.RootPart then
-									id = hash
-									break
-								end
-							end
+	local function getTargetCFrame(ent)
+		local root = ent and ent.RootPart
+		if not root or not root.Parent then return end
 
-							if id then
-								v.model:PivotTo(ent.RootPart.Root_M.Spine1_M.WorldCFrame)
-							end
-						end
+		-- Prefer the animated center-mass bones so the grenade sits inside the
+		-- actual soldier hitbox instead of lagging behind the root pivot.
+		local node = root:FindFirstChild('Chest_M', true)
+			or root:FindFirstChild('Spine2_M', true)
+			or root:FindFirstChild('Spine1_M', true)
+
+		if node then
+			if node:IsA('Bone') then
+				return node.TransformedWorldCFrame
+			elseif node:IsA('Attachment') then
+				return node.WorldCFrame
+			elseif node:IsA('BasePart') then
+				return node.CFrame
+			end
+		end
+
+		-- Frontlines' root is low on the body, so raise the fallback to torso height.
+		return root.CFrame + Vector3.new(0, math.max(ent.HipHeight or 2, 1.5) * 0.7, 0)
+	end
+
+	local function getNearestTarget(throwable, primary, now)
+		local cached = targetCache[throwable]
+		if cached and now < cached.Expires and validTarget(cached.Entity) then
+			if (cached.Entity.RootPart.Position - primary.Position).Magnitude <= Range.Value + 8 then
+				return cached.Entity
+			end
+		end
+
+		local ent = entitylib.EntityPosition({
+			Range = Range.Value,
+			Part = 'RootPart',
+			Origin = primary.Position,
+			Players = true
+		})
+
+		targetCache[throwable] = {
+			Entity = ent,
+			Expires = now + 0.05
+		}
+		return ent
+	end
+
+	local function step()
+		if not GrenadeTP.Enabled or type(frontlines.Throwables) ~= 'table' then return end
+		local now = os.clock()
+
+		for _, throwable in frontlines.Throwables do
+			local model = throwable and throwable.model
+			local primary = model and model.PrimaryPart
+
+			if primary and primary.Parent and throwable.network_ownership then
+				local ent = getNearestTarget(throwable, primary, now)
+				if validTarget(ent) then
+					local targetCF = getTargetCFrame(ent)
+					if targetCF then
+						-- Move before the physics step so overlap/contact can be processed on
+						-- this frame instead of waiting for the next polling iteration.
+						model:PivotTo(targetCF)
+
+						-- Prevent the grenade's old throw velocity from immediately pulling it
+						-- back out of the target between teleports. Match target velocity instead.
+						local targetVelocity = ent.RootPart.AssemblyLinearVelocity
+						if typeof(targetVelocity) ~= 'Vector3' then targetVelocity = Vector3.zero end
+						pcall(function()
+							primary.AssemblyLinearVelocity = targetVelocity
+							primary.AssemblyAngularVelocity = Vector3.zero
+						end)
 					end
 				end
-				task.wait(0.016)
-			until not GrenadeTP.Enabled
+			else
+				targetCache[throwable] = nil
+			end
 		end
-	end,
-	Tooltip = 'Teleports throwables near enemy players'
-})
-Range = GrenadeTP:CreateSlider({
-	Name = 'Range',
-	Min = 1,
-	Max = 1000,
-	Default = 1000
-})
+	end
+
+	GrenadeTP = vape.Categories.Blatant:CreateModule({
+		Name = 'GrenadeTP',
+		Function = function(callback)
+			table.clear(targetCache)
+			if callback then
+				-- Snap both before and after physics. PreSimulation lets contact resolve on
+				-- the current physics frame; Heartbeat keeps the grenade from drifting away.
+				step()
+				GrenadeTP:Clean(runService.PreSimulation:Connect(step))
+				GrenadeTP:Clean(runService.Heartbeat:Connect(step))
+			end
+		end,
+		Tooltip = 'Teleports owned throwables directly onto the nearest enemy center mass'
+	})
+
+	Range = GrenadeTP:CreateSlider({
+		Name = 'Range',
+		Min = 1,
+		Max = 1000,
+		Default = 1000
+	})
+end)
 
 run(function()
 	local Reload
@@ -1746,118 +1979,90 @@ run(function()
 	local Yaw
 	local Pitch
 	local spinYaw = 0
-	local spinConnection
-	local hookedFunction
-	local originalFunction
-	local reportedError = false
-	local maxPitch = frontlines.Main.consts.fpv_sol_movement.MAX_ATT_X
+	local renderName = 'VapeFrontlinesSpinBotVisual'
+	local currentBone
+	local originalBoneCFrame
 
-	local function getPitch(yawRadians)
+	local function getRootBone()
+		local main = frontlines.Main
+		local globals = main and main.globals
+		local state = globals and globals.cli_state
+		local id = state and state.fpv_sol_id
+		if id == nil or not globals then return end
+
+		local holder = globals.sol_root_parts and globals.sol_root_parts[id]
+		local bone = holder and holder:FindFirstChild('Root_M')
+		if not bone then
+			local model = globals.soldier_models and globals.soldier_models[id]
+			bone = model and model:FindFirstChild('Root_M', true)
+		end
+
+		if bone and pcall(function() return bone.CFrame end) then
+			return bone
+		end
+	end
+
+	local function pitchRadians()
 		local mode = Pitch.Value
 		if mode == 'Up' then
-			return maxPitch
+			return math.rad(70)
 		elseif mode == 'Down' then
-			return -maxPitch
+			return math.rad(-70)
 		elseif mode == 'Sine' then
-			return math.sin(yawRadians) * maxPitch
+			return math.sin(spinYaw) * math.rad(70)
 		end
 		return 0
 	end
 
-	local function restoreHook()
-		if spinConnection then
-			spinConnection:Disconnect()
-			spinConnection = nil
-		end
-
-		if hookedFunction and originalFunction then
+	local function releaseBone()
+		if currentBone and currentBone.Parent and originalBoneCFrame then
 			pcall(function()
-				-- Only restore our own hook. Never overwrite another module's hook.
-				if not frontlines.Functions or frontlines.Functions[hookedFunction] == originalFunction then
-					hookfunction(hookedFunction, originalFunction)
-					if frontlines.Functions then
-						frontlines.Functions[hookedFunction] = nil
-					end
-				end
+				currentBone.CFrame = originalBoneCFrame
 			end)
 		end
+		currentBone = nil
+		originalBoneCFrame = nil
+	end
 
-		hookedFunction = nil
-		originalFunction = nil
+	local function stopVisual()
+		pcall(function()
+			runService:UnbindFromRenderStep(renderName)
+		end)
+		releaseBone()
 		spinYaw = 0
 	end
 
-	local function disableFromError(err)
-		if reportedError then return end
-		reportedError = true
-		task.defer(function()
-			restoreHook()
-			if SpinBot.Enabled then SpinBot:Toggle() end
-			notif('SpinBot', 'Disabled safely: '..tostring(err), 8, 'alert')
-		end)
-	end
+	local function startVisual()
+		stopVisual()
 
-	local function installHook()
-		restoreHook()
-		reportedError = false
-
-		local main = frontlines.Main
-		if not (main and main.globals and frontlines.Events and main.exe_func_t) then
-			error('Frontlines network state is unavailable')
-		end
-
-		local egress = frontlines.Events[main.exe_func_t.STEP_FPV_SOL_NET_EGRESS]
-		if type(egress) ~= 'function' then
-			error('Could not locate STEP_FPV_SOL_NET_EGRESS')
-		end
-
-		hookedFunction = egress
-		local original
-		original = hookfunction(egress, function(...)
-			if not SpinBot.Enabled then
-				return original(...)
-			end
-
-			local globals = main.globals
-			local state = globals and globals.cli_state
-			local id = state and state.fpv_sol_id
-			local attitudes = globals and globals.sol_attitudes
-			if id == nil or type(attitudes) ~= 'table' then
-				return original(...)
-			end
-
-			local real = attitudes[id]
-			if typeof(real) ~= 'Vector3' then
-				return original(...)
-			end
-
-			-- IMPORTANT: do not replace Frontlines' attitude table or TPV joint table.
-			-- We only swap our own value while the outgoing network packet is built,
-			-- then restore it before control returns to the rest of the client.
-			local spoof = Vector3.new(getPitch(spinYaw), spinYaw, real.Z)
-			local args = table.pack(...)
-			attitudes[id] = spoof
-
-			local results = table.pack(pcall(original, table.unpack(args, 1, args.n)))
-			if attitudes[id] == spoof then
-				attitudes[id] = real
-			end
-
-			if not results[1] then
-				disableFromError(results[2])
-				return
-			end
-			return table.unpack(results, 2, results.n)
-		end)
-
-		originalFunction = original
-		frontlines.Functions[egress] = original
-
-		spinConnection = runService.Heartbeat:Connect(function(dt)
+		-- Render-only: this never edits sol_attitudes, the camera, network egress,
+		-- movement state, STEP_SOL_CFRAME, or any Frontlines simulation upvalues.
+		-- Applying the pose after the game's own render work prevents the game and
+		-- SpinBot from fighting over the same bone each frame (the old jitter).
+		runService:BindToRenderStep(renderName, Enum.RenderPriority.Last.Value + 100, function(dt)
 			if not SpinBot.Enabled then return end
+
+			dt = math.clamp(dt or 0, 0, 0.05)
 			local direction = Yaw.Value == 'Counter Clockwise' and -1 or 1
-			local rotationsPerSecond = Speed.Value or 0
-			spinYaw = (spinYaw + direction * rotationsPerSecond * math.pi * 2 * math.min(dt, 0.1)) % (math.pi * 2)
+			spinYaw = (spinYaw + direction * (Speed.Value or 0) * math.pi * 2 * dt) % (math.pi * 2)
+
+			local bone = getRootBone()
+			if not bone then
+				releaseBone()
+				return
+		end
+
+			if bone ~= currentBone then
+				releaseBone()
+				currentBone = bone
+				originalBoneCFrame = bone.CFrame
+			end
+
+			-- Root_M's normal Frontlines basis is approximately yaw +90°, roll -90°.
+			-- We only alter the rendered TPV root bone; the FPV camera/body simulation
+			-- remains exactly where the game put it.
+			local pitch = pitchRadians()
+			bone.CFrame = CFrame.Angles(pitch, spinYaw + math.rad(90), math.rad(-90))
 		end)
 	end
 
@@ -1865,21 +2070,13 @@ run(function()
 		Name = 'SpinBot',
 		Function = function(callback)
 			if callback then
-				local ok, err = pcall(installHook)
-				if not ok then
-					restoreHook()
-					task.defer(function()
-						if SpinBot.Enabled then SpinBot:Toggle() end
-						notif('SpinBot', tostring(err), 8, 'alert')
-					end)
-					return
-				end
-				SpinBot:Clean(restoreHook)
+				startVisual()
+				SpinBot:Clean(stopVisual)
 			else
-				restoreHook()
+				stopVisual()
 			end
 		end,
-		Tooltip = 'Network-only anti-aim. Does not rotate the local camera, root joint, TPV joints, or simulation state.'
+		Tooltip = 'Smooth local visual spin. Does not touch camera, movement, simulation, or network aim data.'
 	})
 
 	Speed = SpinBot:CreateSlider({
@@ -1900,7 +2097,6 @@ run(function()
 		Default = 'Forward'
 	})
 end)
-
 
 -- ILLUSIONHD_GUNCHANGER_V5
 run(function()
@@ -5818,122 +6014,375 @@ run(function()
 	local Targets
 	local SearchRange
 	local StrafeRange
+	local StrafeSpeed
+	local MatchSpeed
+	local Direction
+	local AutoReverse
 	local YFactor
+
 	local rayCheck = RaycastParams.new()
+	rayCheck.FilterType = Enum.RaycastFilterType.Exclude
 	rayCheck.RespectCanCollide = true
-	local module, old
-	
+	rayCheck.IgnoreWater = true
+
+	local connection
+	local currentTarget
+	local currentAngle
+	local directionSign = 1
+	local nextTargetScan = 0
+
+	local function getRoot()
+		local character = entitylib.character
+		local root = character and character.RootPart
+		return root and root.Parent and root or nil
+	end
+
+	local function targetValid(ent, root)
+		if not ent
+			or ent.Targetable == false
+			or not ent.RootPart
+			or not ent.RootPart.Parent
+			or ent == entitylib.character then
+			return false
+		end
+
+		if ent.Health ~= nil and ent.Health <= 0 then
+			return false
+		end
+
+		if root and (ent.RootPart.Position - root.Position).Magnitude > SearchRange.Value + 4 then
+			return false
+		end
+
+		return true
+	end
+
+	local function configureRay(root, ent)
+		local ignore = {}
+		if entitylib.character and entitylib.character.Character then
+			ignore[#ignore + 1] = entitylib.character.Character
+		end
+		if ent and ent.Character then
+			ignore[#ignore + 1] = ent.Character
+		end
+		if gameCamera then
+			ignore[#ignore + 1] = gameCamera
+		end
+
+		rayCheck.FilterDescendantsInstances = ignore
+		rayCheck.CollisionGroup = root.CollisionGroup
+	end
+
+	local function acquireTarget(root, force)
+		local now = os.clock()
+		if not force and now < nextTargetScan and targetValid(currentTarget, root) then
+			return currentTarget
+		end
+
+		nextTargetScan = now + 0.06
+
+		local oldTarget = currentTarget
+		currentTarget = entitylib.EntityPosition({
+			Range = SearchRange.Value,
+			Wallcheck = Targets.Walls.Enabled or nil,
+			Part = 'RootPart',
+			Origin = root.Position,
+			Players = Targets.Players.Enabled,
+			NPCs = Targets.NPCs.Enabled
+		})
+
+		if not targetValid(currentTarget, root) then
+			currentTarget = nil
+		end
+
+		if currentTarget ~= oldTarget then
+			currentAngle = nil
+		end
+
+		return currentTarget
+	end
+
+	local function speedModuleValue()
+		if not MatchSpeed.Enabled then
+			return StrafeSpeed.Value
+		end
+
+		local speedModule = vape.Modules.Speed
+		local options = speedModule and speedModule.Options
+		if options then
+			local direct = options.Speed or options['Speed']
+			if direct and type(direct.Value) == 'number' and direct.Value > 0 then
+				return direct.Value
+			end
+
+			for name, option in pairs(options) do
+				if tostring(name):lower():find('speed', 1, true)
+					and type(option) == 'table'
+					and type(option.Value) == 'number'
+					and option.Value > 0 then
+					return option.Value
+				end
+			end
+		end
+
+		return StrafeSpeed.Value
+	end
+
+	local function groundBelow(root, position)
+		local character = entitylib.character
+		local hip = math.max((character and character.HipHeight) or 2, 1.5)
+		local castLength = hip + (root.Size.Y * 0.5) + 7
+		return workspace:Raycast(
+			position + Vector3.new(0, 1.5, 0),
+			Vector3.new(0, -castLength, 0),
+			rayCheck
+		)
+	end
+
+	local function blocked(root, displacement)
+		if displacement.Magnitude <= 0.001 then
+			return nil
+		end
+
+		local size = Vector3.new(
+			math.max(root.Size.X * 0.72, 1),
+			math.max(root.Size.Y * 0.78, 2),
+			math.max(root.Size.Z * 0.72, 1)
+		)
+
+		return workspace:Blockcast(root.CFrame, size, displacement, rayCheck)
+	end
+
+	local function horizontalUnit(vec)
+		vec = vec * Vector3.new(1, 0, 1)
+		return vec.Magnitude > 0.001 and vec.Unit or nil
+	end
+
+	local function movementFor(root, ent, dt)
+		local localPos = root.Position
+		local targetPos = ent.RootPart.Position
+		local delta = localPos - targetPos
+		local horizontal = horizontalUnit(delta)
+
+		if not horizontal then
+			horizontal = Vector3.new(0, 0, 1)
+		end
+
+		if currentAngle == nil then
+			currentAngle = math.atan2(horizontal.X, horizontal.Z)
+		end
+
+		local verticalDifference = math.abs(localPos.Y - targetPos.Y)
+		local radius = math.max(
+			2,
+			StrafeRange.Value - (verticalDifference * (YFactor.Value / 100))
+		)
+
+		local speed = math.clamp(speedModuleValue(), 1, 80)
+		local angularSpeed = speed / math.max(radius, 1)
+
+		currentAngle = (currentAngle + directionSign * angularSpeed * dt) % (math.pi * 2)
+
+		local desiredOffset = Vector3.new(
+			math.sin(currentAngle) * radius,
+			0,
+			math.cos(currentAngle) * radius
+		)
+
+		local desiredPos = Vector3.new(
+			targetPos.X + desiredOffset.X,
+			localPos.Y,
+			targetPos.Z + desiredOffset.Z
+		)
+
+		-- Tangential motion provides the actual strafe. Radial correction gently pulls
+		-- us back onto the requested circle instead of teleporting/snap-orbiting.
+		local outward = horizontalUnit(localPos - targetPos) or horizontal
+		local tangent
+		if directionSign > 0 then
+			tangent = Vector3.new(outward.Z, 0, -outward.X)
+		else
+			tangent = Vector3.new(-outward.Z, 0, outward.X)
+		end
+
+		local distance = ((localPos - targetPos) * Vector3.new(1, 0, 1)).Magnitude
+		local radialError = radius - distance
+		local radialVelocity = math.clamp(radialError * 5, -speed * 0.8, speed * 0.8)
+
+		local desiredCorrection = (desiredPos - localPos) * Vector3.new(1, 0, 1)
+		local correctionDirection = horizontalUnit(desiredCorrection)
+
+		local velocity = tangent * speed + outward * radialVelocity
+		if correctionDirection and math.abs(radialError) > radius * 0.35 then
+			velocity = velocity:Lerp(correctionDirection * speed, 0.35)
+		end
+
+		local moveDirection = horizontalUnit(velocity) or tangent
+		local displacement = moveDirection * speed * dt
+
+		return displacement, moveDirection
+	end
+
+	local function reverseDirection()
+		directionSign = -directionSign
+		currentAngle = nil
+	end
+
+	local function stepTargetStrafe(dt)
+		if not TargetStrafe.Enabled or not entitylib.isAlive then
+			TargetStrafeVector = nil
+			return
+		end
+
+		local root = getRoot()
+		if not root then
+			TargetStrafeVector = nil
+			return
+		end
+
+		dt = math.clamp(dt or 0, 0, 1 / 20)
+		if dt <= 0 then return end
+
+		if Direction.Value == 'Clockwise' then
+			directionSign = 1
+		elseif Direction.Value == 'Counter Clockwise' then
+			directionSign = -1
+		end
+
+		local ent = acquireTarget(root, false)
+		if not ent then
+			TargetStrafeVector = nil
+			return
+		end
+
+		configureRay(root, ent)
+
+		local displacement, moveDirection = movementFor(root, ent, dt)
+		if not displacement or displacement.Magnitude <= 0.001 then
+			TargetStrafeVector = nil
+			return
+		end
+
+		local hit = blocked(root, displacement)
+		local ground = groundBelow(root, root.Position + displacement)
+
+		if hit or not ground then
+			if AutoReverse.Enabled then
+				reverseDirection()
+				displacement, moveDirection = movementFor(root, ent, dt)
+				hit = displacement and blocked(root, displacement)
+				ground = displacement and groundBelow(root, root.Position + displacement)
+			end
+		end
+
+		if displacement and not hit and ground then
+			-- Frontlines does not use Roblox PlayerModule.moveFunction for its soldier.
+			-- Move the actual local soldier root directly, preserving vertical physics
+			-- and the game's own camera/body rotation.
+			root.CFrame += displacement
+			TargetStrafeVector = moveDirection
+			targetinfo.Targets[ent] = tick() + 1
+		else
+			TargetStrafeVector = nil
+		end
+	end
+
+	local function cleanup()
+		if connection then
+			connection:Disconnect()
+			connection = nil
+		end
+
+		currentTarget = nil
+		currentAngle = nil
+		nextTargetScan = 0
+		TargetStrafeVector = nil
+	end
+
 	TargetStrafe = vape.Categories.Blatant:CreateModule({
 		Name = 'TargetStrafe',
 		Function = function(callback)
+			cleanup()
+
 			if callback then
-				if not module then
-					local suc = pcall(function() module = require(lplr.PlayerScripts.PlayerModule).controls end)
-					if not suc then
-						module = {}
-					end
-				end
-	
-				old = module.moveFunction
-				local flymod, ang, oldent = vape.Modules.Fly or {Enabled = false}
-				module.moveFunction = function(self, vec, face)
-					local wallcheck = Targets.Walls.Enabled
-					local ent = not inputService:IsKeyDown(Enum.KeyCode.S) and entitylib.EntityPosition({
-						Range = SearchRange.Value,
-						Wallcheck = wallcheck,
-						Part = 'RootPart',
-						Players = Targets.Players.Enabled,
-						NPCs = Targets.NPCs.Enabled
-					})
-	
-					if ent then
-						local root, targetPos = entitylib.character.RootPart, ent.RootPart.Position
-						rayCheck.FilterDescendantsInstances = {lplr.Character, gameCamera, ent.Character}
-						rayCheck.CollisionGroup = root.CollisionGroup
-	
-						if flymod.Enabled or workspace:Raycast(targetPos, Vector3.new(0, -70, 0), rayCheck) then
-							local factor, localPosition = 0, root.Position
-							if ent ~= oldent then
-								ang = math.deg(select(2, CFrame.lookAt(targetPos, localPosition):ToEulerAnglesYXZ()))
-							end
-	
-							local yFactor = math.abs(localPosition.Y - targetPos.Y) * (YFactor.Value / 100)
-							local entityPos = Vector3.new(targetPos.X, localPosition.Y, targetPos.Z)
-							local newPos = entityPos + (CFrame.Angles(0, math.rad(ang), 0).LookVector * (StrafeRange.Value - yFactor))
-							local startRay, endRay = entityPos, newPos
-	
-							if not wallcheck and workspace:Raycast(targetPos, (localPosition - targetPos), rayCheck) then
-								startRay, endRay = entityPos + (CFrame.Angles(0, math.rad(ang), 0).LookVector * (entityPos - localPosition).Magnitude), entityPos
-							end
-	
-							local ray = workspace:Blockcast(CFrame.new(startRay), Vector3.new(1, entitylib.character.HipHeight + (root.Size.Y / 2), 1), (endRay - startRay), rayCheck)
-							if (localPosition - newPos).Magnitude < 3 or ray then
-								factor = (8 - math.min((localPosition - newPos).Magnitude, 3))
-								if ray then
-									newPos = ray.Position + (ray.Normal * 1.5)
-									factor = (localPosition - newPos).Magnitude > 3 and 0 or factor
-								end
-							end
-	
-							if not flymod.Enabled and not workspace:Raycast(newPos, Vector3.new(0, -70, 0), rayCheck) then
-								newPos = entityPos
-								factor = 40
-							end
-	
-							ang += factor % 360
-							vec = ((newPos - localPosition) * Vector3.new(1, 0, 1)).Unit
-							vec = vec == vec and vec or Vector3.zero
-							TargetStrafeVector = vec
-						else
-							ent = nil
-						end
-					end
-	
-					TargetStrafeVector = ent and vec or nil
-					oldent = ent
-	
-					return old(self, vec, face)
-				end
-			else
-				if module and old then
-					module.moveFunction = old
-				end
-				TargetStrafeVector = nil
+				directionSign = Direction.Value == 'Counter Clockwise' and -1 or 1
+				connection = runService.Heartbeat:Connect(stepTargetStrafe)
+				TargetStrafe:Clean(cleanup)
 			end
 		end,
-		Tooltip = 'Automatically strafes around the opponent'
+		Tooltip = 'Frontlines-native target strafe that circles enemies without Roblox PlayerModule hooks.'
 	})
+
 	Targets = TargetStrafe:CreateTargets({
 		Players = true,
 		Walls = true
 	})
+
 	SearchRange = TargetStrafe:CreateSlider({
 		Name = 'Search Range',
 		Min = 1,
-		Max = 30,
+		Max = 60,
 		Default = 24,
 		Suffix = function(val)
 			return val == 1 and 'stud' or 'studs'
 		end
 	})
+
 	StrafeRange = TargetStrafe:CreateSlider({
 		Name = 'Strafe Range',
-		Min = 1,
+		Min = 2,
 		Max = 30,
-		Default = 18,
+		Default = 12,
 		Suffix = function(val)
 			return val == 1 and 'stud' or 'studs'
 		end
 	})
+
+	StrafeSpeed = TargetStrafe:CreateSlider({
+		Name = 'Strafe Speed',
+		Min = 5,
+		Max = 60,
+		Default = 24,
+		Suffix = function(val)
+			return val == 1 and 'stud/s' or 'studs/s'
+		end
+	})
+
+	MatchSpeed = TargetStrafe:CreateToggle({
+		Name = 'Match Speed',
+		Default = true,
+		Function = function(enabled)
+			if StrafeSpeed then
+				StrafeSpeed.Object.Visible = not enabled
+			end
+		end
+	})
+
+	Direction = TargetStrafe:CreateDropdown({
+		Name = 'Direction',
+		List = {'Clockwise', 'Counter Clockwise'},
+		Default = 'Clockwise',
+		Function = function(value)
+			directionSign = value == 'Counter Clockwise' and -1 or 1
+			currentAngle = nil
+		end
+	})
+
+	AutoReverse = TargetStrafe:CreateToggle({
+		Name = 'Auto Reverse',
+		Default = true
+	})
+
 	YFactor = TargetStrafe:CreateSlider({
 		Name = 'Y Factor',
 		Min = 0,
 		Max = 100,
-		Default = 100,
+		Default = 50,
 		Suffix = '%'
 	})
-end)
 
+	StrafeSpeed.Object.Visible = not MatchSpeed.Enabled
+end)
 -- Native integration bridge; initialized only inside Frontlines' client actor.
 vape.Libraries.frontlines = frontlines
 vape:Clean(function()
