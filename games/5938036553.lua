@@ -778,11 +778,8 @@ run(function()
 		return root.Position:Lerp(head, mode == 'Torso' and 0.6 or 0.35)
 	end
 
-	local function getTarget(origin, obj, forAutoFire)
+	local function selectAimTarget(origin, selectedMode, selection)
 		if not finite(origin) or not entitylib.isAlive then return end
-		if not forAutoFire and rand:NextNumber(0, 100) >= (AutoFire.Enabled and 100 or HitChance.Value) then return end
-		local selectedMode = AimPart.Value
-		if selectedMode == 'Random' then selectedMode = ({'Head', 'Body', 'Torso'})[rand:NextInteger(1, 3)] end
 		local points, saved = {}, {}
 		-- Keep Vape's native targeting, sorting and friend/team filters. Its Part
 		-- lookup also supports table proxies (Frontlines already uses one for Head).
@@ -803,13 +800,13 @@ run(function()
 					ent[pointKey] = {Position = origin + Vector3.new(1e7, 1e7, 1e7), Size = Vector3.zero}
 				end
 			end
-			return entitylib['Entity'..Mode.Value]({
-				Range = Range.Value,
-				Wallcheck = Target.Walls.Enabled and (obj or true) or nil,
+			return entitylib['Entity'..selection.Mode]({
+				Range = selection.Range,
+				Wallcheck = selection.Walls and true or nil,
 				Part = pointKey,
 				Origin = origin,
-				Players = Target.Players.Enabled,
-				NPCs = Target.NPCs.Enabled
+				Players = selection.Players,
+				NPCs = selection.NPCs
 			})
 		end)
 		for _, entry in ipairs(saved) do
@@ -821,6 +818,20 @@ run(function()
 			targetinfo.Targets[entity] = tick() + 1
 			return entity, points[entity]
 		end
+	end
+
+	frontlines.SelectAimTarget = selectAimTarget
+	frontlines.AimPosition = aimPosition
+
+	local function getTarget(origin, obj, forAutoFire)
+		if not finite(origin) or not entitylib.isAlive then return end
+		if not forAutoFire and rand:NextNumber(0, 100) >= (AutoFire.Enabled and 100 or HitChance.Value) then return end
+		local selectedMode = AimPart.Value
+		if selectedMode == 'Random' then selectedMode = ({'Head', 'Body', 'Torso'})[rand:NextInteger(1, 3)] end
+		return selectAimTarget(origin, selectedMode, {
+			Mode = Mode.Value, Range = Range.Value, Walls = Target.Walls.Enabled,
+			Players = Target.Players.Enabled, NPCs = Target.NPCs.Enabled
+		})
 	end
 
 	local function raycastLoop(origin, pos)
@@ -5834,4 +5845,10 @@ run(function()
 		Default = 100,
 		Suffix = '%'
 	})
+end)
+
+-- Native integration bridge; initialized only inside Frontlines' client actor.
+vape.Libraries.frontlines = frontlines
+vape:Clean(function()
+	if vape.Libraries.frontlines == frontlines then vape.Libraries.frontlines = nil end
 end)
