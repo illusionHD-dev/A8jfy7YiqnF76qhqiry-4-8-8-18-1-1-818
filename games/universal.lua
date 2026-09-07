@@ -1421,6 +1421,46 @@ run(function()
 	local didOth
 	local fireOffset
 
+	local actorSerial = 0
+	local actorSession
+
+	local function stopActor(session)
+		session = session or actorSession
+		if not session then return end
+		session.api:stop(session.key)
+		if actorSession == session then actorSession = nil end
+	end
+
+	local function syncActor(session)
+		local cfg = {
+			mode = Mode.Value,
+			range = Range.Value,
+			chance = AutoFire.Enabled and 100 or HitChance.Value,
+			head = AutoFire.Enabled and 100 or HeadshotChance.Value,
+			part = 'Head',
+			walls = Target.Walls.Enabled,
+			players = Target.Players.Enabled
+		}
+		local signature = table.concat({cfg.mode, tostring(cfg.range), tostring(cfg.chance),
+			tostring(cfg.head), tostring(cfg.walls), tostring(cfg.players)}, '|')
+		if signature == session.signature then return true end
+		local ok, message = session.api:start(session.key, 'silent', true, cfg)
+		if actorSession ~= session or not SilentAim.Enabled then
+			stopActor(session)
+			return false
+		end
+		if not ok then
+			stopActor(session)
+			vape:CreateNotification('SilentAim', tostring(message or 'Arsenal actor hook failed.'), 8, 'alert')
+			task.defer(function()
+				if actorSerial == session.id and SilentAim.Enabled and Method.Value == 'Arsenal' then SilentAim:Toggle() end
+			end)
+			return false
+		end
+		session.signature = signature
+		return true
+	end
+
 	local function getMousePosition()
 		if inputService.TouchEnabled then
 			return gameCamera.ViewportSize / 2
@@ -1582,7 +1622,26 @@ run(function()
 				CircleObject.Visible = callback and Mode.Value == 'Mouse'
 			end
 
+			local activeRun
 			if callback then
+				if not SilentAim.Enabled then return end
+				activeRun = {cancelled = false}
+				SilentAim:Clean(function() activeRun.cancelled = true end)
+				if Method.Value == 'Arsenal' then
+					local additions = vape.Libraries.additions
+					local api = additions and additions.aim
+					if not api or not api.ars then
+						vape:CreateNotification('SilentAim', 'Arsenal mode needs the additions bundle and must be used in Arsenal.', 8, 'alert')
+						task.defer(function() if SilentAim.Enabled and Method.Value == 'Arsenal' then SilentAim:Toggle() end end)
+						return
+					end
+					actorSerial = actorSerial + 1
+					local session = {id = actorSerial, key = 'silent-universal:'..tostring(actorSerial), api = api}
+					actorSession = session
+					activeRun.actor = session
+					SilentAim:Clean(function() stopActor(session) end)
+					if not syncActor(session) then return end
+				else
 				hookmethod = Hooks[Method.Value]
 				didOth = OthHook.Enabled
 
@@ -1622,6 +1681,7 @@ run(function()
 				if not hookmethod.NoNamecall then
 					oldnamecall = OthHook.Enabled and oth.hook(getrawmetatable(game).__namecall, namecallHook) or hookmetamethod(game, '__namecall', namecallHook)
 				end
+				end
 			else
 				if oldhook then
 					(didOth and oth.unhook or restorefunction)(hookmethod.Hook)
@@ -1634,7 +1694,10 @@ run(function()
 				end
 			end
 
+			if not callback then return end
 			repeat
+				if activeRun.cancelled then break end
+				if activeRun.actor and not syncActor(activeRun.actor) then break end
 				if CircleObject then
 					CircleObject.Position = getMousePosition()
 				end
@@ -1673,7 +1736,7 @@ run(function()
 				end
 
 				task.wait()
-			until not SilentAim.Enabled
+			until not SilentAim.Enabled or activeRun.cancelled
 		end,
 		ExtraText = function()
 			return Method.Value:gsub('FindPartOnRay', '')
@@ -1695,16 +1758,17 @@ run(function()
 	})
 	Method = SilentAim:CreateDropdown({
 		Name = 'Method',
-		List = {'FindPartOnRay', 'FindPartOnRayWithIgnoreList', 'FindPartOnRayWithWhitelist', 'ScreenPointToRay', 'ViewportPointToRay', 'Raycast', 'Ray'},
+		List = {'FindPartOnRay', 'FindPartOnRayWithIgnoreList', 'FindPartOnRayWithWhitelist', 'ScreenPointToRay', 'ViewportPointToRay', 'Raycast', 'Ray', 'Arsenal'},
+		Default = game.PlaceId == 286090429 and 'Arsenal' or 'FindPartOnRay',
 		Function = function(val)
 			if SilentAim.Enabled then
 				SilentAim:Toggle()
 				SilentAim:Toggle()
 			end
 
-			RayMethod.Object.Visible = val == 'Raycast'
+			if RayMethod and RayMethod.Object then RayMethod.Object.Visible = val == 'Raycast' end
 		end,
-		Tooltip = 'FindPartOnRay* - Deprecated methods of raycasting used in old games\nRaycast - The modern raycast method\n*PointToRay - Method to generate a ray from a screen position\nRay - Used in old games'
+		Tooltip = 'FindPartOnRay* - Deprecated methods of raycasting used in old games\nRaycast - The modern raycast method\n*PointToRay - Method to generate a ray from a screen position\nRay - Used in old games\nArsenal - Uses the Arsenal actor aim helper'
 	})
 	RayMethod = SilentAim:CreateDropdown({
 		Name = 'Raycast Type',
