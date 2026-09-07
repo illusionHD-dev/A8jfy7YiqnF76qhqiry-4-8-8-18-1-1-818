@@ -93,6 +93,15 @@ local function finishLoading()
 		error('[illusionHD] GUI loaded without a usable Load method.', 0)
 	end
 
+	-- ADDITIONAL_MODULES_BOOTSTRAP: skip the outer Frontlines actor handoff.
+	if loadMethod == baseVapeLoad and not vape.Libraries.additions then
+		local ok, err = pcall(function()
+			local init = loadstring(downloadFile('newvape/libraries/additions.lua'), 'Vape additions')()
+			init(vape)
+		end)
+		if not ok then vape:CreateNotification('Additional modules', tostring(err), 12, 'alert') end
+		loadMethod = vape.Load
+	end
 	loadMethod(vape)
 	if vape.HideLoadingScreen then
 		vape:HideLoadingScreen()
