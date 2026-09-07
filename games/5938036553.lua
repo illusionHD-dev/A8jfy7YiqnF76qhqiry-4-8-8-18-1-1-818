@@ -1815,75 +1815,12 @@ run(function()
 	local Speed
 	local Yaw
 	local Pitch
-
-	-- Separate stable spoof tables for each Frontlines consumer. Keeping these
-	-- table identities fixed is important: debug.setupvalue stores the table
-	-- reference, not whatever Lua variable we later assign to.
-	local spoofEgressAttitudes = {}
-	local spoofJointAttitudes = {}
-	local seenKeys = {}
 	local spinYaw = 0
 	local spinConnection
-	local egressFunction
-	local jointsFunction
-	local originalEgressAttitudes
-	local originalJointAttitudes
-	local spoofInstalled = false
+	local hookedFunction
+	local originalFunction
+	local reportedError = false
 	local maxPitch = frontlines.Main.consts.fpv_sol_movement.MAX_ATT_X
-
-	local function clearTable(tab)
-		for key in tab do
-			tab[key] = nil
-		end
-	end
-
-	local function syncTable(destination, source)
-		if type(source) ~= 'table' then return false end
-
-		-- Copy first, remove stale keys second. Never blank the live spoof table in
-		-- the middle of a frame while Frontlines may be reading it.
-		clearTable(seenKeys)
-		for key, value in source do
-			destination[key] = value
-			seenKeys[key] = true
-		end
-		for key in destination do
-			if not seenKeys[key] then
-				destination[key] = nil
-			end
-		end
-		return true
-	end
-
-	local function restoreSpoof()
-		if spinConnection then
-			spinConnection:Disconnect()
-			spinConnection = nil
-		end
-
-		if spoofInstalled then
-			pcall(function()
-				if egressFunction and originalEgressAttitudes ~= nil then
-					debug.setupvalue(egressFunction, 3, originalEgressAttitudes)
-				end
-			end)
-			pcall(function()
-				if jointsFunction and originalJointAttitudes ~= nil then
-					debug.setupvalue(jointsFunction, 16, originalJointAttitudes)
-				end
-			end)
-		end
-
-		spoofInstalled = false
-		egressFunction = nil
-		jointsFunction = nil
-		originalEgressAttitudes = nil
-		originalJointAttitudes = nil
-		spinYaw = 0
-		clearTable(spoofEgressAttitudes)
-		clearTable(spoofJointAttitudes)
-		clearTable(seenKeys)
-	end
 
 	local function getPitch(yawRadians)
 		local mode = Pitch.Value
@@ -1897,95 +1834,122 @@ run(function()
 		return 0
 	end
 
-	local function updateSpin(dt)
-		local main = frontlines.Main
-		local globals = main and main.globals
-		local state = globals and globals.cli_state
-		local id = state and state.fpv_sol_id
-		if id == nil then return end
+	local function restoreHook()
+		if spinConnection then
+			spinConnection:Disconnect()
+			spinConnection = nil
+		end
 
-		-- Preserve each function's own original attitude source instead of assuming
-		-- both internals always share globals.sol_attitudes.
-		local syncedEgress = syncTable(spoofEgressAttitudes, originalEgressAttitudes)
-		local syncedJoints = syncTable(spoofJointAttitudes, originalJointAttitudes)
-		if not (syncedEgress or syncedJoints) then return end
+		if hookedFunction and originalFunction then
+			pcall(function()
+				-- Only restore our own hook. Never overwrite another module's hook.
+				if not frontlines.Functions or frontlines.Functions[hookedFunction] == originalFunction then
+					hookfunction(hookedFunction, originalFunction)
+					if frontlines.Functions then
+						frontlines.Functions[hookedFunction] = nil
+					end
+				end
+			end)
+		end
 
-		local direction = Yaw.Value == 'Counter Clockwise' and -1 or 1
-		local rotationsPerSecond = Speed.Value or 0
-		spinYaw = (spinYaw + direction * rotationsPerSecond * math.pi * 2 * dt) % (math.pi * 2)
-
-		local real = syncedEgress and originalEgressAttitudes[id]
-			or (syncedJoints and originalJointAttitudes[id])
-		local z = typeof(real) == 'Vector3' and real.Z or 0
-		local spoof = Vector3.new(getPitch(spinYaw), spinYaw, z)
-		if syncedEgress then spoofEgressAttitudes[id] = spoof end
-		if syncedJoints then spoofJointAttitudes[id] = spoof end
+		hookedFunction = nil
+		originalFunction = nil
+		spinYaw = 0
 	end
 
-	local function installSpoof()
-		restoreSpoof()
+	local function disableFromError(err)
+		if reportedError then return end
+		reportedError = true
+		task.defer(function()
+			restoreHook()
+			if SpinBot.Enabled then SpinBot:Toggle() end
+			notif('SpinBot', 'Disabled safely: '..tostring(err), 8, 'alert')
+		end)
+	end
+
+	local function installHook()
+		restoreHook()
+		reportedError = false
 
 		local main = frontlines.Main
-		if not (main and frontlines.Events and main.exe_func_t) then
-			error('Frontlines event state is unavailable')
+		if not (main and main.globals and frontlines.Events and main.exe_func_t) then
+			error('Frontlines network state is unavailable')
 		end
 
-		egressFunction = frontlines.Events[main.exe_func_t.STEP_FPV_SOL_NET_EGRESS]
-		jointsFunction = frontlines.Events[main.exe_func_t.STEP_TPV_SOLDIER_JOINTS]
-		if type(egressFunction) ~= 'function' or type(jointsFunction) ~= 'function' then
-			error('SpinBot could not locate Frontlines attitude functions')
+		local egress = frontlines.Events[main.exe_func_t.STEP_FPV_SOL_NET_EGRESS]
+		if type(egress) ~= 'function' then
+			error('Could not locate STEP_FPV_SOL_NET_EGRESS')
 		end
 
-		-- Capture the exact originals BEFORE swapping anything so disable can always
-		-- return Frontlines to precisely the state it had before SpinBot.
-		originalEgressAttitudes = debug.getupvalue(egressFunction, 3)
-		originalJointAttitudes = debug.getupvalue(jointsFunction, 16)
-		if type(originalEgressAttitudes) ~= 'table' or type(originalJointAttitudes) ~= 'table' then
-			error('SpinBot attitude upvalues changed')
-		end
-
-		syncTable(spoofEgressAttitudes, originalEgressAttitudes)
-		syncTable(spoofJointAttitudes, originalJointAttitudes)
-		debug.setupvalue(egressFunction, 3, spoofEgressAttitudes)
-		debug.setupvalue(jointsFunction, 16, spoofJointAttitudes)
-		spoofInstalled = true
-
-		-- No STEP_SOL_CFRAME hook. That callback is part of Frontlines' character
-		-- update path and fighting it every step was the main freeze/break risk.
-		spinConnection = runService.Heartbeat:Connect(function(dt)
-			if not SpinBot.Enabled then return end
-			local ok, err = pcall(updateSpin, math.min(dt, 0.1))
-			if not ok then
-				restoreSpoof()
-				task.defer(function()
-					if SpinBot.Enabled then SpinBot:Toggle() end
-					notif('SpinBot', 'Disabled safely: '..tostring(err), 8, 'alert')
-				end)
+		hookedFunction = egress
+		local original
+		original = hookfunction(egress, function(...)
+			if not SpinBot.Enabled then
+				return original(...)
 			end
+
+			local globals = main.globals
+			local state = globals and globals.cli_state
+			local id = state and state.fpv_sol_id
+			local attitudes = globals and globals.sol_attitudes
+			if id == nil or type(attitudes) ~= 'table' then
+				return original(...)
+			end
+
+			local real = attitudes[id]
+			if typeof(real) ~= 'Vector3' then
+				return original(...)
+			end
+
+			-- IMPORTANT: do not replace Frontlines' attitude table or TPV joint table.
+			-- We only swap our own value while the outgoing network packet is built,
+			-- then restore it before control returns to the rest of the client.
+			local spoof = Vector3.new(getPitch(spinYaw), spinYaw, real.Z)
+			local args = table.pack(...)
+			attitudes[id] = spoof
+
+			local results = table.pack(pcall(original, table.unpack(args, 1, args.n)))
+			if attitudes[id] == spoof then
+				attitudes[id] = real
+			end
+
+			if not results[1] then
+				disableFromError(results[2])
+				return
+			end
+			return table.unpack(results, 2, results.n)
 		end)
 
-		updateSpin(0)
+		originalFunction = original
+		frontlines.Functions[egress] = original
+
+		spinConnection = runService.Heartbeat:Connect(function(dt)
+			if not SpinBot.Enabled then return end
+			local direction = Yaw.Value == 'Counter Clockwise' and -1 or 1
+			local rotationsPerSecond = Speed.Value or 0
+			spinYaw = (spinYaw + direction * rotationsPerSecond * math.pi * 2 * math.min(dt, 0.1)) % (math.pi * 2)
+		end)
 	end
 
 	SpinBot = vape.Categories.Blatant:CreateModule({
 		Name = 'SpinBot',
 		Function = function(callback)
 			if callback then
-				local ok, err = pcall(installSpoof)
+				local ok, err = pcall(installHook)
 				if not ok then
-					restoreSpoof()
+					restoreHook()
 					task.defer(function()
 						if SpinBot.Enabled then SpinBot:Toggle() end
 						notif('SpinBot', tostring(err), 8, 'alert')
 					end)
 					return
 				end
-				SpinBot:Clean(restoreSpoof)
+				SpinBot:Clean(restoreHook)
 			else
-				restoreSpoof()
+				restoreHook()
 			end
 		end,
-		Tooltip = 'Spoofs network/third-person attitude without fighting the local soldier physics loop.'
+		Tooltip = 'Network-only anti-aim. Does not rotate the local camera, root joint, TPV joints, or simulation state.'
 	})
 
 	Speed = SpinBot:CreateSlider({
@@ -2006,7 +1970,6 @@ run(function()
 		Default = 'Forward'
 	})
 end)
-
 
 
 -- ILLUSIONHD_GUNCHANGER_V5
