@@ -5590,281 +5590,97 @@ run(function()
 	})
 end)
 run(function()
-	local BulletTP
-	local Targets
-	local Range
-	local HitDistance
-	local HoldTime
+	local BulletNetSpy
 	local old
+	local lastShot = 0
 
-	-- Tracks temporarily relocated hitboxes so rapid-fire guns
-	-- don't restore an older position over a newer shot.
-	local moved = {}
-	local token = 0
+	local function printable(v)
+		local t = typeof(v)
 
-	--------------------------------------------------
-	-- FIND ONE OF FRONTLINES' HITBOXES FOR ENTITY
-	--------------------------------------------------
-
-	local function getHitbox(ent)
-		if not ent or not ent.RootPart then
-			return
-		end
-
-		local hash =
-			frontlines.Main
-			and frontlines.Main.globals
-			and frontlines.Main.globals.soldier_hitbox_hash
-
-		if not hash then
-			return
-		end
-
-		local fallback
-
-		for hitbox, id in hash do
-			if typeof(hitbox) ~= 'Instance' then
-				continue
-			end
-
-			local weld = hitbox:FindFirstChild('Weld')
-
-			if
-				weld
-				and weld:IsA('Weld')
-				and weld.Part0 == ent.RootPart
-				and weld.Part1
-			then
-				-- Prefer something that looks head-ish if available.
-				local lower = tostring(hitbox.Name):lower()
-
-				if lower:find('head', 1, true) then
-					return hitbox, weld
-				end
-
-				fallback = fallback or {
-					hitbox,
-					weld
-				}
-			end
-		end
-
-		if fallback then
-			return fallback[1], fallback[2]
-		end
-	end
-
-	--------------------------------------------------
-	-- MOVE ONLY HITBOX VIA WELD OFFSET
-	--------------------------------------------------
-
-	local function moveHitbox(hitbox, weld, position)
-		if
-			not hitbox
-			or not hitbox.Parent
-			or not weld
-			or not weld.Parent
-			or not weld.Part0
-			or not weld.Part1
-		then
-			return
-		end
-
-		token += 1
-		local myToken = token
-
-		local data = moved[weld]
-
-		if not data then
-			data = {
-				C0 = weld.C0,
-				Token = myToken
-			}
-
-			moved[weld] = data
-		else
-			data.Token = myToken
-		end
-
-		--------------------------------------------------
-		-- KEEP ORIGINAL HITBOX ROTATION
-		--------------------------------------------------
-
-		local part1 = weld.Part1
-
-		local rotation =
-			part1.CFrame - part1.Position
-
-		local desired =
-			CFrame.new(position) * rotation
-
-		-- Weld relation:
-		--
-		-- Part1.CFrame * C1 = Part0.CFrame * C0
-		--
-		-- Therefore:
-		-- C0 = Part0^-1 * desired * C1
-
-		weld.C0 =
-			weld.Part0.CFrame:ToObjectSpace(
-				desired * weld.C1
+		if t == 'Vector3' then
+			return string.format(
+				'Vector3(%.2f, %.2f, %.2f)',
+				v.X, v.Y, v.Z
 			)
-
-		--------------------------------------------------
-		-- RESTORE AFTER BULLET HAS HAD TIME TO HIT
-		--------------------------------------------------
-
-		task.delay(HoldTime.Value, function()
-			local current = moved[weld]
-
-			if
-				current
-				and current.Token == myToken
-			then
-				pcall(function()
-					weld.C0 = current.C0
-				end)
-
-				moved[weld] = nil
-			end
-		end)
-
-		return true
-	end
-
-	--------------------------------------------------
-	-- RESTORE EVERYTHING
-	--------------------------------------------------
-
-	local function restoreAll()
-		for weld, data in moved do
-			pcall(function()
-				if weld and weld.Parent then
-					weld.C0 = data.C0
-				end
-			end)
+		elseif t == 'CFrame' then
+			return 'CFrame('..tostring(v.Position)..')'
+		elseif t == 'Instance' then
+			return v:GetFullName()
+		elseif type(v) == 'table' then
+			return '<table>'
 		end
 
-		table.clear(moved)
+		return tostring(v)
 	end
 
-	--------------------------------------------------
-	-- MODULE
-	--------------------------------------------------
-
-	BulletTP = vape.Categories.Blatant:CreateModule({
-		Name = 'BulletTP',
+	BulletNetSpy = vape.Categories.Utility:CreateModule({
+		Name = 'BulletNetSpy',
 
 		Function = function(callback)
 			if callback then
-				old = hookfunction(
-					frontlines.ShootFunction,
-
-					function(shootid, fire, pos, dir, ...)
-						if not frontlines.Main then
-							return old(
-								shootid,
-								fire,
-								pos,
-								dir,
-								...
-							)
+				BulletNetSpy:Clean(
+					frontlines.LocalBulletEvent.Event:Connect(
+						function()
+							lastShot = os.clock()
 						end
-
-						local cstate =
-							frontlines.Main.globals.cli_state
-
-						--------------------------------------------------
-						-- ONLY OUR BULLETS
-						--------------------------------------------------
-
-						if
-							cstate.state
-								== frontlines.Main.cli_state_t.COMBAT
-							and (
-								shootid
-								% frontlines.Main.globals.cli_id_alloc.m
-							) == cstate.id
-							and typeof(pos) == 'Vector3'
-							and typeof(dir) == 'Vector3'
-							and dir.Magnitude > 0.001
-						then
-
-							--------------------------------------------------
-							-- PICK TARGET
-							--------------------------------------------------
-
-							local ent =
-								entitylib.EntityPosition({
-									Range = Range.Value,
-
-									Part = 'RootPart',
-
-									Origin = pos,
-
-									Players =
-										Targets.Players.Enabled,
-
-									NPCs =
-										Targets.NPCs.Enabled
-								})
-
-							if ent then
-								local hitbox, weld =
-									getHitbox(ent)
-
-								if hitbox and weld then
-									--------------------------------------------------
-									-- DON'T TELEPORT BULLET.
-									--
-									-- Keep its REAL:
-									--   pos
-									--   dir
-									--
-									-- Instead put the invisible target
-									-- hitbox directly into its trajectory.
-									--------------------------------------------------
-
-									local direction =
-										dir.Unit
-
-									local fakeHitPosition =
-										pos
-										+ direction
-										* HitDistance.Value
-
-									if moveHitbox(
-										hitbox,
-										weld,
-										fakeHitPosition
-									) then
-										targetinfo.Targets[ent] =
-											tick() + 1
-									end
-								end
-							end
-						end
-
-						--------------------------------------------------
-						-- ORIGINAL BULLET, ORIGINAL ORIGIN/DIRECTION
-						--------------------------------------------------
-
-						return old(
-							shootid,
-							fire,
-							pos,
-							dir,
-							...
-						)
-					end
+					)
 				)
 
-			else
-				restoreAll()
+				local target =
+					frontlines.Main.utils.net_msg_util.c_prep_net_msg
 
+				old = hookfunction(target, function(...)
+					local args = table.pack(...)
+
+					-- Expected:
+					-- [1] = net state
+					-- [2] = c_net_msg ID
+					-- [3+] = packet arguments
+
+					local id = args[2]
+
+					if
+						type(id) == 'number'
+						and os.clock() - lastShot < 0.75
+					then
+						local name
+
+						pcall(function()
+							name = getKey(id, false)
+						end)
+
+						name =
+							name
+							or ('UNKNOWN_' .. tostring(id))
+
+						local output = {}
+
+						for i = 3, args.n do
+							output[#output + 1] =
+								'[' .. i .. '] '
+								.. typeof(args[i])
+								.. ' = '
+								.. printable(args[i])
+						end
+
+						print(
+							'\n[BULLET NET] '
+							.. name
+							.. ' (' .. tostring(id) .. ')'
+						)
+
+						for _, line in ipairs(output) do
+							print('    ' .. line)
+						end
+					end
+
+					return old(...)
+				end)
+
+			else
 				if old then
 					hookfunction(
-						frontlines.ShootFunction,
+						frontlines.Main.utils.net_msg_util.c_prep_net_msg,
 						old
 					)
 
@@ -5873,73 +5689,8 @@ run(function()
 			end
 		end,
 
-		Tooltip = 'Relocates target hitboxes into the local bullet path without changing the bullet origin.'
+		Tooltip = 'Logs Frontlines network messages immediately following your shots.'
 	})
-
-	--------------------------------------------------
-	-- TARGETS
-	--------------------------------------------------
-
-	Targets = BulletTP:CreateTargets({
-		Players = true
-	})
-
-	--------------------------------------------------
-	-- RANGE
-	--------------------------------------------------
-
-	Range = BulletTP:CreateSlider({
-		Name = 'Range',
-		Min = 1,
-		Max = 1000,
-		Default = 1000,
-
-		Suffix = function(val)
-			return val == 1
-				and 'stud'
-				or 'studs'
-		end
-	})
-
-	--------------------------------------------------
-	-- DISTANCE FROM MUZZLE
-	--------------------------------------------------
-
-	HitDistance = BulletTP:CreateSlider({
-		Name = 'Hit Distance',
-
-		Min = 2,
-		Max = 12,
-
-		Default = 5,
-
-		Suffix = function(val)
-			return val == 1
-				and 'stud'
-				or 'studs'
-		end
-	})
-
-	--------------------------------------------------
-	-- HITBOX HOLD TIME
-	--------------------------------------------------
-
-	HoldTime = BulletTP:CreateSlider({
-		Name = 'Hold Time',
-
-		Min = 0.01,
-		Max = 0.15,
-
-		Default = 0.06,
-
-		Decimal = 100,
-
-		Suffix = 's'
-	})
-
-	BulletTP:Clean(function()
-		restoreAll()
-	end)
 end)
 -- CuteVisuals.java port: Frontlines kills replace Minecraft bed-break packets.
 run(function()
