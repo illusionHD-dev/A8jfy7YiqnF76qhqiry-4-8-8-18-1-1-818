@@ -1041,42 +1041,110 @@ end)
 run(function()
 	local GrenadeTP
 	local Range
-	
+	local targetCache = setmetatable({}, {__mode = 'k'})
+
+	local function validTarget(ent)
+		return ent
+			and ent.Targetable ~= false
+			and ent.RootPart
+			and ent.RootPart.Parent
+			and ent.Health ~= 0
+	end
+
+	local function getTargetCFrame(ent)
+		local root = ent and ent.RootPart
+		if not root or not root.Parent then return end
+
+		-- Prefer the animated center-mass bones so the grenade sits inside the
+		-- actual soldier hitbox instead of lagging behind the root pivot.
+		local node = root:FindFirstChild('Chest_M', true)
+			or root:FindFirstChild('Spine2_M', true)
+			or root:FindFirstChild('Spine1_M', true)
+
+		if node then
+			if node:IsA('Bone') then
+				return node.TransformedWorldCFrame
+			elseif node:IsA('Attachment') then
+				return node.WorldCFrame
+			elseif node:IsA('BasePart') then
+				return node.CFrame
+			end
+		end
+
+		-- Frontlines' root is low on the body, so raise the fallback to torso height.
+		return root.CFrame + Vector3.new(0, math.max(ent.HipHeight or 2, 1.5) * 0.7, 0)
+	end
+
+	local function getNearestTarget(throwable, primary, now)
+		local cached = targetCache[throwable]
+		if cached and now < cached.Expires and validTarget(cached.Entity) then
+			if (cached.Entity.RootPart.Position - primary.Position).Magnitude <= Range.Value + 8 then
+				return cached.Entity
+			end
+		end
+
+		local ent = entitylib.EntityPosition({
+			Range = Range.Value,
+			Part = 'RootPart',
+			Origin = primary.Position,
+			Players = true
+		})
+
+		targetCache[throwable] = {
+			Entity = ent,
+			Expires = now + 0.05
+		}
+		return ent
+	end
+
+	local function step()
+		if not GrenadeTP.Enabled or type(frontlines.Throwables) ~= 'table' then return end
+		local now = os.clock()
+
+		for _, throwable in frontlines.Throwables do
+			local model = throwable and throwable.model
+			local primary = model and model.PrimaryPart
+
+			if primary and primary.Parent and throwable.network_ownership then
+				local ent = getNearestTarget(throwable, primary, now)
+				if validTarget(ent) then
+					local targetCF = getTargetCFrame(ent)
+					if targetCF then
+						-- Move before the physics step so overlap/contact can be processed on
+						-- this frame instead of waiting for the next polling iteration.
+						model:PivotTo(targetCF)
+
+						-- Prevent the grenade's old throw velocity from immediately pulling it
+						-- back out of the target between teleports. Match target velocity instead.
+						local targetVelocity = ent.RootPart.AssemblyLinearVelocity
+						if typeof(targetVelocity) ~= 'Vector3' then targetVelocity = Vector3.zero end
+						pcall(function()
+							primary.AssemblyLinearVelocity = targetVelocity
+							primary.AssemblyAngularVelocity = Vector3.zero
+						end)
+					end
+				end
+			else
+				targetCache[throwable] = nil
+			end
+		end
+	end
+
 	GrenadeTP = vape.Categories.Blatant:CreateModule({
 		Name = 'GrenadeTP',
 		Function = function(callback)
+			table.clear(targetCache)
 			if callback then
-				repeat
-					for _, v in frontlines.Throwables do
-						if v.model and v.network_ownership then
-							local ent = entitylib.EntityPosition({
-								Range = Range.Value,
-								Part = 'RootPart',
-								Origin = v.model.PrimaryPart.Position,
-								Players = true
-							})
-	
-							if ent then
-								local id
-								for i, hash in frontlines.Main.globals.soldier_hitbox_hash do
-									if i.Weld.Part0 == v.RootPart then
-										id = hash
-										break
-									end
-								end
-	
-								if id then
-									v.model:PivotTo(ent.RootPart.Root_M.Spine1_M.WorldCFrame)
-								end
-							end
-						end
-					end
-					task.wait(0.016)
-				until not GrenadeTP.Enabled
+				-- Snap both before and after physics. PreSimulation lets contact resolve on
+				-- the current physics frame; Heartbeat keeps the grenade from drifting away.
+				step()
+				GrenadeTP:Clean(runService.PreSimulation:Connect(step))
+				GrenadeTP:Clean(runService.Heartbeat:Connect(step))
 			end
 		end,
-		Tooltip = 'Teleports throwables near enemy players'
+		Tooltip = 'Teleports owned throwables directly onto the nearest enemy center mass'
 	})
+
 	Range = GrenadeTP:CreateSlider({
 		Name = 'Range',
 		Min = 1,
@@ -1747,54 +1815,186 @@ run(function()
 	local Speed
 	local Yaw
 	local Pitch
-	local aimtable = {}
-	local maxy = frontlines.Main.consts.fpv_sol_movement.MAX_ATT_X
-	local yaw, pitch = 0, 90
-	for i = 1, 40 do
-		table.insert(aimtable, Vector3.zero)
+
+	-- Separate stable spoof tables for each Frontlines consumer. Keeping these
+	-- table identities fixed is important: debug.setupvalue stores the table
+	-- reference, not whatever Lua variable we later assign to.
+	local spoofEgressAttitudes = {}
+	local spoofJointAttitudes = {}
+	local seenKeys = {}
+	local spinYaw = 0
+	local spinConnection
+	local egressFunction
+	local jointsFunction
+	local originalEgressAttitudes
+	local originalJointAttitudes
+	local spoofInstalled = false
+	local maxPitch = frontlines.Main.consts.fpv_sol_movement.MAX_ATT_X
+
+	local function clearTable(tab)
+		for key in tab do
+			tab[key] = nil
+		end
 	end
-	
+
+	local function syncTable(destination, source)
+		if type(source) ~= 'table' then return false end
+
+		-- Copy first, remove stale keys second. Never blank the live spoof table in
+		-- the middle of a frame while Frontlines may be reading it.
+		clearTable(seenKeys)
+		for key, value in source do
+			destination[key] = value
+			seenKeys[key] = true
+		end
+		for key in destination do
+			if not seenKeys[key] then
+				destination[key] = nil
+			end
+		end
+		return true
+	end
+
+	local function restoreSpoof()
+		if spinConnection then
+			spinConnection:Disconnect()
+			spinConnection = nil
+		end
+
+		if spoofInstalled then
+			pcall(function()
+				if egressFunction and originalEgressAttitudes ~= nil then
+					debug.setupvalue(egressFunction, 3, originalEgressAttitudes)
+				end
+			end)
+			pcall(function()
+				if jointsFunction and originalJointAttitudes ~= nil then
+					debug.setupvalue(jointsFunction, 16, originalJointAttitudes)
+				end
+			end)
+		end
+
+		spoofInstalled = false
+		egressFunction = nil
+		jointsFunction = nil
+		originalEgressAttitudes = nil
+		originalJointAttitudes = nil
+		spinYaw = 0
+		clearTable(spoofEgressAttitudes)
+		clearTable(spoofJointAttitudes)
+		clearTable(seenKeys)
+	end
+
+	local function getPitch(yawRadians)
+		local mode = Pitch.Value
+		if mode == 'Up' then
+			return maxPitch
+		elseif mode == 'Down' then
+			return -maxPitch
+		elseif mode == 'Sine' then
+			return math.sin(yawRadians) * maxPitch
+		end
+		return 0
+	end
+
+	local function updateSpin(dt)
+		local main = frontlines.Main
+		local globals = main and main.globals
+		local state = globals and globals.cli_state
+		local id = state and state.fpv_sol_id
+		if id == nil then return end
+
+		-- Preserve each function's own original attitude source instead of assuming
+		-- both internals always share globals.sol_attitudes.
+		local syncedEgress = syncTable(spoofEgressAttitudes, originalEgressAttitudes)
+		local syncedJoints = syncTable(spoofJointAttitudes, originalJointAttitudes)
+		if not (syncedEgress or syncedJoints) then return end
+
+		local direction = Yaw.Value == 'Counter Clockwise' and -1 or 1
+		local rotationsPerSecond = Speed.Value or 0
+		spinYaw = (spinYaw + direction * rotationsPerSecond * math.pi * 2 * dt) % (math.pi * 2)
+
+		local real = syncedEgress and originalEgressAttitudes[id]
+			or (syncedJoints and originalJointAttitudes[id])
+		local z = typeof(real) == 'Vector3' and real.Z or 0
+		local spoof = Vector3.new(getPitch(spinYaw), spinYaw, z)
+		if syncedEgress then spoofEgressAttitudes[id] = spoof end
+		if syncedJoints then spoofJointAttitudes[id] = spoof end
+	end
+
+	local function installSpoof()
+		restoreSpoof()
+
+		local main = frontlines.Main
+		if not (main and frontlines.Events and main.exe_func_t) then
+			error('Frontlines event state is unavailable')
+		end
+
+		egressFunction = frontlines.Events[main.exe_func_t.STEP_FPV_SOL_NET_EGRESS]
+		jointsFunction = frontlines.Events[main.exe_func_t.STEP_TPV_SOLDIER_JOINTS]
+		if type(egressFunction) ~= 'function' or type(jointsFunction) ~= 'function' then
+			error('SpinBot could not locate Frontlines attitude functions')
+		end
+
+		-- Capture the exact originals BEFORE swapping anything so disable can always
+		-- return Frontlines to precisely the state it had before SpinBot.
+		originalEgressAttitudes = debug.getupvalue(egressFunction, 3)
+		originalJointAttitudes = debug.getupvalue(jointsFunction, 16)
+		if type(originalEgressAttitudes) ~= 'table' or type(originalJointAttitudes) ~= 'table' then
+			error('SpinBot attitude upvalues changed')
+		end
+
+		syncTable(spoofEgressAttitudes, originalEgressAttitudes)
+		syncTable(spoofJointAttitudes, originalJointAttitudes)
+		debug.setupvalue(egressFunction, 3, spoofEgressAttitudes)
+		debug.setupvalue(jointsFunction, 16, spoofJointAttitudes)
+		spoofInstalled = true
+
+		-- No STEP_SOL_CFRAME hook. That callback is part of Frontlines' character
+		-- update path and fighting it every step was the main freeze/break risk.
+		spinConnection = runService.Heartbeat:Connect(function(dt)
+			if not SpinBot.Enabled then return end
+			local ok, err = pcall(updateSpin, math.min(dt, 0.1))
+			if not ok then
+				restoreSpoof()
+				task.defer(function()
+					if SpinBot.Enabled then SpinBot:Toggle() end
+					notif('SpinBot', 'Disabled safely: '..tostring(err), 8, 'alert')
+				end)
+			end
+		end)
+
+		updateSpin(0)
+	end
+
 	SpinBot = vape.Categories.Blatant:CreateModule({
 		Name = 'SpinBot',
 		Function = function(callback)
 			if callback then
-				SpinBot:Clean(hookEvent('STEP_SOL_CFRAME', function(id)
-					if id == frontlines.Main.globals.cli_state.fpv_sol_id then
-						local v5 = frontlines.Main.globals.sol_positions[id]
-						local v6 = aimtable[frontlines.Main.globals.cli_state.fpv_sol_id]
-						frontlines.Main.globals.sol_root_parts[id].Root_M.CFrame = CFrame.Angles(0, 0.5 * v6.y, math.rad(-90))
-					end
-				end))
-	
-				debug.setupvalue(frontlines.Events[frontlines.Main.exe_func_t.STEP_FPV_SOL_NET_EGRESS], 3, aimtable)
-				debug.setupvalue(frontlines.Events[frontlines.Main.exe_func_t.STEP_TPV_SOLDIER_JOINTS], 16, aimtable)
-	
-				repeat
-					aimtable = table.clone(frontlines.Main.globals.sol_attitudes)
-					aimtable[frontlines.Main.globals.cli_state.fpv_sol_id] = Vector3.new(math.clamp(math.rad(pitch), -maxy, maxy), math.rad(yaw))
-					yaw += task.wait() * (Yaw.Value == 'Clockwise' and (Speed.Value or 0) or -(Speed.Value or 0)) * 1000
-					if Pitch.Value == 'Sine' then
-						pitch = math.sin(math.rad(yaw)) * 90
-					end
-				until not SpinBot.Enabled
-			else
-				yaw = 0
-				debug.setupvalue(frontlines.Events[frontlines.Main.exe_func_t.STEP_FPV_SOL_NET_EGRESS], 3, frontlines.Main.globals.sol_attitudes)
-				debug.setupvalue(frontlines.Events[frontlines.Main.exe_func_t.STEP_TPV_SOLDIER_JOINTS], 16, frontlines.Main.globals.sol_attitudes)
-				local id = frontlines.Main.globals.cli_state.fpv_sol_id
-				if frontlines.Main.globals.sol_root_parts[id] then
-					frontlines.Main.globals.sol_root_parts[id].Root_M.CFrame = CFrame.Angles(0, math.rad(90), math.rad(-90))
+				local ok, err = pcall(installSpoof)
+				if not ok then
+					restoreSpoof()
+					task.defer(function()
+						if SpinBot.Enabled then SpinBot:Toggle() end
+						notif('SpinBot', tostring(err), 8, 'alert')
+					end)
+					return
 				end
+				SpinBot:Clean(restoreSpoof)
+			else
+				restoreSpoof()
 			end
 		end,
-		Tooltip = 'Rotates the character in a circle'
+		Tooltip = 'Spoofs network/third-person attitude without fighting the local soldier physics loop.'
 	})
+
 	Speed = SpinBot:CreateSlider({
 		Name = 'Speed',
 		Min = 0,
-		Max = 1,
-		Default = 1,
-		Decimal = 10
+		Max = 10,
+		Default = 2,
+		Decimal = 10,
+		Suffix = ' rps'
 	})
 	Yaw = SpinBot:CreateDropdown({
 		Name = 'Yaw Direction',
@@ -1803,15 +2003,9 @@ run(function()
 	Pitch = SpinBot:CreateDropdown({
 		Name = 'Pitch Direction',
 		List = {'Up', 'Down', 'Forward', 'Sine'},
-		Function = function(val)
-			pitch = val == 'Up' and 90 or val == 'Down' and -90 or 0
-		end
+		Default = 'Forward'
 	})
 end)
-
-
-
-
 
 
 
