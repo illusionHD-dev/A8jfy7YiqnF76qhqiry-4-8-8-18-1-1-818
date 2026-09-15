@@ -5703,6 +5703,152 @@ run(function()
 	})
 end)
 
+-- Insert into the supplied Frontlines file after its initialization.
+-- All supplied phrases are review rules, not proof of abuse. No reports are submitted.
+run(function()
+	local ChatReview, Notify, NormalizeRepeats
+	local generation = 0
+	local recent = {}
+	local records = {}
+	local rules = {
+		{'gay', 'Bullying'}, {'gae', 'Bullying'}, {'gey', 'Bullying'},
+		{'hack', 'Scamming'}, {'exploit', 'Scamming'}, {'cheat', 'Scamming'},
+		{'hecker', 'Scamming'}, {'haxker', 'Scamming'}, {'hacer', 'Scamming'},
+		{'report', 'Bullying'}, {'fat', 'Bullying'}, {'votekick', 'Bullying'},
+		{'black', 'Bullying'}, {'getalife', 'Bullying'}, {'fatherless', 'Bullying'},
+		{'disco', 'Offsite Links'}, {'yt', 'Offsite Links'}, {'dizcourde', 'Offsite Links'},
+		{'retard', 'Swearing'}, {'bad', 'Bullying'}, {'trash', 'Bullying'},
+		{'nolife', 'Bullying'}, {'loser', 'Bullying'}, {'killyour', 'Bullying'},
+		{'kys', 'Bullying'}, {'hacktowin', 'Bullying'}, {'bozo', 'Bullying'},
+		{'kid', 'Bullying'}, {'adopted', 'Bullying'}, {'linlife', 'Bullying'},
+		{'commitnotalive', 'Bullying'}, {'jp', 'Offsite Links'}, {'gg', 'Offsite Links'},
+		{'download', 'Offsite Links'}, {'youtube', 'Offsite Links'}, {'die', 'Bullying'},
+		{'lobby', 'Bullying'}, {'ban', 'Bullying'}, {'wizard', 'Bullying'},
+		{'wisard', 'Bullying'}, {'witch', 'Bullying'}, {'magic', 'Bullying'}
+	}
+	local spaced = {
+		getalife = 'get a life', nolife = 'no life', killyour = 'kill your',
+		hacktowin = 'hack to win', commitnotalive = 'commit not alive'
+	}
+	local exactRules = {{'l', 'Bullying'}}
+	local review = {Records = records, Rules = rules, ExactRules = exactRules}
+	vape.Libraries.frontlinesChatReview = review
+	vape:Clean(function()
+		if vape.Libraries.frontlinesChatReview == review then
+			vape.Libraries.frontlinesChatReview = nil
+		end
+	end)
+
+	local function notify(text)
+		pcall(function() notif('ChatReview', text, 10, 'alert') end)
+	end
+
+	local function normalize(text)
+		text = text:lower():gsub('%s+', ' '):match('^%s*(.-)%s*$')
+		if NormalizeRepeats and NormalizeRepeats.Enabled then
+			local out, last = {}, nil
+			for i = 1, #text do
+				local char = text:sub(i, i)
+				-- Restrict collapse to ASCII letters so UTF-8 bytes stay intact.
+				if char ~= last or not char:match('[a-z]') then out[#out + 1] = char end
+				last = char
+			end
+			text = table.concat(out)
+		end
+		return text
+	end
+
+	local function contains(text, phrase)
+		local offset = 1
+		while true do
+			local first, last = text:find(phrase, offset, true)
+			if not first then return false end
+			local before = first > 1 and text:sub(first - 1, first - 1) or ''
+			local after = text:sub(last + 1, last + 1)
+			if not before:match('[%w_]') and not after:match('[%w_]') then return true end
+			offset = first + 1
+		end
+	end
+
+	local function inspect(player, original, version)
+		if not ChatReview.Enabled or version ~= generation then return end
+		local now = os.clock()
+		for key, expires in pairs(recent) do
+			if expires <= now then recent[key] = nil end
+		end
+		local key = tostring(player.UserId)..'\0'..original
+		if recent[key] then return end
+		recent[key] = now + 5
+		local text, hits = normalize(original), {}
+		for _, rule in ipairs(exactRules) do
+			if text == normalize(rule[1]) then
+				hits[#hits + 1] = {Phrase = rule[1], Category = rule[2], Exact = true}
+			end
+		end
+		for _, rule in ipairs(rules) do
+			if contains(text, normalize(rule[1])) or (spaced[rule[1]] and contains(text, normalize(spaced[rule[1]]))) then
+				hits[#hits + 1] = {Phrase = rule[1], Category = rule[2], Exact = false}
+			end
+		end
+		if #hits == 0 then return end
+		local record = {UserId = player.UserId, Name = player.Name, Text = original,
+			Matches = hits, Time = os.time(), Status = 'Needs review'}
+		records[#records + 1] = record
+		if #records > 100 then table.remove(records, 1) end
+		print('[ChatReview] '..player.Name..': '..original)
+		for _, hit in ipairs(hits) do
+			print('  Rule: '..hit.Phrase..' | supplied category (unverified): '..hit.Category)
+		end
+		if Notify.Enabled then
+			notify(player.Name..': '..#hits..' phrase match(es). Review chat context; no report sent.')
+		end
+	end
+
+	ChatReview = vape.Categories.Utility:CreateModule({
+		Name = 'ChatReview',
+		Function = function(enabled)
+			generation = generation + 1
+			if not enabled then return end
+			local version = generation
+			local main = frontlines.Main
+			local eventId = main and main.exe_func_t and main.exe_func_t.UPDATE_CHAT_GUI
+			if not eventId or not frontlines.Events or type(frontlines.Events[eventId]) ~= 'function' then
+				notify('UPDATE_CHAT_GUI is unavailable in this game version.')
+				ChatReview:Toggle()
+				return
+			end
+			ChatReview:Clean(hookEvent('UPDATE_CHAT_GUI', function(id, packedText)
+				-- Never swallow the game handler or let parsing errors escape into it.
+				pcall(function()
+					if not ChatReview.Enabled or generation ~= version or type(packedText) ~= 'string' then return end
+					local names = main.globals and main.globals.cli_names
+					local name = names and names[id]
+					if type(name) ~= 'string' then return end
+					local player = playersService:FindFirstChild(name)
+					if not player or player == lplr then return end
+					if whitelist and whitelist.get and whitelist:get(player) ~= 0 then return end
+					-- Equivalent to the file's unpack('z') for strings, with plain-text fallback.
+					local ending = packedText:find('\0', 1, true)
+					local text = ending and packedText:sub(1, ending - 1) or packedText
+					if text == '' then return end
+					task.defer(function()
+						local ok, err = pcall(inspect, player, text, version)
+						if not ok then warn('[ChatReview] '..tostring(err)) end
+					end)
+				end)
+				return nil
+			end))
+		end,
+		Tooltip = 'Reviews Frontlines chat against supplied phrases. Categories are unverified; no reports are sent.'
+	})
+	Notify = ChatReview:CreateToggle({Name = 'Notify', Default = true})
+	NormalizeRepeats = ChatReview:CreateToggle({
+		Name = 'Normalize repeats', Default = false,
+		Tooltip = 'Collapses repeated ASCII letters in both messages and rules. May increase false matches.'
+	})
+end)
+
+
 run(function()
 	local ChatSpammer
 	local Lines
